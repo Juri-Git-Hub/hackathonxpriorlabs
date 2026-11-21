@@ -485,8 +485,8 @@ export function createOuterTerrainTexture(surface = "concrete") {
     const r = 36 + Math.random() * 68;
     const warm = Math.random() > 0.5;
     const col = warm ? pal.patchA : pal.patchB;
-    for (const ox of (-size, 0, size)) {
-      for (const oy of (-size, 0, size)) {
+    for (const ox of [-size, 0, size]) {
+      for (const oy of [-size, 0, size]) {
         const cx = x + ox;
         const cy = y + oy;
         if (cx + r < 0 || cx - r > size || cy + r < 0 || cy - r > size) continue;

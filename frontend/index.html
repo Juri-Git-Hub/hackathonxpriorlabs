@@ -47,30 +47,6 @@
       <span id="layout-status" class="world-seed-badge" role="status"></span>
     </nav>
 
-    <!-- Backend integration controls; scene and existing main HUD remain intact. -->
-    <div id="backend-controls" class="hud-panel">
-      <div class="panel-title">PlumeSense · Live TabPFN</div>
-      <div id="mission-status" role="status">Waiting for mission…</div>
-      <div id="model-status" role="status">Waiting for backend…</div>
-      <div id="map-plan-status" role="status">Map plan: preparing before flight</div>
-      <div id="model-metrics" class="hint">No inference yet</div>
-      <div id="source-estimate" class="hint">Source estimate: —</div>
-      <div id="risk-forecast-time" class="hint">Gefahrenprognose: —</div>
-      <div class="control-row">
-        <label>Prediction layer
-          <select id="prediction-layer"><option value="source">Source scores</option><option value="hazard">Gas risk · +4 s forecast</option></select>
-        </label>
-        <label>Leak height <input id="leak-height" type="number" min="1" max="28" step="0.5" value="3.5" /> m</label>
-        <label><input id="show-route" type="checkbox" checked /> 3D route</label>
-      </div>
-      <div class="control-row">
-        <button id="btn-step" class="btn">Single step (+0.5 s)</button>
-        <label>Seed <input id="episode-seed" type="number" min="0" value="42" /></label>
-        <button id="btn-seed-reset" class="btn">Restart seed</button>
-      </div>
-      <div class="hint">Source layer: normalized ranking scores, not calibrated probabilities.</div>
-    </div>
-
     <section id="mission-report" class="hud-panel hidden" role="status" aria-live="polite">
       <div class="panel-title">Leck gefunden · Suche beendet</div>
       <p id="report-duration"></p>

@@ -285,7 +285,8 @@ async function bootstrap() {
       generateWorld.setAttribute("aria-pressed", String(mapId === "generated"));
       beliefView.initGrid(worldInit.grid_coords);
       droneView.clearTrails();
-      document.getElementById("source-estimate").textContent="Source estimate: —";
+      const srcEstEl = document.getElementById("source-estimate");
+      if (srcEstEl) srcEstEl.textContent="Source estimate: —";
       hud.hazardForecastTime=null;
       hud.updateRiskTime(0);
     },
@@ -429,7 +430,8 @@ async function bootstrap() {
         const simPos = threeToSim(hit.point);
         // If clicked on ground, elevate to realistic pipe height; on pipe/valve use exact 3D height
         if (hit.object === refineryView.groundMesh) {
-          simPos[2] = Math.max(1,Math.min(28,Number(document.getElementById("leak-height").value)||3.5));
+          const lhEl = document.getElementById("leak-height");
+          simPos[2] = Math.max(1,Math.min(28,Number(lhEl?.value)||3.5));
         }
         placeLeakAt(simPos);
         hud.setPlaceLeakMode(false);
