@@ -131,4 +131,8 @@ def test_cached_hazard_keeps_its_original_forecast_timestamp():
             assert belief.hazard_forecast_time==expected
             assert belief.hazard_observed_at==expected-4
         assert source.calls==4 and hazard.calls==2
+        assert agent.source_prediction_calls==4 and agent.hazard_prediction_calls==2
+        assert belief.source_prediction_backend=='injected_test_model'
+        agent.reset(World().to_world_init())
+        assert agent.source_prediction_calls==agent.hazard_prediction_calls==0
     finally:agent.close()

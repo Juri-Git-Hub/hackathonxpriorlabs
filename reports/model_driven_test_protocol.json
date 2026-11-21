@@ -1,0 +1,88 @@
+{
+  "profile": {
+    "name": "windframe12-model-driven-v2",
+    "context_rows": 4096,
+    "source_features": 12,
+    "hazard_features": 20,
+    "source_interval_s": 3,
+    "hazard_interval_s": 10,
+    "sensor_dwell_s": 2.5,
+    "max_model_step_m": 6,
+    "physical_dt_s": 0.05,
+    "goal_selection": "TabPFN source probabilities; novelty and travel cost for measurement planning",
+    "before_gas_contact": "source-independent map coverage",
+    "without_fresh_prediction": "hold after the current measurement stop; no directional fallback",
+    "success": "unchanged simulator judge: estimate <=5m, drone <=5m, ppm>15 for 2s",
+    "selection_split": "validation",
+    "validation_seeds": [
+      41,
+      42,
+      43
+    ],
+    "test_seeds": [
+      201,
+      202,
+      203,
+      204,
+      205,
+      206,
+      207
+    ]
+  },
+  "cases": [
+    {
+      "name": "default_seed201",
+      "seed": 201
+    },
+    {
+      "name": "default_seed202",
+      "seed": 202
+    },
+    {
+      "name": "default_seed203",
+      "seed": 203
+    },
+    {
+      "name": "other_valve",
+      "seed": 204,
+      "source": [
+        -17.5,
+        -2.0,
+        3.5
+      ]
+    },
+    {
+      "name": "east_tank_port",
+      "seed": 205,
+      "source": [
+        20.5,
+        -7.0,
+        6.0
+      ]
+    },
+    {
+      "name": "off_asset",
+      "seed": 206,
+      "source": [
+        8.0,
+        -10.0,
+        4.0
+      ]
+    },
+    {
+      "name": "elevated",
+      "seed": 207,
+      "source": [
+        15.0,
+        8.0,
+        13.0
+      ]
+    }
+  ],
+  "code_sha256": {
+    "integration/prediction_control.py": "ace20acd2145f9a0dcea1807a11a15fe473a48dd6f88fb9a37ef982a85152bbd",
+    "agents/plumesense_agent.py": "e19e2e788df46c0ed5342d784c48b2e249b0acdc531eae16d15b2e4337bb6ca6",
+    "integration/reduced_features.py": "6012bf89a35b382fa0300adde3b322a46951b32b64ff2ea180d636600e383414"
+  },
+  "note": "Declared before evaluating seeds201-207; no failed case is excluded."
+}

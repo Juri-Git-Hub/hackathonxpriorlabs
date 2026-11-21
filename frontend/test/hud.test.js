@@ -33,6 +33,9 @@ test('live status exposes compact inputs and measured local search phase',()=>{
   assert.match(nodes.get('mission-status').textContent,/Gaskontakt.*3D/);
   assert.match(nodes.get('model-status').textContent,/12 source \/ 20 risk inputs/);
   assert.match(nodes.get('model-metrics').textContent,/3 Messstopps/);
+  hud.updateBackendStatus({mode:'tabpfn-api',state:'ready',mission_state:'searching',search_phase:'track',navigation_basis:'tabpfn_source_prediction',prediction_decisions:7});
+  assert.match(nodes.get('mission-status').textContent,/TabPFN bestimmt/);
+  assert.match(nodes.get('model-metrics').textContent,/7 TabPFN-Ziele/);
 });
 
 test('cached hazard shows its actual forecast time and expiry',()=>{

@@ -127,6 +127,10 @@ class BeliefUpdatePayload(BaseModel):
     hazard_probabilities: list[float] = []
     hazard_observed_at: Optional[float] = None
     hazard_forecast_time: Optional[float] = None
+    source_prediction_backend: Optional[str] = None
+    hazard_prediction_backend: Optional[str] = None
+    navigation_basis: str = "unspecified"
+    prediction_decisions: int = 0
     route: list[Vec3] = []
     inference_seconds: float = 0.0
     measurement_count: int = 0
@@ -154,6 +158,10 @@ class BackendStatusPayload(BaseModel):
     completed_probes: int = 0
     source_features: int = 0
     hazard_features: int = 0
+    navigation_basis: str = "unspecified"
+    prediction_decisions: int = 0
+    source_prediction_calls: int = 0
+    hazard_prediction_calls: int = 0
 
 
 class JudgeCommand(BaseModel):

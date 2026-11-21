@@ -58,7 +58,11 @@ Die zwölf Quelleneingaben beschreiben Abstände zur stärksten eigenen Gasmessu
 
 `integration/navigation.py` plant echte 3D-A*-Flugwege mit geprüften Segmenten gegen Gebäude, horizontalen/vertikalen Flugzeitkosten und Zwischenhöhen bis 28 m. Routenplanung und GPU-Inferenz laufen in Hintergrund-Workern; der Physikthread folgt nur Wegpunkten. In Live-Demo und WebSocket-Server fliegt ausschließlich die TabPFN-Drohne. Raster- und Gradient-Strategien bleiben für Offline-Datengenerierung und Tests erhalten.
 
-`integration/search_control.py` sucht zuerst nach Gaskontakt an Messstellen im Abwind bekannter Anlagen, bei ausbleibendem Kontakt später im gesamten XYZ-Volumen. Anschließend testet die Drohne kurze lokale 3D-Messflüge, zuerst in Richtung der TabPFN-Schätzung. Sie wartet an den Messstellen auf Sensorberuhigung und vergleicht gemessene Konzentrationen. Auf-/Abstieg und Rückkehr zu bereits besuchten Positionen sind ausdrücklich erlaubt. Gas ist kein pauschal zu meidendes Hindernis. Die Quellenentscheidung kommt aus TabPFN; die kontinuierliche Bewegung und Messplanung kommen vom separaten Controller.
+**TabPFN ist für Quelle und Gefahr der tatsächlich verwendete Predictor.** Die 4090-API ruft `TabPFNClassifier.fit(X_train,y_train)` und `predict_proba(X_test)` auf. `source` klassifiziert, ob eine abgefragte XYZ-Hypothese höchstens 6 m von der Quelle entfernt ist; `hazard` sagt ≥10 ppm vier Sekunden später voraus. Die XYZ-Quellenschätzung ist das Maximum der TabPFN-Quellenscores. Im Live-Modus gibt es keinen Ersatz durch ein physikalisches Quellenmodell oder eine Interpolation.
+
+`integration/prediction_control.py` wählt **nach Gaskontakt jedes neue Messziel aus den TabPFN-Quellenscores**. Die frühere feste Folge aus Gegenwind-, Querwind- und Höhenproben sowie der Wechsel des Suchzentrums anhand eines Gasgradienten sind im Live-Modus entfernt. Der Messplaner gewichtet die Modellwahrscheinlichkeit mit Messneuheit und Flugaufwand, begrenzt den nächsten Messflug auf etwa 6 m und lässt A* Hindernisse umgehen. Er wartet auf Sensorberuhigung und danach auf eine frische Vorhersage; ohne diese startet er keinen weiteren Messflug. Vor erstem Gaskontakt bleibt geometrische Kartenerkundung nötig, da Gasdaten zur Ortung fehlen. Die bisherige lokale Suchstrategie bleibt ausschließlich als Offline-Vergleich (`--legacy-policy`) erhalten.
+
+Live-Nachweis im WebSocket: `source_prediction_backend`/`hazard_prediction_backend` kennzeichnen echte API-Vorhersagen, `navigation_basis` erklärt die Zielentscheidung, `prediction_decisions` zählt daraus ausgewählte Messziele. `backend_status` enthält zusätzlich erfolgreiche Quellen-/Gefahrenaufrufe. Das HUD zeigt „TabPFN bestimmt das 3D-Messziel“ beziehungsweise „warte auf TabPFN“ und die Zahl der Modellziele.
 
 **Quellenhypothesen und fliegbare Wegpunkte sind getrennt.** Das alte Grobraster hatte beim Standardleck einen minimal möglichen Schätzfehler von 7,17 m und konnte die unveränderte 5-m-Fundbedingung nie erfüllen. Jetzt ergänzt das Backend das Displayraster um alle bekannten Anlagenpositionen und nach Gaskontakt feinere windorientierte XYZ-Kandidaten. Die echte Leckposition wird dabei nicht abgefragt. Eine Quelle darf an einer Anlagenwand liegen; der Drohnenmesspunkt hält weiterhin Kollisionsabstand. Die Displayarrays bleiben kompatibel zum bisherigen Grobraster.
 
@@ -75,12 +79,12 @@ node --test frontend/test/*.test.js
 # Vorhersagemetriken des tatsächlich eingesetzten 12/20-Feature-Profils:
 python -m integration.evaluate
 # Echte asynchrone Live-Architektur, dauert bis zu drei Minuten:
-python -m integration.closed_loop --realtime --seed 42 --output reports/realtime_search_validation.json
+python -m integration.closed_loop --realtime --seed 42 --output reports/model_driven_realtime.json
 # Vorab festgelegte neue Testflüge; gemessene API-Latenz als Simulationsverzögerung:
-python -m integration.closed_loop --suite --output reports/final_closed_loop_tests.json
+python -m integration.closed_loop --suite --output reports/model_driven_final_tests.json
 # Gleicher Controller ohne TabPFN bzw. ohne feine Quellenkandidaten:
-python -m integration.closed_loop --sensor-only --seed 42 --output reports/development_sensor_search.json
-python -m integration.closed_loop --coarse-only --seed 42 --output reports/validation_coarse_grid_ablation.json
+python -m integration.closed_loop --sensor-only --seed 42 --output reports/model_driven_sensor_baseline.json
+python -m integration.closed_loop --coarse-only --seed 42 --output reports/model_driven_coarse_ablation.json
 # Featureanzahl und gezielte Featuregruppen nur auf Validierung vergleichen:
 python -m integration.feature_ablation
 python -m integration.feature_ablation --groups
@@ -88,14 +92,22 @@ python -m integration.feature_ablation --groups
 
 Der geerbte Benchmark `test_headless_engine_speed_over_500_steps_per_sec` scheitert auf dieser Maschine auch auf unverändertem main (ca. 386 Schritte/s im früheren Vergleichslauf). Die Live-Physik benötigt 20 Hz. Der Benchmark wurde nicht abgeschwächt; die funktionale Suite kann separat mit `-k 'not test_headless_engine_speed_over_500_steps_per_sec'` ausgeführt werden.
 
-Aktuelle Nachweise: `reports/compact_profile_predictions.json` (episodisch getrennte Vollraster-Prognosen), `realtime_search_validation.json` (asynchroner Echtzeitfund), `final_closed_loop_tests.json` (alle sieben Testflüge) und `validation_feature*.json` (Ablationen). Ältere Berichte einschließlich `main3d_evaluation.json` gehören zu früheren Profilen.
+Aktuelle Nachweise: `reports/compact_profile_predictions.json` (unveränderte 12/20-Feature-Modelle), `model_driven_validation.json`, `model_driven_final_tests.json`, `model_driven_test_protocol.json` und `model_driven_live_detection.json` (direkt modellbasierte Zielwahl, echte Live-API-Provenienz). `realtime_search_validation.json`, `live_browser_detection.json`, `final_closed_loop_tests.json` und `search_optimization_summary.json` gehören zur vorherigen Suchstrategie V1; sie werden als historische Vergleiche erhalten.
 
-Das kompakte Profil besteht **69 funktionale Python-Tests und vier Frontend-Tests**; der Three.js-Produktionsbuild besteht ebenfalls. `reports/search_optimization_summary.json` bündelt Konfiguration, Codehashes, Einflussanalyse und Ergebnisverweise. Tests prüfen unter anderem Train/Live-Featureparität, windrelative Invarianz, fehlende Windwerte, feinere Quellenhypothesen, Sensorberuhigung, 3D-Messflüge, unveränderten Fund-Judge, asynchronen Reset und Zeitbezug gecachter Gefahrenprognosen.
+Das modellgesteuerte Profil besteht **76 funktionale Python-Tests und vier Frontend-Tests**; der Three.js-Produktionsbuild besteht ebenfalls. Gegenprobentests zeigen: identische Karte und Messhistorie, aber andere Modellvorhersage führen zu anderen XYZ-Flugzielen. Fehlende, ungültige oder veraltete Vorhersagen starten keinen neuen Messflug. Weitere Tests prüfen Train/Live-Featureparität, windrelative Invarianz, Sensorberuhigung, unveränderten Fund-Judge, asynchronen Reset, API-Zähler und Zeitbezug gecachter Gefahrenprognosen.
 
 
 Das HUD meldet `mission_state` (`searching`, `paused`, `no_leak`, `depleted`, `found`), lokale Suchphase, `active_leaks` und `battery_pct`. Diese Simulator-/Betriebsdiagnose dient nur der Anzeige. Bei leerem Akku werden keine neuen Messungen mehr gesammelt; ohne aktive Leckquelle gibt es nichts zu lokalisieren. Ein Neustart stellt Standardleck und vollen Akku wieder her.
 
-### Gemessener Einfluss und tatsächliche Suchflüge
+### Direkt modellgesteuerte Suchflüge (V2)
+
+Die Merkmale und beide TabPFN-Modelle bleiben gegenüber V1 gleich; geändert wurde die Zielentscheidung. Validierung mit echter 4090-Inferenz und angewandter RPC-Verzögerung: **3/3 Funde** (Seeds 41/42/43: 66/162/59,5 s). Danach eingefrorene, neue Testseeds 201–207: **3/7 Funde** innerhalb 180 s. Alle drei Standardleck-Fälle wurden gefunden (179/69/76 s); die vier anderen Quellenfälle scheiterten. Die geänderte Steuerung nutzt TabPFN stärker, erreicht dadurch aber keine automatische Qualitätssteigerung für beliebige Quellen. Die Fehlversuche bleiben vollständig dokumentiert. Die frühere 5/7-Zahl gilt für andere Seeds und die alte Strategie und ist kein aktueller Erfolgsnachweis.
+
+`integration/prediction_protocol.py` und `reports/model_driven_test_protocol.json` halten das Profil und alle sieben Fälle fest. Nach den Testresultaten wurde die Politik nicht anhand fehlgeschlagener Fälle nachoptimiert. Wie zuvor bleibt die Karte gleich; neue Seeds sind kein Nachweis für unbekannte reale Anlagen.
+
+Die neu gestartete Three.js-Demo mit tatsächlichem asynchronen Backend und beiden GPU-Modellen fand das Standardleck bei Seed 42 nach **87,5 Simulationssekunden**, mit etwa **3,0 m Schätzfehler**. Alle fünf Messziele nach Gaskontakt wurden aus TabPFN-Scores gewählt. `reports/model_driven_live_detection.json` speichert API-Provenienz, erfolgreiche Modellaufrufe, Zielentscheidungen und den unveränderten Simulator-Fundbericht. Die Codehashes des eingefrorenen Controllers und Predictors stimmen mit dem getesteten Live-Code überein.
+
+### Einflussanalyse und historische Suchflüge (V1)
 
 - Gleicher Trainingskontext und acht Validierungsepisoden: Quelle mit 12 Features findet 4/7 Momentaufnahmen mit vorherigem Gaskontakt innerhalb von 5 m, ebenso das Modell mit 159 Features. Die gemessene mittlere Anfragezeit sank von ca. 1,80 s auf 0,25–0,28 s. Das ist ein kleiner Validierungsausschnitt, kein allgemeiner Genauigkeitsnachweis.
 - Beim gezielten Entfernen von Windgeometrie fällt dies auf 3/7, ohne lokale Messevidenz auf 2/7. Mehr Features oder Temperatur/Anlagenalter zeigten hier keinen verlässlichen Mehrwert. Die 20 Gefahrenfeatures haben eine kleine Prognoseeinbuße gegenüber 159, benötigen in der Validierung aber nur ca. 0,34 statt 2,32 s je Anfrage.

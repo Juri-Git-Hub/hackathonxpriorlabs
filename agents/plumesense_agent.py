@@ -9,7 +9,8 @@ from agents.base import AsyncInferenceAgent
 from shared.schemas import BeliefUpdatePayload
 from integration.features import rich_features,RICH_VERSION,SOURCE,HAZARD
 from integration.reduced_features import fit_reduced,lean_features,COMPACT
-from integration.search_control import SearchController,source_queries
+from integration.search_control import source_queries
+from integration.prediction_control import PredictionController
 from plumesense import ROOT
 
 
@@ -33,12 +34,14 @@ class PlumeSenseAgent(AsyncInferenceAgent):
         self._history_lock=threading.Lock();self.models=models
         self.error=None;self.hazard=None;self.source_scores=None;self.latency=0.;self.exposure=0.
     def _on_reset(self,world_init):
-        controller=SearchController(world_init)
+        controller=PredictionController(world_init)
         with self._history_lock:
             self.world=world_init;self.controller=controller;self.planner=controller.planner
             self.history=[];self.grid=np.asarray(world_init.grid_coords)
             self.route=[];self.waypoint=None;self.error=None;self.hazard=None;self.source_scores=None;self.exposure=0.;self.latency=0.
             self.last_source=-100.;self.last_hazard=-100.;self.search_phase='search';self.completed_probes=0
+            self.source_prediction_calls=0;self.hazard_prediction_calls=0
+            self.prediction_decisions=0;self.decision_basis='coverage_until_gas_contact'
     def update(self,obs):
         super().update(obs)
         # No model, path search or feature construction on the physics thread.
@@ -59,6 +62,8 @@ class PlumeSenseAgent(AsyncInferenceAgent):
             if controller is self.controller:
                 self.route=route.copy();self.waypoint=tuple(controller.goal) if controller.goal is not None else position
                 self.search_phase=controller.phase;self.completed_probes=controller.completed_probes
+                self.decision_basis=controller.decision_basis
+                self.prediction_decisions=controller.prediction_decisions
         return route
     def _run_inference(self,obs):
         with self._history_lock:
@@ -75,9 +80,10 @@ class PlumeSenseAgent(AsyncInferenceAgent):
             f=build(history,queries)
             scores=self.models[0].predict(f);index=int(np.argmax(scores));estimate=tuple(map(float,queries[index]))
             # Fine source hypotheses can be near equipment where a drone cannot fly.
-            controller.set_source_hint(estimate,current.sim_time)
+            controller.set_source_prediction(queries,scores,current.sim_time)
             hazard=self.hazard
-            if hazard is None or current.sim_time-self.last_hazard>=self.HAZARD_INTERVAL:
+            hazard_updated=hazard is None or current.sim_time-self.last_hazard>=self.HAZARD_INTERVAL
+            if hazard_updated:
                 hb=lean_features if getattr(self.models[1],'feature_builder',None)=='lean' else rich_features
                 hf=f.iloc[:len(grid)] if hb is build else hb(history,grid)
                 hazard=self.models[1].predict(hf)
@@ -88,10 +94,16 @@ class PlumeSenseAgent(AsyncInferenceAgent):
             belief=BeliefUpdatePayload(sim_time=current.sim_time,drone_id=self.drone_id,q50=normalized.tolist(),uncertainty=(1-np.abs(2*coarse-1)).tolist(),estimated_source=estimate,next_waypoint=tuple(controller.goal) if controller.goal is not None else current.pos,source_scores=normalized.tolist(),hazard_probabilities=hazard.tolist(),route=[current.pos,*route],inference_seconds=time.perf_counter()-start,measurement_count=len(history),exposure_ppm_seconds=self.exposure,score_kind='source_score',source_model_score=float(scores[index]))
             belief.hazard_observed_at=hazard_time
             belief.hazard_forecast_time=hazard_time+4
+            belief.source_prediction_backend=getattr(self.models[0],'backend','injected_test_model')
+            belief.hazard_prediction_backend=getattr(self.models[1],'backend','injected_test_model')
+            belief.navigation_basis=controller.decision_basis
+            belief.prediction_decisions=controller.prediction_decisions
             with self._history_lock:
                 if controller is self.controller:
                     self.last_source=current.sim_time;self.last_hazard=hazard_time;self.error=None
                     self.hazard=hazard;self.source_scores=normalized;self.latency=time.perf_counter()-start
+                    self.source_prediction_calls+=1
+                    if hazard_updated:self.hazard_prediction_calls+=1
             return (route[0] if route else current.pos),belief
         except Exception as exc:
             with self._history_lock:

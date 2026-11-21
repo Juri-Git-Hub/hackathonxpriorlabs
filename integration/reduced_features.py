@@ -18,6 +18,7 @@ class ReducedPredictor:
     def __init__(self,model,columns=None):
         self.model=model;self.selected_columns=columns;self.feature_version='main3d-history-v3'
         self.context=model.context;self.columns=model.columns;self.feature_builder='lean'
+        self.backend=model.backend
     def predict(self,frame):
         return self.model.predict(relative_features(frame) if self.selected_columns is None else frame[self.selected_columns])
 
