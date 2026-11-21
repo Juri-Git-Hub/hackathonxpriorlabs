@@ -13,8 +13,12 @@ class PredictionController(SearchController):
     MAX_STEP=6.0
     MAX_PREDICTION_AGE=5.0
 
-    def __init__(self, world):
+    def __init__(self, world, wind_aware=False):
         super().__init__(world)
+        self.wind_aware=wind_aware
+        if wind_aware:
+            from integration.wind_planning import WindAwarePlanner
+            self.planner=WindAwarePlanner(world)
         self.awaiting_prediction=False
         self.prediction_time=-100.0
         self.prediction_decisions=0
@@ -47,7 +51,8 @@ class PredictionController(SearchController):
             seen.add(key)
             if any(obs.sim_time-t<30 and np.linalg.norm(goal-p)<2 for t,p in self.failed_goals):continue
             novelty=1-np.exp(-np.linalg.norm(recent-goal,axis=1).min()/3)
-            utility=float(scores[i])*(.55+.45*novelty)/(1+.025*np.linalg.norm(goal-current))
+            travel=self.planner.measurement_cost(current,goal) if self.wind_aware else np.linalg.norm(goal-current)
+            utility=float(scores[i])*(.55+.45*novelty)/(1+.025*travel)
             proposals.append((utility,int(i),goal))
         for _,index,goal in sorted(proposals,key=lambda row:row[0],reverse=True):
             if self.set_goal(goal,obs,'tabpfn'):
@@ -59,6 +64,7 @@ class PredictionController(SearchController):
 
     def ingest(self, obs):
         if self.history and obs.sim_time<=self.history[-1].sim_time:return
+        if self.wind_aware:self.planner.observe_wind(self.history,obs)
         self.history.append(obs)
         signal=float(np.median([o.ppm_measured for o in self.history[-3:]]))
         if signal>3:self.last_contact=obs.sim_time

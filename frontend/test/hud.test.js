@@ -36,6 +36,9 @@ test('live status exposes compact inputs and measured local search phase',()=>{
   hud.updateBackendStatus({mode:'tabpfn-api',state:'ready',mission_state:'searching',search_phase:'track',navigation_basis:'tabpfn_source_prediction',prediction_decisions:7});
   assert.match(nodes.get('mission-status').textContent,/TabPFN bestimmt/);
   assert.match(nodes.get('model-metrics').textContent,/7 TabPFN-Ziele/);
+  hud.updateBackendStatus({mode:'tabpfn-api',state:'ready',mission_state:'searching',navigation_basis:'wind_adapted_acquisition',adaptive_wind:true,wind_replans:2});
+  assert.match(nodes.get('mission-status').textContent,/Wind geändert/);
+  assert.match(nodes.get('model-metrics').textContent,/2 Windanpassungen/);
 });
 
 test('cached hazard shows its actual forecast time and expiry',()=>{

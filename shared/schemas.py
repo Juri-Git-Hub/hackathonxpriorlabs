@@ -162,6 +162,8 @@ class BackendStatusPayload(BaseModel):
     prediction_decisions: int = 0
     source_prediction_calls: int = 0
     hazard_prediction_calls: int = 0
+    adaptive_wind: bool = False
+    wind_replans: int = 0
 
 
 class JudgeCommand(BaseModel):

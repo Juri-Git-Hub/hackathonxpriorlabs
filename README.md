@@ -107,6 +107,27 @@ Die Merkmale und beide TabPFN-Modelle bleiben gegenüber V1 gleich; geändert wu
 
 Die neu gestartete Three.js-Demo mit tatsächlichem asynchronen Backend und beiden GPU-Modellen fand das Standardleck bei Seed 42 nach **87,5 Simulationssekunden**, mit etwa **3,0 m Schätzfehler**. Alle fünf Messziele nach Gaskontakt wurden aus TabPFN-Scores gewählt. `reports/model_driven_live_detection.json` speichert API-Provenienz, erfolgreiche Modellaufrufe, Zielentscheidungen und den unveränderten Simulator-Fundbericht. Die Codehashes des eingefrorenen Controllers und Predictors stimmen mit dem getesteten Live-Code überein.
 
+### Windabhängige Anpassung: getestet, optional
+
+Wind steckt bereits in den TabPFN-Eingaben, den windorientierten Quellenhypothesen und den anfänglichen Messpunkten im Abwind bekannter Anlagen. `integration/wind_search.py` ergänzt eine optionale Reaktion auf große **gemessene Richtungsänderungen vor Gaskontakt**. Nach mindestens 60° Änderung wird das bisherige Suchziel anhand der neuen Windrichtung erneut bestimmt. Mindestens drei gültige Messungen der letzten vier Sekunden und eine kohärente Richtung sind erforderlich; Ruhewind, Dropouts und einzelne Böen lösen keine ständigen Zielwechsel aus. Zwischen Anpassungen liegen mindestens acht Sekunden. Nach Gaskontakt bleiben TabPFN-Scores für die Messziele verantwortlich; laufende Modellmessflüge werden durch Windwechsel nicht abgebrochen.
+
+Der Modus ist **standardmäßig aus**, da die Vergleichsläufe keinen allgemeinen Vorteil zeigen. Auf sieben Validierungsfällen: bisheriger Planner 6/7 Funde, Windanpassung ebenfalls 6/7, aber mittlere auf 180 s begrenzte Suchzeit 103,2 gegenüber 120,1 s. Bei einer frühen Windumkehr verschlechterte sich der Fund von 33,5 auf 152 s. Eine zweite Idee, Gegen-/Seitenwind über Flugkosten stärker zu gewichten, erreichte nur 3/6 statt 5/6 Funden im vergleichbaren Sechs-Fälle-Ausschnitt und wird ebenfalls nicht im Live-Standard verwendet. Der Positionsregler kompensiert Wind bereits; Rückenwind pauschal zur Sollgeschwindigkeit zu addieren wäre kein passendes Modell dieser Simulation.
+
+Sieben danach eingefrorene neue Wind-/Quellenszenarien (Seeds 301–307) ergeben für den optionalen Modus **4/7 Funde**. Diese Kohorte unterscheidet sich von den V2-Tests und ist kein Verbesserungsnachweis. Die Agenten erhalten ausschließlich eigene verrauschte Windmessungen, keine Simulator-Windfelder oder tatsächlichen Leckkoordinaten. Beide TabPFN-Modelle und die Fundkriterien bleiben gleich.
+
+```bash
+# Explizit experimentell aktivieren; normaler Start behält die bisherige Suche:
+python launch_demo.py --adaptive-wind
+# Bisherige Suche explizit wählen:
+python launch_demo.py --no-adaptive-wind
+# Sieben vorab definierte neue Wind-/Quellenfälle:
+python -m integration.closed_loop --adaptive-wind --suite --output reports/wind_search_final_tests.json
+# Vergleich mit identischen Kontextdaten und Seeds (benötigt die echte API):
+python -m integration.wind_benchmark --policies prediction wind_search
+```
+
+`backend_status.adaptive_wind` und `wind_replans` zeigen den aktiven Modus und tatsächlich ausgelöste Anpassungen. Der Echtzeit-Smoke-Test mit beiden echten 4090-Modellen bestätigt eine Windanpassung nach einem simulierten Windwechsel; dies ist ausdrücklich kein vollständiger Fundlauf. Nachweise: `reports/wind_planning_decision.json`, `wind_reactive_validation.json`, `wind_planner_validation.json`, `wind_search_final_tests.json`, `wind_search_test_protocol.json`, `wind_search_live_smoke.json`. **86 funktionale Python-Tests, vier Frontend-Tests und der Build bestehen**; der bereits dokumentierte geerbte Speedbenchmark bleibt ausgenommen.
+
 ### Einflussanalyse und historische Suchflüge (V1)
 
 - Gleicher Trainingskontext und acht Validierungsepisoden: Quelle mit 12 Features findet 4/7 Momentaufnahmen mit vorherigem Gaskontakt innerhalb von 5 m, ebenso das Modell mit 159 Features. Die gemessene mittlere Anfragezeit sank von ca. 1,80 s auf 0,25–0,28 s. Das ist ein kleiner Validierungsausschnitt, kein allgemeiner Genauigkeitsnachweis.

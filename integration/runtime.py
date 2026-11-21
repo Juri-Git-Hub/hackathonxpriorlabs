@@ -4,10 +4,11 @@ import threading
 import time
 from agents.plumesense_agent import PlumeSenseAgent
 from sim.engine import SimEngine
+from integration.wind_search import DEFAULT_ADAPTIVE_WIND
 
 class Runtime:
-    def __init__(self,seed=42,models=None):
-        self.agent=PlumeSenseAgent(models=models)
+    def __init__(self,seed=42,models=None,adaptive_wind=DEFAULT_ADAPTIVE_WIND):
+        self.agent=PlumeSenseAgent(models=models,adaptive_wind=adaptive_wind)
         self.engine=SimEngine({'tabpfn':self.agent},seed=seed)
         self.engine.paused=True;self.beliefs={};self.stop=threading.Event();self.error=None
         self.thread=threading.Thread(target=self._run,daemon=True);self.thread.start();atexit.register(self.close)

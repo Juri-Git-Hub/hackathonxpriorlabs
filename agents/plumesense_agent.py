@@ -11,6 +11,7 @@ from integration.features import rich_features,RICH_VERSION,SOURCE,HAZARD
 from integration.reduced_features import fit_reduced,lean_features,COMPACT
 from integration.search_control import source_queries
 from integration.prediction_control import PredictionController
+from integration.wind_search import WindReactiveController,DEFAULT_ADAPTIVE_WIND
 from plumesense import ROOT
 
 
@@ -29,12 +30,12 @@ def load_models(backend='tabpfn-api',dataset=None,context_rows=4096):
 class PlumeSenseAgent(AsyncInferenceAgent):
     SOURCE_INTERVAL=3.0
     HAZARD_INTERVAL=10.0
-    def __init__(self,drone_id='tabpfn',models=None):
+    def __init__(self,drone_id='tabpfn',models=None,adaptive_wind=DEFAULT_ADAPTIVE_WIND):
         super().__init__(drone_id)
-        self._history_lock=threading.Lock();self.models=models
+        self._history_lock=threading.Lock();self.models=models;self.adaptive_wind=adaptive_wind
         self.error=None;self.hazard=None;self.source_scores=None;self.latency=0.;self.exposure=0.
     def _on_reset(self,world_init):
-        controller=PredictionController(world_init)
+        controller=(WindReactiveController if self.adaptive_wind else PredictionController)(world_init)
         with self._history_lock:
             self.world=world_init;self.controller=controller;self.planner=controller.planner
             self.history=[];self.grid=np.asarray(world_init.grid_coords)
@@ -42,6 +43,7 @@ class PlumeSenseAgent(AsyncInferenceAgent):
             self.last_source=-100.;self.last_hazard=-100.;self.search_phase='search';self.completed_probes=0
             self.source_prediction_calls=0;self.hazard_prediction_calls=0
             self.prediction_decisions=0;self.decision_basis='coverage_until_gas_contact'
+            self.wind_replans=0
     def update(self,obs):
         super().update(obs)
         # No model, path search or feature construction on the physics thread.
@@ -64,6 +66,7 @@ class PlumeSenseAgent(AsyncInferenceAgent):
                 self.search_phase=controller.phase;self.completed_probes=controller.completed_probes
                 self.decision_basis=controller.decision_basis
                 self.prediction_decisions=controller.prediction_decisions
+                self.wind_replans=getattr(controller,'wind_replans',0)
         return route
     def _run_inference(self,obs):
         with self._history_lock:

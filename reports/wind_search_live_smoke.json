@@ -1,0 +1,17 @@
+{
+  "kind": "real_time_async_smoke_not_a_navigation_success_trial",
+  "models_preloaded": true,
+  "adaptive_wind": true,
+  "wind_changed_at_sim_s": 5,
+  "wind_replans": 1,
+  "sim_seconds": 8.999999999999993,
+  "source_calls": 3,
+  "hazard_calls": 1,
+  "source_prediction_backend": "tabpfn-api",
+  "hazard_prediction_backend": "tabpfn-api",
+  "source_estimate_age_s": 1.5000000000000115,
+  "prediction_decisions": 0,
+  "phase": "search",
+  "default_enabled": false,
+  "error": null
+}

@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from agents.base import BaseAgent
 from agents.mock_agent import MockTabPFNAgent
+from integration.wind_search import DEFAULT_ADAPTIVE_WIND
 from agents.plumesense_agent import PlumeSenseAgent
 from shared.schemas import JudgeCommand, BackendStatusPayload
 from fastapi.staticfiles import StaticFiles
@@ -32,21 +33,21 @@ from sim.engine import SimEngine
 logger = logging.getLogger("gas_leak_server")
 
 
-def build_agents(mock_agents: bool = True) -> dict[str, BaseAgent]:
+def build_agents(mock_agents: bool = True,adaptive_wind: bool = DEFAULT_ADAPTIVE_WIND) -> dict[str, BaseAgent]:
     """Instantiate only the TabPFN drone for the live demo."""
     if mock_agents:
         primary: BaseAgent = MockTabPFNAgent(drone_id="tabpfn")
     else:
-        primary = PlumeSenseAgent(drone_id="tabpfn")
+        primary = PlumeSenseAgent(drone_id="tabpfn",adaptive_wind=adaptive_wind)
 
     return {
         "tabpfn": primary,
     }
 
 
-def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
+def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DEFAULT_ADAPTIVE_WIND) -> FastAPI:
     """Create and configure the FastAPI application."""
-    agents = build_agents(mock_agents=mock_agents)
+    agents = build_agents(mock_agents=mock_agents,adaptive_wind=adaptive_wind)
     engine = SimEngine(agents=agents, seed=seed)
     clients: set[WebSocket] = set()
     latest_beliefs = {}
@@ -116,7 +117,7 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
     def backend_status():
         agent=agents['tabpfn'];error=getattr(agent,'error',None)
         models=getattr(agent,'models',None)
-        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api',state='mock' if mock_agents else 'error' if error else 'ready' if getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused,active_leaks=len(engine.leaks),battery_pct=engine.drones['tabpfn'].battery_pct,mission_report=engine.mission_report,mission_state='found' if engine.mission_report is not None else 'no_leak' if not engine.leaks else 'depleted' if engine.drones['tabpfn'].status=='depleted' else 'paused' if engine.paused else 'searching',search_phase=getattr(agent,'search_phase','search'),completed_probes=getattr(agent,'completed_probes',0),source_features=len(models[0].columns) if models else 0,hazard_features=len(models[1].columns) if models else 0,navigation_basis=getattr(agent,'decision_basis','unspecified'),prediction_decisions=getattr(agent,'prediction_decisions',0),source_prediction_calls=getattr(agent,'source_prediction_calls',0),hazard_prediction_calls=getattr(agent,'hazard_prediction_calls',0))
+        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api',state='mock' if mock_agents else 'error' if error else 'ready' if getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused,active_leaks=len(engine.leaks),battery_pct=engine.drones['tabpfn'].battery_pct,mission_report=engine.mission_report,mission_state='found' if engine.mission_report is not None else 'no_leak' if not engine.leaks else 'depleted' if engine.drones['tabpfn'].status=='depleted' else 'paused' if engine.paused else 'searching',search_phase=getattr(agent,'search_phase','search'),completed_probes=getattr(agent,'completed_probes',0),source_features=len(models[0].columns) if models else 0,hazard_features=len(models[1].columns) if models else 0,navigation_basis=getattr(agent,'decision_basis','unspecified'),prediction_decisions=getattr(agent,'prediction_decisions',0),source_prediction_calls=getattr(agent,'source_prediction_calls',0),hazard_prediction_calls=getattr(agent,'hazard_prediction_calls',0),adaptive_wind=getattr(agent,'adaptive_wind',False),wind_replans=getattr(agent,'wind_replans',0))
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -174,6 +175,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
     parser.add_argument("--seed", type=int, default=42, help="Simulation RNG seed")
+    parser.add_argument("--adaptive-wind",action=argparse.BooleanOptionalAction,default=DEFAULT_ADAPTIVE_WIND,help="Refresh acquisition targets after sustained changes in measured wind")
     return parser.parse_args()
 
 
@@ -181,5 +183,5 @@ if __name__ == "__main__":
     import uvicorn
 
     args = _parse_args()
-    app = create_app(mock_agents=args.mock_agents, seed=args.seed)
+    app = create_app(mock_agents=args.mock_agents, seed=args.seed,adaptive_wind=args.adaptive_wind)
     uvicorn.run(app, host=args.host, port=args.port)

@@ -312,13 +312,14 @@ export class HudController {
     this.modelMode=status.mode;
     this.updateReport(status.mission_report);
     const mission=document.getElementById("mission-status");
-    const phases={tabpfn_source_prediction:"TabPFN bestimmt das 3D-Messziel",waiting_for_tabpfn:"Messung bereit · warte auf TabPFN",sensor_settling:"Gaskontakt · Sensor beruhigt sich"};
+    const phases={tabpfn_source_prediction:"TabPFN bestimmt das 3D-Messziel",waiting_for_tabpfn:"Messung bereit · warte auf TabPFN",sensor_settling:"Gaskontakt · Sensor beruhigt sich",wind_adapted_acquisition:"Wind geändert · Suchziel angepasst"};
     const states={found:"Leck gefunden — Suche beendet",no_leak:"No active leak — restart mission or place a leak",depleted:"Battery empty — restart mission",paused:"Paused",searching:phases[status.navigation_basis] || (status.search_phase==="track" ? "Gaskontakt · lokale 3D-Quellensuche" : "Suche nach Gaskontakt")};
     mission.textContent=states[status.mission_state] || (status.mode==="mock" ? "Mock mission" : "Searching");
     mission.style.color=["no_leak","depleted"].includes(status.mission_state) ? "#fca5a5" : "#cbd5e1";
     const features=status.source_features ? ` · ${status.source_features} source / ${status.hazard_features} risk inputs` : "";
     document.getElementById("model-status").textContent = `${status.mode} · ${status.state}${features}${status.error ? ": " + status.error : ""}`;
-    document.getElementById("model-metrics").textContent = `${(status.inference_seconds || 0).toFixed(2)} s inference · ${status.measurement_count || 0} measurements · ${status.completed_probes || 0} Messstopps · ${status.prediction_decisions || 0} TabPFN-Ziele · ${(status.exposure_ppm_seconds || 0).toFixed(1)} ppm·s exposure`;
+    const wind=status.adaptive_wind ? ` · ${status.wind_replans || 0} Windanpassungen` : "";
+    document.getElementById("model-metrics").textContent = `${(status.inference_seconds || 0).toFixed(2)} s inference · ${status.measurement_count || 0} measurements · ${status.completed_probes || 0} Messstopps · ${status.prediction_decisions || 0} TabPFN-Ziele${wind} · ${(status.exposure_ppm_seconds || 0).toFixed(1)} ppm·s exposure`;
   }
 
   updateBelief(belief) {
