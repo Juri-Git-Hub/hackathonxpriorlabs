@@ -10,7 +10,7 @@ Do not modify field names without updating all consumers.
 """
 
 from typing import Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 Vec3 = tuple[float, float, float]
 Vec2 = tuple[float, float]
@@ -97,6 +97,7 @@ class SimTickPayload(BaseModel):
     drones: list[DroneTickState]
     puffs: list[PuffState]  # Capped at <= 400 active puffs for 60 FPS rendering
     sensor_dropout_active: bool
+    paused: bool = False
 
 
 class BeliefUpdatePayload(BaseModel):
@@ -107,6 +108,25 @@ class BeliefUpdatePayload(BaseModel):
     uncertainty: list[float]  # (q90 - q10), length N
     estimated_source: Vec3
     next_waypoint: Vec3
+    source_scores: list[float] = []
+    hazard_probabilities: list[float] = []
+    route: list[Vec3] = []
+    inference_seconds: float = 0.0
+    measurement_count: int = 0
+    exposure_ppm_seconds: float = 0.0
+    score_kind: str = "legacy_quantile"
+
+
+class BackendStatusPayload(BaseModel):
+    type: Literal["backend_status"] = "backend_status"
+    sim_time: float
+    mode: str
+    state: Literal["pending", "ready", "error", "mock"]
+    error: Optional[str] = None
+    inference_seconds: float = 0.0
+    measurement_count: int = 0
+    exposure_ppm_seconds: float = 0.0
+    paused: bool = False
 
 
 class JudgeCommand(BaseModel):
@@ -118,8 +138,10 @@ class JudgeCommand(BaseModel):
         "toggle_dropout",
         "reset_race",
         "pause",
+        "step",
     ]
     wind_angle_deg: Optional[float] = None
     wind_speed: Optional[float] = None
     leak_pos: Optional[Vec3] = None
     dropout_enabled: Optional[bool] = None
+    seed: Optional[int] = Field(default=None, ge=0)

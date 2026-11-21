@@ -27,7 +27,9 @@ from agents.gradient import GradientAgent
 from agents.lawnmower import LawnmowerAgent
 from agents.mock_agent import MockTabPFNAgent
 from agents.plumesense_agent import PlumeSenseAgent
-from shared.schemas import JudgeCommand
+from shared.schemas import JudgeCommand, BackendStatusPayload
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from sim.engine import SimEngine
 
 logger = logging.getLogger("gas_leak_server")
@@ -52,6 +54,7 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
     agents = build_agents(mock_agents=mock_agents)
     engine = SimEngine(agents=agents, seed=seed)
     clients: set[WebSocket] = set()
+    latest_beliefs = {}
 
     async def broadcast_json(payload_text: str) -> None:
         if not clients:
@@ -67,17 +70,22 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
 
     async def sim_loop() -> None:
         dt = engine.DT
+        status_at=0.0
         while True:
             t0 = time.perf_counter()
             tick = engine.step(dt)
             if clients:
                 await broadcast_json(tick.model_dump_json())
                 for belief in engine.pop_belief_updates():
+                    latest_beliefs[belief.drone_id]=belief
                     await broadcast_json(belief.model_dump_json())
             else:
                 # Drain pending beliefs when nobody is connected
-                engine.pop_belief_updates()
+                for belief in engine.pop_belief_updates():latest_beliefs[belief.drone_id]=belief
 
+            if clients and time.monotonic()>=status_at:
+                await broadcast_json(backend_status().model_dump_json())
+                status_at=time.monotonic()+1
             elapsed = time.perf_counter() - t0
             sleep_for = max(0.0, dt - elapsed)
             await asyncio.sleep(sleep_for)
@@ -110,6 +118,10 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
         allow_headers=["*"],
     )
 
+    def backend_status():
+        agent=agents['tabpfn'];error=getattr(agent,'error',None)
+        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api',state='mock' if mock_agents else 'error' if error else 'ready' if getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused)
+
     @app.get("/health")
     async def health() -> dict[str, Any]:
         return {
@@ -128,6 +140,8 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
             # Immediately send static world geometry on connect
             world_init = engine.get_world_init()
             await websocket.send_text(world_init.model_dump_json())
+            await websocket.send_text(backend_status().model_dump_json())
+            for belief in list(latest_beliefs.values()):await websocket.send_text(belief.model_dump_json())
 
             while True:
                 raw_text = await websocket.receive_text()
@@ -139,11 +153,17 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
                     )
                     continue
                 engine.apply_command(cmd)
+                if cmd.action=='reset_race':
+                    latest_beliefs.clear()
+                    await broadcast_json(engine.get_world_init().model_dump_json())
+                await broadcast_json(backend_status().model_dump_json())
         except WebSocketDisconnect:
             pass
         finally:
             clients.discard(websocket)
 
+    dist=Path(__file__).resolve().parents[1]/'frontend'/'dist'
+    if dist.exists():app.mount('/',StaticFiles(directory=dist,html=True),name='frontend')
     return app
 
 

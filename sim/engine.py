@@ -156,7 +156,14 @@ class SimEngine:
                 else:
                     self.sensor_dropout_active = not self.sensor_dropout_active
             elif cmd.action == "reset_race":
+                if cmd.seed is not None:self._seed=cmd.seed
                 self.reset_race()
+            elif cmd.action == "step":
+                if self.paused:
+                    self.paused=False
+                    try:
+                        for _ in range(10):self.step()
+                    finally:self.paused=True
             elif cmd.action == "pause":
                 self.paused = not self.paused
 
@@ -185,9 +192,14 @@ class SimEngine:
                 if trigger_obs:
                     self._obs_accum -= self.OBS_INTERVAL
 
+                # Batch local wind query for all drones in a single vectorized call
+                drone_items = list(self.drones.items())
+                drone_positions = np.array([d.pos for _, d in drone_items], dtype=np.float64)
+                drone_winds = self.airflow.sample_wind(drone_positions)
+
                 # Step each drone and its chemical sensor
-                for drone_id, drone in self.drones.items():
-                    wind_local = self.airflow.sample_wind(drone.pos)
+                for idx, (drone_id, drone) in enumerate(drone_items):
+                    wind_local = drone_winds[idx]
                     drone.step(step_dt, wind_local, self.world)
 
                     true_ppm = self.plume.sample_concentration(drone.pos_tuple)
@@ -195,7 +207,9 @@ class SimEngine:
 
                     if trigger_obs and drone.status != "depleted":
                         ppm_meas, wind_meas, temp_delta = self.sensors[drone_id].read(
-                            wind_local, dropout_active=self.sensor_dropout_active
+                            wind_local,
+                            dropout_active=self.sensor_dropout_active,
+                            drone_tilt_rad=drone.tilt_rad,
                         )
                         drone.last_ppm = ppm_meas
                         drone.samples_taken += 1
@@ -276,6 +290,7 @@ class SimEngine:
                 drones=drone_states,
                 puffs=self.plume.get_puff_states(),
                 sensor_dropout_active=self.sensor_dropout_active,
+            paused=self.paused,
             )
 
     def pop_belief_updates(self) -> list[BeliefUpdatePayload]:

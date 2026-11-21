@@ -157,3 +157,46 @@ def test_headless_engine_speed_over_500_steps_per_sec() -> None:
     elapsed = time.perf_counter() - t0
     steps_per_sec = n_steps / max(elapsed, 1e-6)
     assert steps_per_sec > 500.0, f"Expected >500 steps/s headless, got {steps_per_sec:.1f}"
+
+
+def test_six_dof_rigid_body_motor_lag_and_attitude_response() -> None:
+    """Verify true 6-DOF quaternion, angular rates, and 4-motor ESC lag respond physically."""
+    world = World()
+    drone = Drone("rigid_test", start_pos=(-45.0, -45.0, 8.0))
+    drone.set_target((-25.0, -45.0, 8.0))  # Pure +X step command
+
+    zero_wind = np.zeros(3, dtype=np.float64)
+    # Step 1 tick (0.05s): pitch should begin tilting forward (+Y rotation -> positive pitch),
+    # rear rotors (2, 3) should spin faster than front rotors (0, 1), and quaternion stays unit norm.
+    drone.step(0.05, zero_wind, world)
+    assert abs(float(np.linalg.norm(drone.quat)) - 1.0) < 1e-6
+    assert drone.rot_rpy[1] > 0.01  # Pitching nose down (+X acceleration)
+    assert float(np.linalg.norm(drone.omega)) > 0.05
+    # Verify motor speeds stay within physical limits and differ across rotors during pitch-up
+    assert np.all(drone.rotor_speeds >= Drone.OMEGA_MIN - 1e-3)
+    assert np.all(drone.rotor_speeds <= Drone.OMEGA_MAX + 1e-3)
+
+    # After 4 seconds, drone should have accelerated strongly along +X
+    for _ in range(80):
+        drone.step(0.05, zero_wind, world)
+    assert drone.pos[0] > -35.0
+    assert abs(float(np.linalg.norm(drone.quat)) - 1.0) < 1e-6
+
+
+def test_abl_vertical_wind_shear_and_wall_gas_occlusion() -> None:
+    """Verify ABL wind speed increases with altitude and solid walls block direct gas transmission."""
+    world = World()
+    airflow = Airflow(world, base_wind_angle_deg=0.0, base_wind_speed=4.0, sigma_w=0.0, seed=5)
+
+    w_low = airflow.sample_wind(np.array([-45.0, -45.0, 2.0]))
+    w_high = airflow.sample_wind(np.array([-45.0, -45.0, 20.0]))
+    assert float(np.linalg.norm(w_high[:2])) > float(np.linalg.norm(w_low[:2])) * 1.25
+
+    # Solid building bldg_control spans x in [-38, -20], y in [-28, -12], z in [0, 12]
+    puff_west = np.array([[-40.0, -20.0, 4.0]])
+    pt_east_blocked = (-18.0, -20.0, 4.0)
+    pt_west_clear = (-42.0, -20.0, 4.0)
+    trans_blocked = world.segment_transmission(puff_west, pt_east_blocked)[0]
+    trans_clear = world.segment_transmission(puff_west, pt_west_clear)[0]
+    assert trans_clear == 1.0
+    assert trans_blocked < 0.15

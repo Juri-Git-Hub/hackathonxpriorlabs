@@ -88,3 +88,30 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
             assert seen_belief
             assert dropout_applied
             assert leak_added
+
+def test_live_status_and_manual_step_contract():
+    from shared.schemas import BackendStatusPayload
+    app=create_app(mock_agents=True,seed=42)
+    with TestClient(app) as client:
+        with client.websocket_connect('/ws') as ws:
+            WorldInitPayload.model_validate_json(ws.receive_text())
+            status=BackendStatusPayload.model_validate_json(ws.receive_text())
+            assert status.state=='mock'
+            engine=app.state.engine
+            engine.apply_command(JudgeCommand(action='pause'))
+            t=engine.sim_time
+            engine.apply_command(JudgeCommand(action='step'))
+            assert engine.paused and abs(engine.sim_time-t-.5)<1e-6
+            engine.apply_command(JudgeCommand(action='reset_race',seed=99))
+            assert engine.sim_time==0 and engine._seed==99
+
+
+def test_extended_belief_payload_preserves_legacy_fields():
+    b=BeliefUpdatePayload(sim_time=1,drone_id='tabpfn',q50=[.2,.8],uncertainty=[.1,.1],estimated_source=(1,2,3),next_waypoint=(4,5,6),source_scores=[.2,.8],hazard_probabilities=[.4,.6],route=[(0,0,3),(4,5,6)],inference_seconds=.5,measurement_count=3,score_kind='source_score')
+    parsed=BeliefUpdatePayload.model_validate_json(b.model_dump_json())
+    assert parsed.route[-1]==(4,5,6) and parsed.hazard_probabilities==[.4,.6]
+
+def test_reset_rejects_negative_seed():
+    import pytest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):JudgeCommand(action='reset_race',seed=-1)

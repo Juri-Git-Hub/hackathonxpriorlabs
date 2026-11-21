@@ -1,6 +1,6 @@
-# PlumeSense · main-Simulation mit unserem TabPFN-Backend
+# PlumeSense Backend + Three.js aus main
 
-Dieser Branch vereint die 3D-Simulation von `main` mit unserer RTX-4090-API, automatischem SSH-Tunnel, zwei TabPFN-Klassifikatoren (Quelle und zukünftige Gefahr) und Streamlit/Plotly-Demo.
+Die Oberfläche ist die Three.js-/Vite-Simulation aus dem aktuellen `main`. Unser Beitrag ist das Backend: zwei TabPFN-Modelle auf der RTX 4090, mobiler Gassensor, Historienmerkmale, 3D-Flugplanung, Live-Prognosen und WebSocket-Verträge. Streamlit, Plotly und die separaten Python-Oberflächen wurden entfernt.
 
 ## Start
 
@@ -12,44 +12,60 @@ python -m integration.generate --episodes 24 --seconds 40
 python launch_demo.py
 ```
 
-http://localhost:8501 öffnen und „Live laufen“ aktivieren. Die drei Ansichten zeigen Raffinerie, TabPFN-Quellenscores und Gefahr in vier Sekunden. Ground Truth ist standardmäßig verborgen. Jede Drohne hat ausschließlich ihren eigenen mobilen Gassensor; der TabPFN-Agent erhält keine Messwerte der Vergleichsdrohnen.
-
-SSH-Alias `my4090` muss erreichbar sein; auf dessen Port 8000 läuft unsere vorhandene API aus `api/server.py`. `launch_demo.py` und `tunnel.py` öffnen bei Bedarf den Tunnel zu lokalem Port 18000. Konfiguration: `PLUMESENSE_API_URL`, `PLUMESENSE_SSH_HOST`, `PLUMESENSE_REMOTE_PORT`. Kein erneuter Modellabruf oder Token auf dem Laptop nötig. Die API mit den getrennten Kontexten `source` und `hazard` bleibt unverändert.
-
-## Integration
-
-- `sim/` und `shared/` basieren auf main; das Kandidatenraster wurde auf sechs Höhen (3, 8, 13, 18, 23, 28 m) erweitert: 120×120×30 m, Z-up, turbulente Strömung, kontinuierliche Puff-Emission, Gebäude, Sensorträgheit/-rauschen und 20-Hz-Drohnendynamik.
-- `agents/plumesense_agent.py` verbindet unsere beiden Klassifikatoren über den vorhandenen Predictor/API-Client mit `AsyncInferenceAgent`. Nur Features aus `DroneObservation` gehen in die Inferenz. Die Physik wartet nicht auf Netzwerk/GPU. Resets verwerfen alte Ergebnisse.
-- `integration/features.py` verwendet 3D-Kandidaten, mobile Messhistorie, Wind einschließlich Fehlwertindikatoren, jüngste/stärkste Messungen und Distanzen. Fehlende Windwerte werden als 0 plus Indikator codiert. Temperatur wird nicht als Feature verwendet. Kein Zugriff auf tatsächliche Quellen oder Gaskonzentrationen außerhalb der Drohnenmessungen.
-- `integration/generate.py` erzeugt neue Episoden mit mains echten Physik- und Sensormodulen und Gradient-/Raster-Suchflugwegen. Drei Viertel der Episoden bilden den Trainingskontext, ein Viertel bleibt für Evaluation getrennt. Quellenlabels: Kandidat innerhalb 6 m der tatsächlichen Quelle; Gefahrenlabels: ≥10 ppm am Kandidaten vier Sekunden später. Nur Offline-Labels dürfen die Wahrheit lesen. Die generierte CSV wird nicht versioniert.
-- `integration/runtime.py` hält Physik und UI getrennt. `app.py` visualisiert die drei Drohnen und TabPFN-Ergebnisse. `GradientAgent` und `LawnmowerAgent` bleiben die Baselines aus main.
-- `server/app.py` behält mains WebSocket-/Judge-Verträge und verwendet im echten Modus unseren API-Agenten. `--mock-agents` benötigt keine Daten oder GPU. Das ursprünglich vorbereitete lokale Regressionsmodell bleibt unter `agents/tabpfn_agent.py` erhalten.
-
-Die Quellenschätzung stammt direkt aus TabPFN-Klassifikationsscores, nicht aus inverser Simulatorphysik. Messziele verbinden regionale Quellenscores, geometrische Erkundung und Entfernung. Die Drohnendynamik samt Hindernisabstoßung stammt von main. `integration/navigation.py` plant echte 3D-A*-Routen mit 26 Nachbarn, Flugzeitkosten für horizontale und vertikale Bewegung sowie Kollisionsprüfung jedes vollständigen Flugsegments gegen Gebäude mit 2 m Abstand. Zusätzliche Zwischenhöhen bis 28 m erlauben Überfliegen und anschließendes Sinken. Alle drei Agenten folgen räumlichen Zwischenwegpunkten. Planung und Inferenz laufen außerhalb des Physikthreads; bis zur ersten Route hält die Drohne ihre Position. Gerade bei starkem Wind sind erfolgreiche Navigation und zuverlässige Ortung noch nicht nachgewiesen.
-
-## Evaluation
+**http://localhost:8501** öffnen. Der Launcher baut das vorhandene Three.js-Frontend, startet bei Bedarf den SSH-Tunnel und serviert UI, `/ws` und `/health` auf demselben Port. Node/npm sind für den Build erforderlich; bei fehlenden node_modules wird `npm ci` ausgeführt. Port 8000 wird lokal nicht verwendet, da dort bereits ein anderer Dienst läuft.
 
 ```bash
-python -m pytest -q
-python -m integration.evaluate
-python -m server.app --mock-agents --port 8000
-# Echter WebSocket-Modus mit unserem API-Agenten:
-python -m server.app --port 8000
+# Ohne GPU/Trainingsdaten, expliziter Mock-Modus:
+python launch_demo.py --mock-agents
+# Anderer Port / Seed:
+python launch_demo.py --port 8502 --seed 99
 ```
 
-`reports/main3d_evaluation.json` enthält die erste echte 4090-Prüfung: Trainingsepisoden 0–17, Testepisoden 18–23, 896 Testzeilen. Quellen-AUROC ca. 0,671, F1 ca. 0,029; Gefahren-AUROC ca. 0,779, F1 0 bei Schwelle 0,5. Das sind Metriken auf vorselektierten Kandidaten, kein Nachweis einer erfolgreichen 3D-Lecksuche. Es werden keine 2D-Erfolgsquoten auf 3D übertragen. Der kleine Kontext liefert insbesondere noch keine zuverlässige Quellenlokalisierung.
+Unser bestehender API-Server `api/server.py` auf `my4090:8000` bleibt unverändert. `tunnel.py` verbindet localhost:18000 mit diesem Remote-Port. Konfiguration: `PLUMESENSE_API_URL`, `PLUMESENSE_SSH_HOST`, `PLUMESENSE_REMOTE_PORT`, `PLUMESENSE_AUTO_TUNNEL=0`. Der SSH-Alias benötigt den vorhandenen Schlüssel/Agenten und ProxyJump.
 
-Quellenkarten sind normierte Scores, keine kalibrierten Wahrscheinlichkeiten. Der übernommene WebSocket-Feldname `q50` enthält für unseren Adapter diese Quellenscores; `uncertainty` ist lediglich Klassifikationsmehrdeutigkeit, kein Regressionsquantil und keine epistemische Unsicherheit. Die Gefahrenkarte wird in der Streamlit-Demo aus separaten Agentendiagnosen dargestellt; der eingefrorene WebSocket-Vertrag bleibt unverändert.
+## Frontend-Vertrag
 
-Main bewertet `locked` und Abstände mit der tatsächlichen Quelle ausschließlich im Evaluator. Diese Werte gehen nicht an den Agenten. Eine Statusmeldung ist daher eine Simulator-Auswertung und keine eigenständig kalibrierte Erfolgsgarantie des Modells.
+`shared/schemas.py` bleibt die Quelle der Pydantic-Verträge. Vorhandene main-Felder bleiben erhalten; neue Felder besitzen Defaults, damit ältere Frontends weiter lesen können.
 
-## Erhaltene Bestandteile
+- `world_init`: Gebäude, Anlagen und 788 XYZ-Kandidaten auf Höhen 3, 8, 13, 18, 23, 28 m.
+- `sim_tick`: 20-Hz-Telemetrie, Drohnen, Wolke, Wind und neu `paused`.
+- `belief_update`: Quellen-/Messzielposition sowie bisherige `q50`/`uncertainty`. Erweiterungen: `source_scores`, `hazard_probabilities`, `route`, `inference_seconds`, `measurement_count`, `exposure_ppm_seconds`, `score_kind`.
+- `backend_status`: Modellmodus, `pending`/`ready`/`error`/`mock`, Fehlermeldung, Latenz, Messanzahl, Exposition und Pausenstatus; etwa einmal pro Sekunde sowie bei Verbindung/Kommandos.
+- `judge_cmd`: vorhandene Wind-, Leck-, Dropout-, Pause- und Reset-Kommandos; zusätzlich `step` (0,5 Simulationssekunden, nur im pausierten Zustand) und optional `seed` für `reset_race`.
 
-[README-main.md](README-main.md) dokumentiert die ursprünglichen main-Verträge und geplante Three.js-Oberfläche (auf main liegt bislang nur deren Anleitung). [README-plumesense-2d.md](README-plumesense-2d.md) beschreibt den bisherigen Stand. Die frühere Demo bleibt als `app_2d.py` mit ihren Datenpipelines und Auswertungen erhalten; diese 2D-Daten dürfen nicht für 3D verwendet werden. Der ursprüngliche API-Server, der SSH-Tunnel und alle alten Backend-Dateien bleiben erhalten.
+Der kleine Block oben links ergänzt die vorhandenen main-HUDs: Quellen-/Gefahrenansicht, 3D-Route, Seed, Einzelschritt und Live-Modellstatus. Die vorhandenen Judge Controls bleiben erhalten. Eine konfigurierbare Leckhöhe ergänzt das Platzieren per Bodenklick. Die Szene, Kamera, Raffinerie, Drohnen- und Wolkendarstellung stammen von main.
 
+Python bleibt Z-up; nur beim Rendern wird in Three.js-Y-up konvertiert. Der Browser verwendet denselben Origin für `/ws` (inklusive wss unter HTTPS), alternativ `?ws=...`. Frontend-Entwicklung:
 
-## Volumetrische Bewegungen
+```bash
+python -m server.app --port 8501
+cd frontend
+npm ci
+npm run dev
+```
 
-Der Raster-Agent scannt pro XY-Spalte auf- und absteigend sechs Höhen, statt zuerst eine ganze horizontale Ebene abzufliegen. Der Gradient-Agent erkundet verschiedene Höhen und verwendet vertikale Konzentrationsänderungen für Steig-/Sinkproben. TabPFN bewertet Kandidaten samt Historie in XYZ; die Zielwahl und geometrische Abdeckung verwenden räumliche Distanzen.
+Vite auf Port 5173 leitet `/ws` und `/health` zum Backend auf 8501 weiter. Das Backend liefert gebaute Frontend-Dateien aus `frontend/dist`; der Build wird nicht versioniert. `?mock=true` bleibt für die eigenständige Three.js-Entwicklung erhalten.
 
-Die geplante 3D-Flugroute wird in allen drei Ansichten eingezeichnet; Telemetrie zeigt aktuelle Höhe und nächste Zielhöhe. Der reale API-Smoke-Test erreichte nach etwa vier Simulationssekunden 11,8 m Höhe bei einem Ziel auf 18 m, ausgehend von 5 m. Tests prüfen ausdrücklich Aufstieg über eine Wand, Sinkflug, kollisionsfreie Segmente, Höhenwechsel der Baseline und hohe TabPFN-Ziele. Die lokale Hindernisabstoßung und Sicherheitskorrektur bleiben zusätzlich zur geometrischen Planung aktiv; ideale Flugsegmente sind kein Nachweis für reale kollisionsfreie Drohnensteuerung.
+## Backend und Bewegung
+
+Die neueste main-Physik (6-DOF, Rotor-/Motordynamik, ABL-Strömung und RK2-Wolke) ist integriert. Gas wird kontinuierlich emittiert. Jede Drohne besitzt einen eigenen mobilen Gassensor; der TabPFN-Agent erhält nur seine eigene Messhistorie, Position und gemessenen Wind.
+
+`agents/plumesense_agent.py` verwendet die unveränderte 4090-API über unseren Predictor mit getrennten Kontexten `source` und `hazard`. Beobachtungen werden in `integration/features.py` zusammengefasst. Keine tatsächliche Quelle und keine zukünftigen Messwerte fließen in X ein. Nur Offline-Labels und die Simulator-Auswertung dürfen Ground Truth lesen.
+
+`integration/navigation.py` plant echte 3D-A*-Flugwege mit geprüften Segmenten gegen Gebäude, horizontalen/vertikalen Flugzeitkosten und Zwischenhöhen bis 28 m. Routenplanung und GPU-Inferenz laufen in Hintergrund-Workern; der Physikthread folgt nur Wegpunkten. Volumetrischer Raster- und Gradient-Agent bleiben Vergleichsstrategien. Quellenmodell und Prognose beeinflussen die Suche; die Flugplanung meidet nicht pauschal Gas, da das Ziel Leckortung ist.
+
+Trainingsdaten entstehen mit `integration.generate` aus separaten 3D-Episoden: Quellenlabel innerhalb von 6 m, Gefahrenlabel ≥10 ppm vier Sekunden später. 18 von 24 Episoden dienen als Modellkontext, sechs als Test. Die CSV ist reproduzierbar und nicht versioniert; nach Änderung der Physik erneut erzeugen. Die alten 2D-Backendmodule/Daten bleiben als Vergleich erhalten und werden nicht in die Live-3D-Inferenz eingespeist.
+
+Quellenkarten sind normierte Rangfolgescores, keine kalibrierten Quellenwahrscheinlichkeiten. Für ältere Frontends enthält `q50` diese Scores; `uncertainty` ist Klassifikationsmehrdeutigkeit, keine epistemische Unsicherheit. `score_kind` macht den Unterschied explizit. Der Simulator bewertet `locked` mit Ground Truth; der Agent erhält diese Bewertungsdaten nicht. Eine zuverlässige Leckortung ist noch nicht nachgewiesen.
+
+## Prüfung
+
+```bash
+npm --prefix frontend run build
+python -m pytest -q
+python -m integration.evaluate
+```
+
+Build sowie Live-Browserprüfung mit echter 4090 bestanden: Modellstatus ready, 3D-Szene und WebSocket aktiv, Pause/Einzelschritt (+0,5 s) und Layerwechsel geprüft. 43 funktionale Tests bestehen. Der geerbte Benchmark `test_headless_engine_speed_over_500_steps_per_sec` scheitert hier; er scheitert auch auf unverändertem main (ca. 386 Schritte/s im Vergleichslauf). Die Live-Physik benötigt 20 Hz. Der Benchmark wurde nicht abgeschwächt.
+
+`reports/main3d_evaluation.json` enthält die aktuelle episodisch getrennte Modellprüfung und den echten API-Smoke-Test. Kandidatenmetriken sind keine Erfolgsquote der Lecksuche; insbesondere ist das Quellenmodell bislang noch schwach. Ältere Berichte gehören zu früheren Physik-/2D-Versionen.

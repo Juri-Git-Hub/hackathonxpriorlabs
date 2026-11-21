@@ -32,30 +32,30 @@
     "metrics": {
       "n": 896,
       "positives": 128,
-      "f1": 0.028985507246376812,
-      "auroc": 0.6706085205078125,
-      "brier": 0.1368714283357362
+      "f1": 0.043478260869565216,
+      "auroc": 0.615875244140625,
+      "brier": 0.13908393989265863
     },
-    "request_seconds": 1.5573680419984157
+    "request_seconds": 3.8797114369990595
   },
   "hazard": {
     "metrics": {
       "n": 896,
-      "positives": 82,
+      "positives": 86,
       "f1": 0.0,
-      "auroc": 0.7794690477617308,
-      "brier": 0.0841243891018841
+      "auroc": 0.72977318403675,
+      "brier": 0.08374197474278033
     },
-    "request_seconds": 0.6341101149992028
+    "request_seconds": 1.042831295999349
   },
   "live_smoke": {
-    "sim_time": 4.099999999999993,
-    "wall_seconds": 4.7639516000017466,
+    "sim_time": 5.799999999999987,
+    "wall_seconds": 6.307748848001211,
     "grid_points": 788,
     "hazard_points": 788,
-    "inference_seconds": 0.99223327800064,
+    "inference_seconds": 1.5155995240020275,
     "belief_received": true,
-    "drone_height_m": 11.79687274584252,
-    "target_height_m": 18.0
+    "drone_height_m": 12.09777336917219,
+    "target_height_m": 13.0
   }
 }
