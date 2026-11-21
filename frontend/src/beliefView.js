@@ -1,26 +1,10 @@
 import * as THREE from "three";
 import { simToThree } from "./coords.js";
 
-function createCircleTexture() {
-  const size = 64;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
-  grad.addColorStop(0.0, "rgba(255,255,255,1)");
-  grad.addColorStop(0.5, "rgba(255,255,255,0.65)");
-  grad.addColorStop(1.0, "rgba(255,255,255,0)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  return tex;
-}
-
 /**
- * Renders TabPFN 3D belief cloud over `grid_coords` (q50 -> cyan->magenta->red,
- * uncertainty -> brightness/alpha) + estimated source & next waypoint beacons.
+ * Renders TabPFN 3D belief cloud as a clean volumetric hologram (using per-point
+ * size & alpha shaders so low-concentration background points fade out instead of
+ * cluttering the refinery like snow) + pulsing estimated source & waypoint beacons.
  */
 export class BeliefView {
   constructor(scene) {
@@ -32,9 +16,9 @@ export class BeliefView {
     this.points = null;
     this.gridCount = 0;
 
-    // Estimated source beacon (magenta diamond)
+    // Estimated source beacon (pulsing crimson diamond)
     this.estBeacon = new THREE.Mesh(
-      new THREE.OctahedronGeometry(1.25, 0),
+      new THREE.OctahedronGeometry(1.35, 0),
       new THREE.MeshBasicMaterial({
         color: 0xf43f5e,
         wireframe: true,
@@ -43,9 +27,9 @@ export class BeliefView {
     this.estBeacon.visible = false;
     this.group.add(this.estBeacon);
 
-    // Next waypoint beacon (cyan ring)
+    // Next waypoint beacon (cyan holographic ring)
     this.wpBeacon = new THREE.Mesh(
-      new THREE.TorusGeometry(1.1, 0.14, 10, 24),
+      new THREE.TorusGeometry(1.25, 0.14, 10, 24),
       new THREE.MeshBasicMaterial({ color: 0x22d3ee })
     );
     this.wpBeacon.rotation.x = Math.PI / 2;
@@ -69,6 +53,8 @@ export class BeliefView {
     this.gridCount = gridCoords.length;
     const positions = new Float32Array(this.gridCount * 3);
     const colors = new Float32Array(this.gridCount * 3);
+    const sizes = new Float32Array(this.gridCount);
+    const alphas = new Float32Array(this.gridCount);
     const tmp = new THREE.Vector3();
 
     for (let i = 0; i < this.gridCount; i++) {
@@ -77,27 +63,53 @@ export class BeliefView {
       positions[i * 3 + 1] = tmp.y;
       positions[i * 3 + 2] = tmp.z;
 
-      colors[i * 3] = 0.08;
-      colors[i * 3 + 1] = 0.25;
-      colors[i * 3 + 2] = 0.35;
+      colors[i * 3] = 0.1;
+      colors[i * 3 + 1] = 0.7;
+      colors[i * 3 + 2] = 0.9;
+      sizes[i] = 1.0;
+      alphas[i] = 0.0;
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute("aAlpha", new THREE.BufferAttribute(alphas, 1));
 
-    const mat = new THREE.PointsMaterial({
-      size: 3.2,
-      map: createCircleTexture(),
-      vertexColors: true,
+    const mat = new THREE.ShaderMaterial({
       transparent: true,
-      opacity: 0.72,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      sizeAttenuation: true,
+      vertexShader: `
+        attribute float aSize;
+        attribute float aAlpha;
+        attribute vec3 color;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vColor = color;
+          vAlpha = aAlpha;
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = aSize * (280.0 / max(-mvPos.z, 1.0));
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          if (vAlpha < 0.01) discard;
+          vec2 c = gl_PointCoord - vec2(0.5);
+          float r = length(c) * 2.0;
+          if (r > 1.0) discard;
+          float falloff = pow(1.0 - r, 2.0);
+          gl_FragColor = vec4(vColor, vAlpha * falloff);
+        }
+      `,
     });
 
     this.points = new THREE.Points(geo, mat);
+    this.points.frustumCulled = false;
     this.group.add(this.points);
   }
 
@@ -105,35 +117,50 @@ export class BeliefView {
     if (!this.points || belief.q50.length !== this.gridCount) return;
 
     const colors = this.points.geometry.attributes.color.array;
+    const sizes = this.points.geometry.attributes.aSize.array;
+    const alphas = this.points.geometry.attributes.aAlpha.array;
     const q50 = belief.q50;
     const unc = belief.uncertainty;
 
+    let minQ = Infinity;
     let maxQ = 0.5;
     for (let i = 0; i < q50.length; i++) {
+      if (q50[i] < minQ) minQ = q50[i];
       if (q50[i] > maxQ) maxQ = q50[i];
     }
+    const span = Math.max(0.25, maxQ - minQ);
 
     for (let i = 0; i < this.gridCount; i++) {
-      const normQ = Math.min(1.0, Math.max(0.0, q50[i] / maxQ));
+      const normQ = Math.min(1.0, Math.max(0.0, (q50[i] - minQ) / span));
       const normU = Math.min(1.0, Math.max(0.0, unc[i] / 2.0));
 
-      // Color ramp: cyan (low) -> magenta (mid) -> bright red (high)
+      // Color ramp: cyan -> magenta -> hot crimson
       if (normQ < 0.5) {
         const t = normQ * 2.0;
-        this._tmpColor.setRGB(0.08 + 0.82 * t, 0.78 - 0.55 * t, 0.92 - 0.05 * t);
+        this._tmpColor.setRGB(0.06 + 0.84 * t, 0.82 - 0.56 * t, 0.96 - 0.08 * t);
       } else {
         const t = (normQ - 0.5) * 2.0;
-        this._tmpColor.setRGB(0.9 + 0.1 * t, 0.23 - 0.18 * t, 0.87 - 0.72 * t);
+        this._tmpColor.setRGB(0.90 + 0.10 * t, 0.26 - 0.18 * t, 0.88 - 0.70 * t);
       }
 
-      // Scale brightness by concentration + uncertainty so hotspots pop
-      const brightness = 0.18 + 0.55 * normQ + 0.27 * normU;
-      colors[i * 3] = this._tmpColor.r * brightness;
-      colors[i * 3 + 1] = this._tmpColor.g * brightness;
-      colors[i * 3 + 2] = this._tmpColor.b * brightness;
+      colors[i * 3] = this._tmpColor.r;
+      colors[i * 3 + 1] = this._tmpColor.g;
+      colors[i * 3 + 2] = this._tmpColor.b;
+
+      // Only show meaningful probability/interest hotspots; keep background clean
+      if (normQ < 0.22) {
+        sizes[i] = 1.4;
+        alphas[i] = 0.04 * normU;
+      } else {
+        const emphasis = (normQ - 0.22) / 0.78;
+        sizes[i] = 3.5 + 8.5 * emphasis + 2.0 * normU;
+        alphas[i] = 0.14 + 0.62 * emphasis;
+      }
     }
 
     this.points.geometry.attributes.color.needsUpdate = true;
+    this.points.geometry.attributes.aSize.needsUpdate = true;
+    this.points.geometry.attributes.aAlpha.needsUpdate = true;
 
     simToThree(belief.estimated_source, this.estBeacon.position);
     this.estBeacon.visible = true;
