@@ -81,12 +81,31 @@ class Airflow:
         self._u_samp = self._u_unit
         self._v_samp = self._v_unit
         self._w_samp = self._w_unit
+        self._u_samp_flat = np.ascontiguousarray(self._u_samp).ravel()
+        self._v_samp_flat = np.ascontiguousarray(self._v_samp).ravel()
+        self._w_samp_flat = np.ascontiguousarray(self._w_samp).ravel()
         self._turb_grid = np.ones((self.NX, self.NY, self.NZ), dtype=np.float64)
+        self._turb_grid_flat = np.ascontiguousarray(self._turb_grid).ravel()
         self._field_version: int = 0
+
+        # Precompute flat solid & cylinder tuples for fast runtime wind queries
+        self._solid_boxes_scalar: list[tuple[float, float, float, float, float, float]] = []
+        self._solid_cyls_scalar: list[tuple[float, float, float, float, float, float, float, float]] = []
+        for x0, y0, z0, x1, y1, z1, cx, cy, _hx, _hy, r_cyl, r2, is_cyl, is_porous, _tr in world._bldg_geom_scalar:
+            if is_porous:
+                continue
+            if is_cyl:
+                self._solid_cyls_scalar.append(
+                    (cx, cy, r_cyl, r2, z0, z1, 2.5 * z1, 1.0 / max(r_cyl * 0.85, 1.0))
+                )
+            else:
+                self._solid_boxes_scalar.append((x0, y0, z0, x1, y1, z1))
 
         # Spatial 3D divergence-free Fourier eddy modes (advected via integrated wind offset)
         self._k_vecs = np.zeros((self.N_EDDY_MODES, 3), dtype=np.float64)
+        self._k_vecs_T = np.zeros((3, self.N_EDDY_MODES), dtype=np.float64)
         self._e_vecs = np.zeros((self.N_EDDY_MODES, 3), dtype=np.float64)
+        self._e_vecs_weighted = np.zeros((self.N_EDDY_MODES, 3), dtype=np.float64)
         self._phases = np.zeros(self.N_EDDY_MODES, dtype=np.float64)
         self._eddy_weights = np.zeros(self.N_EDDY_MODES, dtype=np.float64)
         self._init_eddy_modes()
@@ -405,37 +424,44 @@ class Airflow:
         rhs *= h
         rhs[self._solid] = 0.0
 
-        p = np.zeros((nx, ny, nz), dtype=np.float64)
+        # Padded pressure array: boundary halo & solid cells stay strictly 0.0,
+        # which makes 6-neighbor sum mathematically identical to masking with xm/ym/zm
+        # without any per-iteration np.where allocations.
+        p_pad = np.zeros((nx + 2, ny + 2, nz + 2), dtype=np.float64)
+        p = p_pad[1:-1, 1:-1, 1:-1]
         omega = self.SOR_OMEGA
-        xm = self._xm_open
-        ym = self._ym_open
-        zm = self._zm_open
+        one_minus_omega = 1.0 - omega
         red = self._red_mask
         black = self._black_mask
+        w_inv_red = omega * inv_n[red]
+        w_inv_black = omega * inv_n[black]
+        rhs_red = rhs[red]
+        rhs_black = rhs[black]
 
-        sum_nbr = np.zeros_like(p)
+        p_xm = p_pad[:-2, 1:-1, 1:-1]
+        p_xp = p_pad[2:, 1:-1, 1:-1]
+        p_ym = p_pad[1:-1, :-2, 1:-1]
+        p_yp = p_pad[1:-1, 2:, 1:-1]
+        p_zm = p_pad[1:-1, 1:-1, :-2]
+        p_zp = p_pad[1:-1, 1:-1, 2:]
+
+        sum_nbr = np.empty((nx, ny, nz), dtype=np.float64)
         for _ in range(self.SOR_ITERS):
             # Red update
-            sum_nbr.fill(0.0)
-            sum_nbr[1:, :, :] += np.where(xm, p[:-1, :, :], 0.0)
-            sum_nbr[:-1, :, :] += np.where(xm, p[1:, :, :], 0.0)
-            sum_nbr[:, 1:, :] += np.where(ym, p[:, :-1, :], 0.0)
-            sum_nbr[:, :-1, :] += np.where(ym, p[:, 1:, :], 0.0)
-            sum_nbr[:, :, 1:] += np.where(zm, p[:, :, :-1], 0.0)
-            sum_nbr[:, :, :-1] += np.where(zm, p[:, :, 1:], 0.0)
-            p_target = (sum_nbr - rhs) * inv_n
-            p[red] += omega * (p_target[red] - p[red])
+            np.add(p_xm, p_xp, out=sum_nbr)
+            sum_nbr += p_ym
+            sum_nbr += p_yp
+            sum_nbr += p_zm
+            sum_nbr += p_zp
+            p[red] = one_minus_omega * p[red] + w_inv_red * (sum_nbr[red] - rhs_red)
 
             # Black update
-            sum_nbr.fill(0.0)
-            sum_nbr[1:, :, :] += np.where(xm, p[:-1, :, :], 0.0)
-            sum_nbr[:-1, :, :] += np.where(xm, p[1:, :, :], 0.0)
-            sum_nbr[:, 1:, :] += np.where(ym, p[:, :-1, :], 0.0)
-            sum_nbr[:, :-1, :] += np.where(ym, p[:, 1:, :], 0.0)
-            sum_nbr[:, :, 1:] += np.where(zm, p[:, :, :-1], 0.0)
-            sum_nbr[:, :, :-1] += np.where(zm, p[:, :, 1:], 0.0)
-            p_target = (sum_nbr - rhs) * inv_n
-            p[black] += omega * (p_target[black] - p[black])
+            np.add(p_xm, p_xp, out=sum_nbr)
+            sum_nbr += p_ym
+            sum_nbr += p_yp
+            sum_nbr += p_zm
+            sum_nbr += p_zp
+            p[black] = one_minus_omega * p[black] + w_inv_black * (sum_nbr[black] - rhs_black)
 
         # Subtract pressure gradient from all pressure-open MAC faces
         inv_h = 1.0 / h
@@ -458,6 +484,7 @@ class Airflow:
         self._v_unit = v
         self._w_unit = w
         self._turb_grid = turb
+        self._turb_grid_flat = np.ascontiguousarray(turb).ravel()
 
         # Free-slip ghost fill for trilinear sampling near curved/flat walls:
         # prevents 2.5 m voxel stair-stepping from artificially dragging tangential flank flow to 0,
@@ -465,6 +492,9 @@ class Airflow:
         self._u_samp = self._ghost_fill_tangential(u, self._u_open, axis=0)
         self._v_samp = self._ghost_fill_tangential(v, self._v_open, axis=1)
         self._w_samp = self._ghost_fill_tangential(w, self._w_open, axis=2)
+        self._u_samp_flat = np.ascontiguousarray(self._u_samp).ravel()
+        self._v_samp_flat = np.ascontiguousarray(self._v_samp).ravel()
+        self._w_samp_flat = np.ascontiguousarray(self._w_samp).ravel()
         self._field_version += 1
 
     @staticmethod
@@ -533,6 +563,8 @@ class Airflow:
         rms = float(np.sqrt(np.sum(0.5 * (self._eddy_weights ** 2))))
         if rms > 1e-6:
             self._eddy_weights /= rms
+        self._k_vecs_T = np.ascontiguousarray(self._k_vecs.T)
+        self._e_vecs_weighted = np.ascontiguousarray(self._e_vecs * self._eddy_weights[:, None])
 
     def set_wind(self, angle_deg: float, speed: float) -> None:
         """Set base wind direction (degrees, 0 = +X, 90 = +Y) and speed (m/s)."""
@@ -585,74 +617,59 @@ class Airflow:
         return np.clip(np.power(z_eff / self.Z_REF, self.ABL_ALPHA), 0.55, 1.35)
 
     @staticmethod
-    def _trilinear_sample(
-        grid: np.ndarray, gx: np.ndarray, gy: np.ndarray, gz: np.ndarray
+    def _trilinear_flat(
+        flat: np.ndarray,
+        sy: int,
+        sz: int,
+        i0: np.ndarray,
+        j0: np.ndarray,
+        k0: np.ndarray,
+        fx: np.ndarray,
+        fy: np.ndarray,
+        fz: np.ndarray,
+        omx: np.ndarray,
+        omy: np.ndarray,
+        omz: np.ndarray,
     ) -> np.ndarray:
-        """Fast vectorized trilinear interpolation on a 3D array."""
-        nx, ny, nz = grid.shape
-        x = np.clip(gx, 0.0, nx - 1.000001)
-        y = np.clip(gy, 0.0, ny - 1.000001)
-        z = np.clip(gz, 0.0, nz - 1.000001)
-
-        i0 = x.astype(np.intp)
-        j0 = y.astype(np.intp)
-        k0 = z.astype(np.intp)
-        i1 = i0 + 1
-        j1 = j0 + 1
-        k1 = k0 + 1
-
-        fx = x - i0
-        fy = y - j0
-        fz = z - k0
-        omx = 1.0 - fx
-        omy = 1.0 - fy
-        omz = 1.0 - fz
-
-        c000 = grid[i0, j0, k0]
-        c100 = grid[i1, j0, k0]
-        c010 = grid[i0, j1, k0]
-        c110 = grid[i1, j1, k0]
-        c001 = grid[i0, j0, k1]
-        c101 = grid[i1, j0, k1]
-        c011 = grid[i0, j1, k1]
-        c111 = grid[i1, j1, k1]
-
-        c00 = c000 * omx + c100 * fx
-        c10 = c010 * omx + c110 * fx
-        c01 = c001 * omx + c101 * fx
-        c11 = c011 * omx + c111 * fx
-
-        c0 = c00 * omy + c10 * fy
-        c1 = c01 * omy + c11 * fy
-        return c0 * omz + c1 * fz
+        """Fast 1D-indexed trilinear interpolation on a contiguous C-order 3D array."""
+        base = i0 * sy + j0 * sz + k0
+        c00 = flat[base] * omx + flat[base + sy] * fx
+        c10 = flat[base + sz] * omx + flat[base + (sy + sz)] * fx
+        c01 = flat[base + 1] * omx + flat[base + (sy + 1)] * fx
+        c11 = flat[base + (sz + 1)] * omx + flat[base + (sy + sz + 1)] * fx
+        return (c00 * omy + c10 * fy) * omz + (c01 * omy + c11 * fy) * fz
 
     def _inside_solid_mask(self, pts: np.ndarray) -> np.ndarray:
         """Vectorized check for points strictly inside solid buildings or cylindrical tanks."""
-        inside = np.zeros(pts.shape[0], dtype=bool)
+        n = pts.shape[0]
+        inside = np.zeros(n, dtype=bool)
         x = pts[:, 0]
         y = pts[:, 1]
         z = pts[:, 2]
-        for i in range(len(self.world.buildings)):
-            if self.world._bldg_is_porous[i]:
-                continue
-            z0 = float(self.world._bldg_min[i, 2])
-            z1 = float(self.world._bldg_max[i, 2])
-            if self.world._bldg_is_cylinder[i]:
-                cx = float(self.world._bldg_center[i, 0])
-                cy = float(self.world._bldg_center[i, 1])
-                r = float(self.world._bldg_cyl_radius[i])
-                inside |= ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) & (z >= z0) & (z <= z1)
-            else:
-                bmin = self.world._bldg_min[i]
-                bmax = self.world._bldg_max[i]
-                inside |= (
-                    (x >= bmin[0])
-                    & (x <= bmax[0])
-                    & (y >= bmin[1])
-                    & (y <= bmax[1])
-                    & (z >= z0)
-                    & (z <= z1)
-                )
+        if n > 8:
+            near = self.world._bp_lookup(self.world._bp_bldg_solid_flat, x, y, z)
+            if not near.any():
+                return inside
+            cidx = np.nonzero(near)[0]
+            xc = x[cidx]
+            yc = y[cidx]
+            zc = z[cidx]
+            sub_in = np.zeros(cidx.shape[0], dtype=bool)
+            for cx, cy, _r, r2, z0, z1, _wl, _isig in self._solid_cyls_scalar:
+                dx = xc - cx
+                dy = yc - cy
+                sub_in |= ((dx * dx + dy * dy) <= r2) & (zc >= z0) & (zc <= z1)
+            for x0, y0, z0, x1, y1, z1 in self._solid_boxes_scalar:
+                sub_in |= (xc >= x0) & (xc <= x1) & (yc >= y0) & (yc <= y1) & (zc >= z0) & (zc <= z1)
+            inside[cidx] = sub_in
+            return inside
+
+        for cx, cy, _r, r2, z0, z1, _wl, _isig in self._solid_cyls_scalar:
+            dx = x - cx
+            dy = y - cy
+            inside |= ((dx * dx + dy * dy) <= r2) & (z >= z0) & (z <= z1)
+        for x0, y0, z0, x1, y1, z1 in self._solid_boxes_scalar:
+            inside |= (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1) & (z >= z0) & (z <= z1)
         return inside
 
     def sample_turbulence_intensity(self, points_nx3: np.ndarray) -> np.ndarray:
@@ -683,99 +700,145 @@ class Airflow:
         z_all = pts[:, 2]
 
         # Continuous MAC grid coordinates
-        fx = (x_all - self._x_min) * self._inv_dx
-        fy = (y_all - self._y_min) * self._inv_dy
-        fz = (z_all - self._z_min) * self._inv_dz
-        cx_g = fx - 0.5
-        cy_g = fy - 0.5
-        cz_g = fz - 0.5
+        fx_raw = (x_all - self._x_min) * self._inv_dx
+        fy_raw = (y_all - self._y_min) * self._inv_dy
+        fz_raw = (z_all - self._z_min) * self._inv_dz
 
-        w_amb = self.w0 + self.w_turb
-        base_speed = math.hypot(float(self.w0[0]), float(self.w0[1]))
-        amb_speed = math.hypot(float(w_amb[0]), float(w_amb[1]))
+        w0_0 = float(self.w0[0])
+        w0_1 = float(self.w0[1])
+        wa_0 = w0_0 + float(self.w_turb[0])
+        wa_1 = w0_1 + float(self.w_turb[1])
+        base_speed = math.hypot(w0_0, w0_1)
+        amb_speed = math.hypot(wa_0, wa_1)
 
         out = np.zeros((n, 3), dtype=np.float64)
+        nx, ny, nz = self.NX, self.NY, self.NZ
+
+        # Compute shared cell-centered interpolation indices/weights once (reused for u, v, w, turb)
+        need_c = base_speed >= 1e-4 or compute_turb
+        if need_c:
+            cx_c = fx_raw - 0.5
+            cy_c = fy_raw - 0.5
+            cz_c = fz_raw - 0.5
+            np.maximum(0.0, cx_c, out=cx_c)
+            np.minimum(nx - 1.000001, cx_c, out=cx_c)
+            np.maximum(0.0, cy_c, out=cy_c)
+            np.minimum(ny - 1.000001, cy_c, out=cy_c)
+            np.maximum(0.0, cz_c, out=cz_c)
+            np.minimum(nz - 1.000001, cz_c, out=cz_c)
+            ci0 = cx_c.astype(np.intp)
+            cj0 = cy_c.astype(np.intp)
+            ck0 = cz_c.astype(np.intp)
+            cfx = cx_c - ci0
+            cfy = cy_c - cj0
+            cfz = cz_c - ck0
+            comx = 1.0 - cfx
+            comy = 1.0 - cfy
+            comz = 1.0 - cfz
+
         if base_speed >= 1e-4:
+            fx_c = np.maximum(0.0, fx_raw)
+            np.minimum(nx - 0.000001, fx_c, out=fx_c)
+            fy_c = np.maximum(0.0, fy_raw)
+            np.minimum(ny - 0.000001, fy_c, out=fy_c)
+            fz_c = np.maximum(0.0, fz_raw)
+            np.minimum(nz - 0.000001, fz_c, out=fz_c)
+            fi0 = fx_c.astype(np.intp)
+            fj0 = fy_c.astype(np.intp)
+            fk0 = fz_c.astype(np.intp)
+            ffx = fx_c - fi0
+            ffy = fy_c - fj0
+            ffz = fz_c - fk0
+            fomx = 1.0 - ffx
+            fomy = 1.0 - ffy
+            fomz = 1.0 - ffz
+
             # Project live gusted wind onto solved base direction + perpendicular gust residual
-            ux0 = float(self.w0[0]) / base_speed
-            uy0 = float(self.w0[1]) / base_speed
-            s_par = float(w_amb[0]) * ux0 + float(w_amb[1]) * uy0
-            u_samp = self._trilinear_sample(self._u_samp, fx, cy_g, cz_g)
-            v_samp = self._trilinear_sample(self._v_samp, cx_g, fy, cz_g)
-            w_samp = self._trilinear_sample(self._w_samp, cx_g, cy_g, fz)
+            ux0 = w0_0 / base_speed
+            uy0 = w0_1 / base_speed
+            s_par = wa_0 * ux0 + wa_1 * uy0
+
+            u_samp = self._trilinear_flat(
+                self._u_samp_flat, ny * nz, nz, fi0, cj0, ck0, ffx, cfy, cfz, fomx, comy, comz
+            )
+            v_samp = self._trilinear_flat(
+                self._v_samp_flat, (ny + 1) * nz, nz, ci0, fj0, ck0, cfx, ffy, cfz, comx, fomy, comz
+            )
+            w_samp = self._trilinear_flat(
+                self._w_samp_flat, ny * (nz + 1), nz + 1, ci0, cj0, fk0, cfx, cfy, ffz, comx, comy, fomz
+            )
 
             out[:, 0] = u_samp * s_par
             out[:, 1] = v_samp * s_par
             out[:, 2] = w_samp * s_par
 
             # Add small perpendicular OU gust perturbation (damped smoothly in wakes/near solids)
-            perp_x = float(w_amb[0]) - s_par * ux0
-            perp_y = float(w_amb[1]) - s_par * uy0
+            perp_x = wa_0 - s_par * ux0
+            perp_y = wa_1 - s_par * uy0
             if abs(perp_x) + abs(perp_y) > 1e-6:
                 local_mag = np.hypot(u_samp, v_samp)
                 abl_loc = self._abl_factor(z_all)
-                flow_weight = np.clip(local_mag / np.maximum(abl_loc, 0.2), 0.0, 1.0)
-                out[:, 0] += perp_x * abl_loc * flow_weight
-                out[:, 1] += perp_y * abl_loc * flow_weight
+                flow_weight = local_mag / np.maximum(abl_loc, 0.2)
+                np.maximum(0.0, flow_weight, out=flow_weight)
+                np.minimum(1.0, flow_weight, out=flow_weight)
+                scale_perp = abl_loc * flow_weight
+                out[:, 0] += perp_x * scale_perp
+                out[:, 1] += perp_y * scale_perp
         elif amb_speed >= 1e-4:
             abl_loc = self._abl_factor(z_all)
-            out[:, 0] = float(w_amb[0]) * abl_loc
-            out[:, 1] = float(w_amb[1]) * abl_loc
+            out[:, 0] = wa_0 * abl_loc
+            out[:, 1] = wa_1 * abl_loc
 
         if compute_turb:
-            turb_mult = self._trilinear_sample(self._turb_grid, cx_g, cy_g, cz_g)
-            turb_mult = np.maximum(1.0, turb_mult)
+            turb_mult = self._trilinear_flat(
+                self._turb_grid_flat, ny * nz, nz, ci0, cj0, ck0, cfx, cfy, cfz, comx, comy, comz
+            )
+            np.maximum(1.0, turb_mult, out=turb_mult)
         else:
             turb_mult = np.empty(0, dtype=np.float64)
 
         # 2) Strictly divergence-free 3D Fourier turbulent eddies (advected via integrated offset)
         if self.sigma_w > 0.0:
-            adv_x = x_all - self._eddy_offset[0]
-            adv_y = y_all - self._eddy_offset[1]
-            phase = (
-                adv_x[:, None] * self._k_vecs[None, :, 0]
-                + adv_y[:, None] * self._k_vecs[None, :, 1]
-                + z_all[:, None] * self._k_vecs[None, :, 2]
-                + self._phases[None, :]
+            phase_shift = self._phases - (
+                float(self._eddy_offset[0]) * self._k_vecs[:, 0]
+                + float(self._eddy_offset[1]) * self._k_vecs[:, 1]
             )
+            phase = pts @ self._k_vecs_T
+            phase += phase_shift
             eddy_amp = 0.45 * self.sigma_w
-            sin_p = np.sin(phase) * self._eddy_weights[None, :]
-            eddy_vel = (sin_p @ self._e_vecs) * eddy_amp
+            sin_p = np.sin(phase, out=phase)
+            eddy_vel = sin_p @ self._e_vecs_weighted
+            eddy_vel *= eddy_amp
             # Gently damp vertical eddies right next to the ground (z < 2m)
-            ground_z_damp = np.clip(z_all / 2.0, 0.0, 1.0)
+            ground_z_damp = z_all * 0.5
+            np.maximum(0.0, ground_z_damp, out=ground_z_damp)
+            np.minimum(1.0, ground_z_damp, out=ground_z_damp)
             eddy_vel[:, 2] *= ground_z_damp
             out += eddy_vel
 
             # 3) Cylindrical Strouhal vortex shedding in lee wakes of storage tanks
             if amb_speed > 0.2:
-                ux = float(w_amb[0]) / amb_speed
-                uy = float(w_amb[1]) / amb_speed
+                ux = wa_0 / amb_speed
+                uy = wa_1 / amb_speed
                 px_u = -uy
                 py_u = ux
-                for i in range(len(self.world.buildings)):
-                    if not self.world._bldg_is_cylinder[i]:
-                        continue
-                    cx = float(self.world._bldg_center[i, 0])
-                    cy = float(self.world._bldg_center[i, 1])
-                    r_cyl = float(self.world._bldg_cyl_radius[i])
-                    height = float(self.world._bldg_max[i, 2])
+                for cx, cy, r_cyl, _r2, _z0, height, wake_len, inv_sig_c in self._solid_cyls_scalar:
                     dx_b = x_all - cx
                     dy_b = y_all - cy
                     along = dx_b * ux + dy_b * uy
                     cross = dx_b * px_u + dy_b * py_u
-                    wake_len = 2.5 * height
                     shed_mask = (
                         (along > r_cyl)
                         & (along <= r_cyl + wake_len)
                         & (np.abs(cross) <= r_cyl * 1.35)
                         & (z_all <= height * 1.15)
                     )
-                    if np.any(shed_mask):
+                    if shed_mask.any():
                         a_w = along[shed_mask] - r_cyl
                         c_w = cross[shed_mask]
                         z_w = z_all[shed_mask]
                         env = (
-                            np.exp(-0.5 * (c_w / max(r_cyl * 0.85, 1.0)) ** 2)
+                            np.exp(-0.5 * (c_w * inv_sig_c) ** 2)
                             * np.sin(math.pi * np.clip(a_w / wake_len, 0.0, 1.0))
                             * 0.5 * (1.0 - np.tanh((z_w - height) / 1.5))
                         )
@@ -786,7 +849,7 @@ class Airflow:
 
         # Enforce zero wind strictly inside solid buildings & cylindrical tanks
         solid_pts = self._inside_solid_mask(pts)
-        if np.any(solid_pts):
+        if solid_pts.any():
             out[solid_pts] = 0.0
 
         if single:

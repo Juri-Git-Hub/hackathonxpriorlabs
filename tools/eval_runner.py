@@ -95,7 +95,7 @@ def run_single_eval(
                 engine.apply_command(pending_events[next_ev_idx][1])
                 next_ev_idx += 1
 
-            tick = engine.step()
+            tick = engine.step(include_puffs=False)
             beliefs = engine.pop_belief_updates()
 
             for d_state in tick.drones:
@@ -125,7 +125,7 @@ def run_single_eval(
                     "sim_time": round(tick.sim_time, 3),
                     "wind_vec": [round(tick.wind_vec[0], 3), round(tick.wind_vec[1], 3)],
                     "sensor_dropout_active": tick.sensor_dropout_active,
-                    "n_puffs": len(tick.puffs),
+                    "n_puffs": int(engine.plume.active.sum()),
                     "drones": {
                         d.id: {
                             "pos": [round(v, 2) for v in d.pos],

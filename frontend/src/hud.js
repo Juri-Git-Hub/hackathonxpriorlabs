@@ -115,6 +115,20 @@ export class HudController {
     this.elShutterFlash = document.getElementById("shutter-flash");
     this.elShortcutsModal = document.getElementById("shortcuts-modal");
     this.btnShortcutsClose = document.getElementById("shortcuts-close");
+    this.elBtnStep = document.getElementById("btn-step");
+    this.elMissionReport = document.getElementById("mission-report");
+    this.elRiskForecastTime = document.getElementById("risk-forecast-time");
+    this._disableOnCompleteEls = [
+      this.btnPause,
+      this.elBtnStep,
+      this.btnClearLeaks,
+      this.btnDropout,
+      this.elWindAngle,
+      this.elWindSpeed,
+    ];
+    this._scoreRows = new Map();
+    this._lastReportRef = undefined;
+    this._lastDropoutState = null;
 
     this._bindEvents();
   }
@@ -549,16 +563,24 @@ export class HudController {
   }
 
   updateRiskTime(simTime) {
-    const node=document.getElementById("risk-forecast-time");
-    if (!node)return;
-    node.textContent=this.hazardForecastTime==null ? "Gefahrenprognose: Zeitbezug nicht verfügbar" : `Risiko für t=${this.hazardForecastTime.toFixed(1)} s${simTime>this.hazardForecastTime ? " · veraltet" : ""}`;
+    const node = this.elRiskForecastTime;
+    if (!node) return;
+    const text =
+      this.hazardForecastTime == null
+        ? "Gefahrenprognose: Zeitbezug nicht verfügbar"
+        : `Risiko für t=${this.hazardForecastTime.toFixed(1)} s${simTime > this.hazardForecastTime ? " · veraltet" : ""}`;
+    if (node.textContent !== text) node.textContent = text;
   }
 
   updateReport(report) {
-    this.completed=Boolean(report);
-    document.getElementById("mission-report").classList.toggle("hidden",!report);
-    for (const id of ["btn-pause","btn-step","btn-clear-leaks","btn-dropout","wind-angle","wind-speed"]) document.getElementById(id).disabled=this.completed;
-    if (!report)return;
+    if (report === this._lastReportRef) return;
+    this._lastReportRef = report;
+    this.completed = Boolean(report);
+    this.elMissionReport?.classList.toggle("hidden", !report);
+    for (const el of this._disableOnCompleteEls) {
+      if (el) el.disabled = this.completed;
+    }
+    if (!report) return;
     document.getElementById("report-duration").textContent=`Suchdauer: ${report.elapsed_sim_seconds.toFixed(1)} s Simulationszeit · ${report.measurement_count} Messungen`;
     document.getElementById("report-position").textContent=`Geschätzte Quelle (x,y,z): ${report.estimated_source.map(x=>x.toFixed(1)).join(", ")} m`;
     document.getElementById("report-score").textContent=report.model_score==null ? "Modellbewertung: nicht verfügbar (z. B. Mock-Modus)" : `Modellbewertung: ${(report.model_score*100).toFixed(1)} % Klassifikationsscore (unkalibriert)`;
@@ -566,15 +588,60 @@ export class HudController {
     document.getElementById("report-wall").textContent=`Echtzeit seit Reset: ${report.elapsed_wall_seconds.toFixed(1)} s (inkl. Pausen) · Schätzung ${report.estimate_age_seconds.toFixed(1)} s alt`;
   }
 
+  _getOrCreateScoreRow(id) {
+    let row = this._scoreRows.get(id);
+    if (row) return row;
+    const col = DRONE_HEX[id] ?? "#e2e8f0";
+    const tr = document.createElement("tr");
+    if (id === "tabpfn") tr.className = "row-tabpfn";
+    tr.dataset.droneId = id;
+    tr.style.cursor = "pointer";
+    tr.title = `Click to inspect ${id}`;
+    tr.innerHTML = `
+      <td><span class="drone-name"><span class="swatch" style="background:${col}"></span>${id}<span class="leader-tag" style="display:none">LEAD</span></span></td>
+      <td><span class="status-pill"></span></td>
+      <td></td>
+      <td>
+        <div class="prox-cell">
+          <span></span>
+          <div class="prox-bar"><div class="prox-fill" style="background:${col}"></div></div>
+        </div>
+      </td>
+      <td></td>
+      <td>
+        <div class="bat-wrap">
+          <div class="bat-bar"><div class="bat-fill"></div></div>
+          <span></span>
+        </div>
+      </td>
+    `;
+    const tds = tr.children;
+    row = {
+      tr,
+      leaderEl: tds[0].querySelector(".leader-tag"),
+      statusEl: tds[1].firstElementChild,
+      ppmEl: tds[2],
+      distTd: tds[3],
+      distTextEl: tds[3].querySelector(".prox-cell > span"),
+      proxFillEl: tds[3].querySelector(".prox-fill"),
+      samplesEl: tds[4],
+      batFillEl: tds[5].querySelector(".bat-fill"),
+      batTextEl: tds[5].querySelector(".bat-wrap > span"),
+    };
+    this._scoreRows.set(id, row);
+    this.elScoreBody.appendChild(tr);
+    return row;
+  }
+
   updateTick(tick) {
     this.updateReport(tick.mission_report);
     this.updateRiskTime(tick.sim_time);
-    if (tick.paused !== undefined) {
+    if (tick.paused !== undefined && tick.paused !== this.paused) {
       this.paused=tick.paused;
       this.btnPause.textContent=this.paused ? "Resume" : "Pause";
       this.btnPause.classList.toggle("btn-active",this.paused);
     }
-    document.getElementById("btn-step").disabled=this.completed || !this.paused;
+    if (this.elBtnStep) this.elBtnStep.disabled = this.completed || !this.paused;
 
     this.elSimTime.textContent = `${tick.sim_time.toFixed(1)}s`;
     this.elLeakCount.textContent = String(tick.leaks.length);
@@ -589,17 +656,19 @@ export class HudController {
     const svgDeg = 90 - angleDeg;
     this.elWindArrow.setAttribute("transform", `rotate(${svgDeg.toFixed(1)} 40 40)`);
 
-    this.elDropoutBadge.classList.toggle("hidden", !tick.sensor_dropout_active);
-    this.btnDropout.classList.toggle("btn-danger-active", tick.sensor_dropout_active);
-
-    if (tick.sensor_dropout_active) {
-      this.elTabpfnCallout.classList.add("warn");
-      this.elTabpfnCalloutText.textContent =
-        "30% NaN Faults Active — TabPFN handles missing wind/temp natively";
-    } else {
-      this.elTabpfnCallout.classList.remove("warn");
-      this.elTabpfnCalloutText.textContent =
-        "TabPFN active spatial search — quantile UCB over 3D facility priors";
+    if (tick.sensor_dropout_active !== this._lastDropoutState) {
+      this._lastDropoutState = tick.sensor_dropout_active;
+      this.elDropoutBadge.classList.toggle("hidden", !tick.sensor_dropout_active);
+      this.btnDropout.classList.toggle("btn-danger-active", tick.sensor_dropout_active);
+      if (tick.sensor_dropout_active) {
+        this.elTabpfnCallout.classList.add("warn");
+        this.elTabpfnCalloutText.textContent =
+          "30% NaN Faults Active — TabPFN handles missing wind/temp natively";
+      } else {
+        this.elTabpfnCallout.classList.remove("warn");
+        this.elTabpfnCalloutText.textContent =
+          "TabPFN active spatial search — quantile UCB over 3D facility priors";
+      }
     }
 
     for (const d of tick.drones) {
@@ -619,38 +688,28 @@ export class HudController {
       }
     }
 
-    this.elScoreBody.innerHTML = tick.drones
-      .map((d) => {
-        const col = DRONE_HEX[d.id] ?? "#e2e8f0";
-        const distStr = d.dist_to_nearest_leak > 500 ? "—" : `${d.dist_to_nearest_leak.toFixed(1)}m`;
-        const isLeader = d.id === leaderId && bestDist < 500;
-        const distCls = isLeader || d.dist_to_nearest_leak < 12 ? "dist-close" : "";
-        const proxPct = Math.max(4, Math.min(100, 100 - d.dist_to_nearest_leak * 1.4));
-        const batPct = Math.max(0, Math.min(100, d.battery_pct));
-        const batCls = batPct < 20 ? "low" : "";
-        const rowCls = d.id === "tabpfn" ? "row-tabpfn" : "";
-        const leaderTag = isLeader ? `<span class="leader-tag">LEAD</span>` : "";
-        return `
-          <tr class="${rowCls}" data-drone-id="${d.id}" style="cursor:pointer" title="Click to inspect ${d.id}">
-            <td><span class="drone-name"><span class="swatch" style="background:${col}"></span>${d.id}${leaderTag}</span></td>
-            <td><span class="status-pill status-${d.status}">${d.status}</span></td>
-            <td>${d.ppm.toFixed(1)}</td>
-            <td class="${distCls}">
-              <div class="prox-cell">
-                <span>${distStr}</span>
-                <div class="prox-bar"><div class="prox-fill" style="width:${proxPct.toFixed(0)}%;background:${col}"></div></div>
-              </div>
-            </td>
-            <td>${d.samples_taken}</td>
-            <td>
-              <div class="bat-wrap">
-                <div class="bat-bar"><div class="bat-fill ${batCls}" style="width:${batPct.toFixed(0)}%"></div></div>
-                <span>${batPct.toFixed(0)}%</span>
-              </div>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
+    // Update persistent scoreboard rows in-place (zero 20 Hz DOM teardown/reflow)
+    for (const d of tick.drones) {
+      const row = this._getOrCreateScoreRow(d.id);
+      const distStr = d.dist_to_nearest_leak > 500 ? "—" : `${d.dist_to_nearest_leak.toFixed(1)}m`;
+      const isLeader = d.id === leaderId && bestDist < 500;
+      const distCls = isLeader || d.dist_to_nearest_leak < 12 ? "dist-close" : "";
+      const proxPct = Math.max(4, Math.min(100, 100 - d.dist_to_nearest_leak * 1.4));
+      const batPct = Math.max(0, Math.min(100, d.battery_pct));
+      const batCls = batPct < 20 ? "bat-fill low" : "bat-fill";
+      const statusCls = `status-pill status-${d.status}`;
+
+      row.leaderEl.style.display = isLeader ? "" : "none";
+      if (row.statusEl.className !== statusCls) row.statusEl.className = statusCls;
+      if (row.statusEl.textContent !== d.status) row.statusEl.textContent = d.status;
+      row.ppmEl.textContent = d.ppm.toFixed(1);
+      if (row.distTd.className !== distCls) row.distTd.className = distCls;
+      row.distTextEl.textContent = distStr;
+      row.proxFillEl.style.width = `${proxPct.toFixed(0)}%`;
+      row.samplesEl.textContent = String(d.samples_taken);
+      if (row.batFillEl.className !== batCls) row.batFillEl.className = batCls;
+      row.batFillEl.style.width = `${batPct.toFixed(0)}%`;
+      row.batTextEl.textContent = `${batPct.toFixed(0)}%`;
+    }
   }
 }

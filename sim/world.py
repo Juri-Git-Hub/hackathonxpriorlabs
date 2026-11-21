@@ -277,6 +277,35 @@ class World:
             initial=0.0,
         ))
 
+        # Precompute per-pipe-run and overall AABBs for fast broad-phase culling in push_outside_pipes
+        self._pipe_run_aabbs: list[tuple[float, float, float, float, float, float]] = []
+        for pipe in self.pipes:
+            if len(pipe.points) < 2:
+                continue
+            pts_p = np.asarray(pipe.points, dtype=np.float64)
+            r_p = float(pipe.radius)
+            p_lo = pts_p.min(axis=0) - r_p
+            p_hi = pts_p.max(axis=0) + r_p
+            self._pipe_run_aabbs.append(
+                (float(p_lo[0]), float(p_hi[0]), float(p_lo[1]), float(p_hi[1]), float(p_lo[2]), float(p_hi[2]))
+            )
+        if self._pipe_seg_a.shape[0] > 0:
+            seg_min = np.minimum(self._pipe_seg_a, self._pipe_seg_b) - self._pipe_seg_r[:, None]
+            seg_max = np.maximum(self._pipe_seg_a, self._pipe_seg_b) + self._pipe_seg_r[:, None]
+            self._pipe_all_min: tuple[float, float, float] = (
+                float(seg_min[:, 0].min()),
+                float(seg_min[:, 1].min()),
+                float(seg_min[:, 2].min()),
+            )
+            self._pipe_all_max: tuple[float, float, float] = (
+                float(seg_max[:, 0].max()),
+                float(seg_max[:, 1].max()),
+                float(seg_max[:, 2].max()),
+            )
+        else:
+            self._pipe_all_min = (0.0, 0.0, 0.0)
+            self._pipe_all_max = (-1.0, -1.0, -1.0)
+
         # Precomputed NumPy arrays for fast vectorized geometry & physics queries
         self._bldg_min = np.array([b.min_xyz for b in self.buildings], dtype=np.float64)
         self._bldg_max = np.array([b.max_xyz for b in self.buildings], dtype=np.float64)
@@ -296,7 +325,7 @@ class World:
         # open-truss pipe racks allow ~55% transmission.
         self._bldg_transmission = np.where(self._bldg_is_porous, 0.55, 0.05)
 
-        # Scalar tuples for zero-overhead inner-loop drone physics
+        # Scalar tuples for zero-overhead inner-loop drone & geometry physics
         self._bldg_bounds_scalar: list[tuple[float, float, float, float, float, float, float, float, float]] = [
             (
                 float(self._bldg_min[i, 0]),
@@ -311,6 +340,82 @@ class World:
             )
             for i in range(len(self.buildings))
         ]
+        # Extended scalar tuples: (x0, y0, z0, x1, y1, z1, cx, cy, hx, hy, r_cyl, r_cyl2, is_cyl, is_porous, trans)
+        self._bldg_geom_scalar: list[
+            tuple[float, float, float, float, float, float, float, float, float, float, float, float, bool, bool, float]
+        ] = [
+            (
+                float(self._bldg_min[i, 0]),
+                float(self._bldg_min[i, 1]),
+                float(self._bldg_min[i, 2]),
+                float(self._bldg_max[i, 0]),
+                float(self._bldg_max[i, 1]),
+                float(self._bldg_max[i, 2]),
+                float(self._bldg_center[i, 0]),
+                float(self._bldg_center[i, 1]),
+                float(self._bldg_half[i, 0]),
+                float(self._bldg_half[i, 1]),
+                float(self._bldg_cyl_radius[i]),
+                float(self._bldg_cyl_radius[i] ** 2),
+                bool(self._bldg_is_cylinder[i]),
+                bool(self._bldg_is_porous[i]),
+                float(self._bldg_transmission[i]),
+            )
+            for i in range(len(self.buildings))
+        ]
+
+        # Precompute 3D spatial broad-phase voxel bitmasks (2.0 m voxels over 120x120x30 m)
+        # so push_outside_buildings, push_outside_pipes, and _inside_solid_mask reject
+        # >95% of open-air points in a single O(1) array lookup with zero approximation.
+        self._bp_nx = 60
+        self._bp_ny = 60
+        self._bp_nz = 15
+        self._bp_inv = 0.5  # 1 / 2.0 m
+        vx = -60.0 + (np.arange(self._bp_nx, dtype=np.float64) + 0.5) * 2.0
+        vy = -60.0 + (np.arange(self._bp_ny, dtype=np.float64) + 0.5) * 2.0
+        vz = (np.arange(self._bp_nz, dtype=np.float64) + 0.5) * 2.0
+        VX, VY, VZ = np.meshgrid(vx, vy, vz, indexing="ij")
+        # Pad by half-voxel diagonal (sqrt(3) ~= 1.74 m) + max supported query margin (0.5 m) = 2.3 m
+        bp_pad = 2.3
+        bldg_solid_bp = np.zeros((self._bp_nx, self._bp_ny, self._bp_nz), dtype=bool)
+        bldg_all_bp = np.zeros((self._bp_nx, self._bp_ny, self._bp_nz), dtype=bool)
+        for x0, y0, z0, x1, y1, z1, cx, cy, _hx, _hy, r_cyl, _r2, is_cyl, is_porous, _tr in self._bldg_geom_scalar:
+            if is_cyl:
+                r_p = r_cyl + bp_pad
+                m = ((VX - cx) ** 2 + (VY - cy) ** 2 <= r_p * r_p) & (VZ >= z0 - bp_pad) & (VZ <= z1 + bp_pad)
+            else:
+                m = (
+                    (VX >= x0 - bp_pad)
+                    & (VX <= x1 + bp_pad)
+                    & (VY >= y0 - bp_pad)
+                    & (VY <= y1 + bp_pad)
+                    & (VZ >= z0 - bp_pad)
+                    & (VZ <= z1 + bp_pad)
+                )
+            bldg_all_bp |= m
+            if not is_porous:
+                bldg_solid_bp |= m
+        self._bp_bldg_solid_flat = np.ascontiguousarray(bldg_solid_bp).ravel()
+        self._bp_bldg_all_flat = np.ascontiguousarray(bldg_all_bp).ravel()
+
+        pipe_bp = np.zeros((self._bp_nx, self._bp_ny, self._bp_nz), dtype=bool)
+        if self._pipe_seg_a.shape[0] > 0:
+            # Conservative capsule-to-voxel-center distance check (half-diag 1.74 + margin 0.5 = 2.25 m)
+            p_pad = 2.25
+            pts_bp = np.stack([VX, VY, VZ], axis=-1).reshape(-1, 3)
+            pipe_flat = np.zeros(pts_bp.shape[0], dtype=bool)
+            for s in range(self._pipe_seg_a.shape[0]):
+                a = self._pipe_seg_a[s]
+                ab = self._pipe_seg_ab[s]
+                len2 = float(self._pipe_seg_len2[s])
+                r_lim = float(self._pipe_seg_r[s]) + p_pad
+                ap = pts_bp - a[None, :]
+                t = (ap @ ab) / len2
+                np.clip(t, 0.0, 1.0, out=t)
+                diff = pts_bp - (a[None, :] + t[:, None] * ab[None, :])
+                pipe_flat |= np.sum(diff * diff, axis=1) <= r_lim * r_lim
+            pipe_bp = pipe_flat.reshape(self._bp_nx, self._bp_ny, self._bp_nz)
+        self._bp_pipe_flat = np.ascontiguousarray(pipe_bp).ravel()
 
         self._asset_pos = np.array([a.pos for a in self.assets], dtype=np.float64)
         self._asset_age = np.array([a.age_years for a in self.assets], dtype=np.float64)
@@ -341,13 +446,13 @@ class World:
     ) -> bool:
         """Return True if pos lies inside any solid obstacle (exact cylinder for tanks)."""
         px, py, pz = pos
-        for i, (x0, y0, z0, x1, y1, z1, cx, cy, _) in enumerate(self._bldg_bounds_scalar):
-            if skip_porous and self._bldg_is_porous[i]:
+        for x0, y0, z0, x1, y1, z1, cx, cy, _hx, _hy, r_cyl, _r2, is_cyl, is_porous, _tr in self._bldg_geom_scalar:
+            if skip_porous and is_porous:
                 continue
             if pz < z0 or pz > z1 + margin:
                 continue
-            if self._bldg_is_cylinder[i]:
-                r = float(self._bldg_cyl_radius[i]) + margin
+            if is_cyl:
+                r = r_cyl + margin
                 dx = px - cx
                 dy = py - cy
                 if dx * dx + dy * dy <= r * r:
@@ -365,63 +470,93 @@ class World:
     def height_above_surface(self, px: float, py: float, pz: float) -> float:
         """Vertical clearance above ground (z=0) or any building/tank roof directly below."""
         h_agl = pz
-        for i, (x0, y0, _, x1, y1, z1, cx, cy, _) in enumerate(self._bldg_bounds_scalar):
+        for x0, y0, _z0, x1, y1, z1, cx, cy, _hx, _hy, _r, r2, is_cyl, _ip, _tr in self._bldg_geom_scalar:
             if pz < z1:
                 continue
-            if self._bldg_is_cylinder[i]:
-                r = float(self._bldg_cyl_radius[i])
-                if (px - cx) ** 2 + (py - cy) ** 2 <= r * r:
-                    h_roof = pz - z1
-                    if h_roof < h_agl:
-                        h_agl = h_roof
-            elif x0 <= px <= x1 and y0 <= py <= y1:
-                h_roof = pz - z1
-                if h_roof < h_agl:
+            h_roof = pz - z1
+            if h_roof >= h_agl:
+                continue
+            if is_cyl:
+                dx = px - cx
+                dy = py - cy
+                if dx * dx + dy * dy <= r2:
                     h_agl = h_roof
-        return max(0.05, h_agl)
+            elif x0 <= px <= x1 and y0 <= py <= y1:
+                h_agl = h_roof
+        return 0.05 if h_agl < 0.05 else h_agl
+
+    def _bp_lookup(self, flat_mask: np.ndarray, px: np.ndarray, py: np.ndarray, pz: np.ndarray) -> np.ndarray:
+        """O(1) per-point broad-phase lookup in 60x60x15 (2.0 m) voxel bitmask."""
+        ix = ((px + 60.0) * 0.5).astype(np.intp)
+        iy = ((py + 60.0) * 0.5).astype(np.intp)
+        iz = (pz * 0.5).astype(np.intp)
+        in_grid = (ix >= 0) & (ix < 60) & (iy >= 0) & (iy < 60) & (iz >= 0) & (iz < 15)
+        out = np.zeros(px.shape[0], dtype=bool)
+        if in_grid.any():
+            out[in_grid] = flat_mask[(ix[in_grid] * 60 + iy[in_grid]) * 15 + iz[in_grid]]
+        return out
 
     def push_outside_buildings(
-        self, points_nx3: np.ndarray, margin: float = 0.0, skip_porous: bool = False
+        self,
+        points_nx3: np.ndarray,
+        margin: float = 0.0,
+        skip_porous: bool = False,
+        copy: bool = True,
+        _use_bp: bool = True,
     ) -> np.ndarray:
         """Vectorized push-out: moves points inside buildings/tanks to nearest surface.
 
         Uses exact cylinder geometry for storage tanks and skips open-truss pipe racks
         when skip_porous=True (so gas puffs flow through pipe racks instead of teleporting).
         """
-        pts = points_nx3.copy()
+        pts = points_nx3.copy() if copy else points_nx3
         if pts.shape[0] == 0:
             return pts
 
-        for i in range(len(self.buildings)):
-            if skip_porous and self._bldg_is_porous[i]:
+        # Fast O(1) voxel broad-phase when margin fits within precomputed 0.5m pad
+        if _use_bp and margin <= 0.5 and pts.shape[0] > 8:
+            bp_mask = self._bp_bldg_solid_flat if skip_porous else self._bp_bldg_all_flat
+            near = self._bp_lookup(bp_mask, pts[:, 0], pts[:, 1], pts[:, 2])
+            if not near.any():
+                return pts
+            cand_idx = np.nonzero(near)[0]
+            sub_pts = self.push_outside_buildings(
+                pts[cand_idx], margin=margin, skip_porous=skip_porous, copy=False, _use_bp=False
+            )
+            pts[cand_idx] = sub_pts
+            return pts
+
+        px = pts[:, 0]
+        py = pts[:, 1]
+        pz = pts[:, 2]
+
+        for x0, y0, z0, x1, y1, z1, cx, cy, _hx, _hy, r_cyl, _r2, is_cyl, is_porous, _tr in self._bldg_geom_scalar:
+            if skip_porous and is_porous:
                 continue
 
-            if self._bldg_is_cylinder[i]:
-                cx = float(self._bldg_center[i, 0])
-                cy = float(self._bldg_center[i, 1])
-                r_eff = float(self._bldg_cyl_radius[i]) + margin
-                z_lo = float(self._bldg_min[i, 2])
-                z_hi = float(self._bldg_max[i, 2]) + margin
-
-                dx = pts[:, 0] - cx
-                dy = pts[:, 1] - cy
-                r_dist = np.hypot(dx, dy)
-                inside = (r_dist <= r_eff) & (pts[:, 2] >= z_lo) & (pts[:, 2] <= z_hi)
-                if not np.any(inside):
+            z_hi = z1 + margin
+            if is_cyl:
+                r_eff = r_cyl + margin
+                dx = px - cx
+                dy = py - cy
+                r2_dist = dx * dx + dy * dy
+                inside = (r2_dist <= r_eff * r_eff) & (pz >= z0) & (pz <= z_hi)
+                if not inside.any():
                     continue
 
                 sub = pts[inside]
-                d_rad = r_eff - r_dist[inside]
+                r_in = np.sqrt(r2_dist[inside])
+                d_rad = r_eff - r_in
                 d_top = z_hi - sub[:, 2]
                 push_top = d_top < d_rad
 
-                if np.any(push_top):
+                if push_top.any():
                     sub[push_top, 2] = z_hi + 0.05
                 push_side = ~push_top
-                if np.any(push_side):
+                if push_side.any():
                     sdx = dx[inside][push_side]
                     sdy = dy[inside][push_side]
-                    sr = r_dist[inside][push_side]
+                    sr = r_in[push_side]
                     safe_r = np.where(sr > 1e-6, sr, 1.0)
                     ux = np.where(sr > 1e-6, sdx / safe_r, 1.0)
                     uy = np.where(sr > 1e-6, sdy / safe_r, 0.0)
@@ -431,85 +566,103 @@ class World:
                 pts[inside] = sub
                 continue
 
-            lo = self._bldg_min[i] - np.array([margin, margin, 0.0])
-            hi = self._bldg_max[i] + margin
+            lo0 = x0 - margin
+            lo1 = y0 - margin
+            hi0 = x1 + margin
+            hi1 = y1 + margin
 
             inside = (
-                (pts[:, 0] >= lo[0])
-                & (pts[:, 0] <= hi[0])
-                & (pts[:, 1] >= lo[1])
-                & (pts[:, 1] <= hi[1])
-                & (pts[:, 2] >= lo[2])
-                & (pts[:, 2] <= hi[2])
+                (px >= lo0)
+                & (px <= hi0)
+                & (py >= lo1)
+                & (py <= hi1)
+                & (pz >= z0)
+                & (pz <= z_hi)
             )
-            if not np.any(inside):
+            if not inside.any():
                 continue
 
             sub = pts[inside]
             # Distances to the 5 escapable faces (-x, +x, -y, +y, +z)
-            d_xmin = sub[:, 0] - lo[0]
-            d_xmax = hi[0] - sub[:, 0]
-            d_ymin = sub[:, 1] - lo[1]
-            d_ymax = hi[1] - sub[:, 1]
-            d_zmax = hi[2] - sub[:, 2]
+            d_xmin = sub[:, 0] - lo0
+            d_xmax = hi0 - sub[:, 0]
+            d_ymin = sub[:, 1] - lo1
+            d_ymax = hi1 - sub[:, 1]
+            d_zmax = z_hi - sub[:, 2]
 
             dists = np.stack([d_xmin, d_xmax, d_ymin, d_ymax, d_zmax], axis=1)
             face = np.argmin(dists, axis=1)
 
-            m0 = face == 0
-            m1 = face == 1
-            m2 = face == 2
-            m3 = face == 3
-            m4 = face == 4
-
-            sub[m0, 0] = lo[0] - 0.05
-            sub[m1, 0] = hi[0] + 0.05
-            sub[m2, 1] = lo[1] - 0.05
-            sub[m3, 1] = hi[1] + 0.05
-            sub[m4, 2] = hi[2] + 0.05
+            sub[face == 0, 0] = lo0 - 0.05
+            sub[face == 1, 0] = hi0 + 0.05
+            sub[face == 2, 1] = lo1 - 0.05
+            sub[face == 3, 1] = hi1 + 0.05
+            sub[face == 4, 2] = z_hi + 0.05
 
             pts[inside] = sub
 
         return pts
 
     def push_outside_pipes(
-        self, points_nx3: np.ndarray, margin: float = 0.05
+        self, points_nx3: np.ndarray, margin: float = 0.05, copy: bool = True
     ) -> np.ndarray:
         """Vectorized continuous capsule push-out so puffs deflect cleanly around pipe runs."""
         if points_nx3.shape[0] == 0 or self._pipe_seg_a.shape[0] == 0:
-            return points_nx3
+            return points_nx3.copy() if copy else points_nx3
 
-        pts = points_nx3.copy()
-        low_mask = pts[:, 2] <= self._pipe_top + margin
-        if not np.any(low_mask):
-            return pts
+        pts = points_nx3.copy() if copy else points_nx3
+        px = pts[:, 0]
+        py = pts[:, 1]
+        pz = pts[:, 2]
 
-        sub = pts[low_mask]  # (K, 3)
+        # O(1) 3D voxel broad-phase lookup (exact: zero false negatives for margin <= 0.5 m)
+        if margin <= 0.5:
+            near_any = self._bp_lookup(self._bp_pipe_flat, px, py, pz)
+            if not near_any.any():
+                return pts
+            active_idx = np.nonzero(near_any)[0]
+        else:
+            ax0, ay0, az0 = self._pipe_all_min
+            ax1, ay1, az1 = self._pipe_all_max
+            in_all = (
+                (pz <= az1 + margin)
+                & (pz >= az0 - margin)
+                & (px >= ax0 - margin)
+                & (px <= ax1 + margin)
+                & (py >= ay0 - margin)
+                & (py <= ay1 + margin)
+            )
+            if not in_all.any():
+                return pts
+            active_idx = np.nonzero(in_all)[0]
+
+        sub = pts[active_idx]  # (K, 3) where K is typically 0..10 puffs near pipes
+
         # Compute closest point on every segment: (K, S, 3)
         ap = sub[:, None, :] - self._pipe_seg_a[None, :, :]
         t = np.sum(ap * self._pipe_seg_ab[None, :, :], axis=2) / self._pipe_seg_len2[None, :]
-        t = np.clip(t, 0.0, 1.0)
+        np.clip(t, 0.0, 1.0, out=t)
         closest = self._pipe_seg_a[None, :, :] + t[:, :, None] * self._pipe_seg_ab[None, :, :]
         diff = sub[:, None, :] - closest
         dist2 = np.sum(diff * diff, axis=2)
         min_r = self._pipe_seg_r[None, :] + margin
         hit_mask = dist2 < (min_r * min_r)
 
-        if np.any(hit_mask):
+        if hit_mask.any():
             # Resolve against the deepest penetrating segment per point
             pen = min_r - np.sqrt(np.maximum(dist2, 1e-12))
             pen = np.where(hit_mask, pen, -1.0)
             best_seg = np.argmax(pen, axis=1)
             best_pen = pen[np.arange(sub.shape[0]), best_seg]
             fix = best_pen > 0.0
-            if np.any(fix):
+            if fix.any():
                 idx = np.nonzero(fix)[0]
                 s_idx = best_seg[idx]
                 v = diff[idx, s_idx]
                 v_norm = np.linalg.norm(v, axis=1, keepdims=True)
                 n_hat = np.where(v_norm > 1e-6, v / np.maximum(v_norm, 1e-6), np.array([[0.0, 0.0, 1.0]]))
                 sub[idx] = closest[idx, s_idx] + n_hat * (self._pipe_seg_r[s_idx, None] + margin + 0.02)
-            pts[low_mask] = sub
+            pts[active_idx] = sub
 
         return pts
 
@@ -524,84 +677,92 @@ class World:
         if n == 0:
             return trans
 
-        target = np.asarray(p_to, dtype=np.float64)
-        d = target[None, :] - p_from_nx3  # (N, 3)
+        px = p_from_nx3[:, 0]
+        py = p_from_nx3[:, 1]
+        pz = p_from_nx3[:, 2]
+        dx = p_to[0] - px
+        dy = p_to[1] - py
+        dz = p_to[2] - pz
 
-        # Safe inverse direction avoiding division by zero
         eps = 1e-9
-        abs_d = np.abs(d)
-        parallel = abs_d < eps
-        inv_d = np.where(parallel, 0.0, 1.0 / np.where(parallel, 1.0, d))
+        par_x = np.abs(dx) < eps
+        par_y = np.abs(dy) < eps
+        par_z = np.abs(dz) < eps
+        inv_dx = np.where(par_x, 0.0, 1.0 / np.where(par_x, 1.0, dx))
+        inv_dy = np.where(par_y, 0.0, 1.0 / np.where(par_y, 1.0, dy))
+        inv_dz = np.where(par_z, 0.0, 1.0 / np.where(par_z, 1.0, dz))
 
-        for i in range(len(self.buildings)):
-            if self._bldg_is_cylinder[i]:
-                cx = float(self._bldg_center[i, 0])
-                cy = float(self._bldg_center[i, 1])
-                r = float(self._bldg_cyl_radius[i])
-                z0 = float(self._bldg_min[i, 2])
-                z1 = float(self._bldg_max[i, 2])
+        has_par_x = bool(par_x.any())
+        has_par_y = bool(par_y.any())
+        has_par_z = bool(par_z.any())
 
-                # Z-slab interval [tz_enter, tz_exit]
-                par_z = parallel[:, 2]
-                tz1 = (z0 - p_from_nx3[:, 2]) * inv_d[:, 2]
-                tz2 = (z1 - p_from_nx3[:, 2]) * inv_d[:, 2]
-                in_z = (p_from_nx3[:, 2] >= z0) & (p_from_nx3[:, 2] <= z1)
-                tz_enter = np.where(par_z, np.where(in_z, -1e9, 1e9), np.minimum(tz1, tz2))
-                tz_exit = np.where(par_z, np.where(in_z, 1e9, -1e9), np.maximum(tz1, tz2))
+        for x0, y0, z0, x1, y1, z1, cx, cy, _hx, _hy, _r, r2, is_cyl, _ip, bldg_trans in self._bldg_geom_scalar:
+            # Z-slab interval [tz_enter, tz_exit]
+            tz1 = (z0 - pz) * inv_dz
+            tz2 = (z1 - pz) * inv_dz
+            tz_enter = np.minimum(tz1, tz2)
+            tz_exit = np.maximum(tz1, tz2)
+            if has_par_z:
+                in_z = (pz >= z0) & (pz <= z1)
+                tz_enter = np.where(par_z, np.where(in_z, -1e9, 1e9), tz_enter)
+                tz_exit = np.where(par_z, np.where(in_z, 1e9, -1e9), tz_exit)
 
-                # 2D ray-circle intersection in XY
-                ox = p_from_nx3[:, 0] - cx
-                oy = p_from_nx3[:, 1] - cy
-                dx = d[:, 0]
-                dy = d[:, 1]
+            if is_cyl:
+                ox = px - cx
+                oy = py - cy
                 a = dx * dx + dy * dy
                 b = 2.0 * (ox * dx + oy * dy)
-                c = ox * ox + oy * oy - r * r
+                c = ox * ox + oy * oy - r2
                 disc = b * b - 4.0 * a * c
 
                 vert_ray = a < 1e-9
                 inside_cyl_xy = c <= 0.0
                 safe_a = np.where(vert_ray, 1.0, a)
                 sqrt_disc = np.sqrt(np.maximum(disc, 0.0))
+                inv_2a = 0.5 / safe_a
                 tc_enter = np.where(
                     vert_ray,
                     np.where(inside_cyl_xy, -1e9, 1e9),
-                    np.where(disc >= 0.0, (-b - sqrt_disc) / (2.0 * safe_a), 1e9),
+                    np.where(disc >= 0.0, (-b - sqrt_disc) * inv_2a, 1e9),
                 )
                 tc_exit = np.where(
                     vert_ray,
                     np.where(inside_cyl_xy, 1e9, -1e9),
-                    np.where(disc >= 0.0, (-b + sqrt_disc) / (2.0 * safe_a), -1e9),
+                    np.where(disc >= 0.0, (-b + sqrt_disc) * inv_2a, -1e9),
                 )
 
                 t_enter = np.maximum(tc_enter, tz_enter)
                 t_exit = np.minimum(tc_exit, tz_exit)
                 hit = (t_exit >= t_enter) & (t_exit > 0.04) & (t_enter < 0.96)
-                if np.any(hit):
-                    trans[hit] *= self._bldg_transmission[i]
+                if hit.any():
+                    trans[hit] *= bldg_trans
                 continue
 
-            bmin = self._bldg_min[i]
-            bmax = self._bldg_max[i]
+            tx1 = (x0 - px) * inv_dx
+            tx2 = (x1 - px) * inv_dx
+            tx_enter = np.minimum(tx1, tx2)
+            tx_exit = np.maximum(tx1, tx2)
+            if has_par_x:
+                in_x = (px >= x0) & (px <= x1)
+                tx_enter = np.where(par_x, np.where(in_x, -1e9, 1e9), tx_enter)
+                tx_exit = np.where(par_x, np.where(in_x, 1e9, -1e9), tx_exit)
 
-            t1 = (bmin[None, :] - p_from_nx3) * inv_d
-            t2 = (bmax[None, :] - p_from_nx3) * inv_d
+            ty1 = (y0 - py) * inv_dy
+            ty2 = (y1 - py) * inv_dy
+            ty_enter = np.minimum(ty1, ty2)
+            ty_exit = np.maximum(ty1, ty2)
+            if has_par_y:
+                in_y = (py >= y0) & (py <= y1)
+                ty_enter = np.where(par_y, np.where(in_y, -1e9, 1e9), ty_enter)
+                ty_exit = np.where(par_y, np.where(in_y, 1e9, -1e9), ty_exit)
 
-            tmin_ax = np.minimum(t1, t2)
-            tmax_ax = np.maximum(t1, t2)
-
-            # For axes parallel to the ray, check if origin is inside slab
-            in_slab = (p_from_nx3 >= bmin[None, :]) & (p_from_nx3 <= bmax[None, :])
-            tmin_ax = np.where(parallel, np.where(in_slab, -1e9, 1e9), tmin_ax)
-            tmax_ax = np.where(parallel, np.where(in_slab, 1e9, -1e9), tmax_ax)
-
-            t_enter = np.max(tmin_ax, axis=1)
-            t_exit = np.min(tmax_ax, axis=1)
+            t_enter = np.maximum(np.maximum(tx_enter, ty_enter), tz_enter)
+            t_exit = np.minimum(np.minimum(tx_exit, ty_exit), tz_exit)
 
             # Strictly interior segment crossing (avoids self-occluding surface-grazing puffs)
             hit = (t_exit >= t_enter) & (t_exit > 0.04) & (t_enter < 0.96)
-            if np.any(hit):
-                trans[hit] *= self._bldg_transmission[i]
+            if hit.any():
+                trans[hit] *= bldg_trans
 
         return trans
 
@@ -613,12 +774,11 @@ class World:
             return False
 
         ux, uy = wx / speed, wy / speed
+        abs_ux = abs(ux)
+        abs_uy = abs(uy)
         px, py, pz = pos
 
-        for i in range(len(self.buildings)):
-            cx, cy, _ = self._bldg_center[i]
-            hx, hy, _ = self._bldg_half[i]
-            height = float(self._bldg_max[i, 2])
+        for _x0, _y0, _z0, _x1, _y1, height, cx, cy, hx, hy, r_cyl, _r2, is_cyl, _ip, _tr in self._bldg_geom_scalar:
             if pz > height * 1.15:
                 continue
 
@@ -627,13 +787,12 @@ class World:
             along = dx * ux + dy * uy
             cross = abs(-dx * uy + dy * ux)
 
-            if self._bldg_is_cylinder[i]:
-                r = float(self._bldg_cyl_radius[i])
-                half_along = r
-                half_cross = r
+            if is_cyl:
+                half_along = r_cyl
+                half_cross = r_cyl
             else:
-                half_along = hx * abs(ux) + hy * abs(uy)
-                half_cross = hx * abs(uy) + hy * abs(ux)
+                half_along = hx * abs_ux + hy * abs_uy
+                half_cross = hx * abs_uy + hy * abs_ux
 
             if half_along < along <= half_along + 2.5 * height and cross <= half_cross * 1.1:
                 return True

@@ -86,8 +86,8 @@ export class PlumeView {
 
         varying float vAlpha;
         varying float vDensity;
-        varying float vSeed;
-        varying float vAngle;
+        varying vec2 vRot;
+        varying vec2 vNoiseOffset;
 
         void main() {
           vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
@@ -95,8 +95,9 @@ export class PlumeView {
           float nearFade = smoothstep(3.0, 11.0, camDist);
           vAlpha = aAlpha * nearFade;
           vDensity = aDensity;
-          vSeed = aSeed;
-          vAngle = aAngle + uTime * (0.22 + 0.16 * fract(aSeed * 7.31)) * (fract(aSeed * 3.17) > 0.5 ? 1.0 : -1.0);
+          float angle = aAngle + uTime * (0.22 + 0.16 * fract(aSeed * 7.31)) * (fract(aSeed * 3.17) > 0.5 ? 1.0 : -1.0);
+          vRot = vec2(cos(angle), sin(angle));
+          vNoiseOffset = vec2(aSeed * 23.7 + uTime * 0.25, aSeed * 41.3 - uTime * 0.18);
 
           // Scale by devicePixelRatio so HiDPI displays render the exact same cohesive cloud size
           gl_PointSize = min(280.0 * uPixelRatio, aSize * (420.0 * uPixelRatio / camDist));
@@ -104,11 +105,10 @@ export class PlumeView {
         }
       `,
       fragmentShader: `
-        uniform float uTime;
         varying float vAlpha;
         varying float vDensity;
-        varying float vSeed;
-        varying float vAngle;
+        varying vec2 vRot;
+        varying vec2 vNoiseOffset;
 
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -142,14 +142,11 @@ export class PlumeView {
           float r2 = dot(uv, uv);
           if (r2 > 1.0) discard;
 
-          // Unique per-particle UV rotation
-          float ca = cos(vAngle);
-          float sa = sin(vAngle);
-          vec2 ruv = vec2(ca * uv.x - sa * uv.y, sa * uv.x + ca * uv.y);
+          // Unique per-particle UV rotation (precomputed in vertex shader)
+          vec2 ruv = vec2(vRot.x * uv.x - vRot.y * uv.y, vRot.y * uv.x + vRot.x * uv.y);
 
           // Animated domain-warped FBM for billowing turbulent gas
-          vec2 drift = vec2(uTime * 0.25, -uTime * 0.18);
-          vec2 p = ruv * 2.2 + vec2(vSeed * 23.7, vSeed * 41.3) + drift;
+          vec2 p = ruv * 2.2 + vNoiseOffset;
           vec2 warp = vec2(fbm(p), fbm(p + vec2(4.7, 1.9)));
           float n = fbm(p + 1.05 * warp);
 
@@ -199,11 +196,20 @@ export class PlumeView {
     this._nextPuffId = 1;
     this._tickElapsed = 0;
     this._tickInterval = 0.05;
+    this._staticAttrsDirty = true;
+    this._pendingPuffs = null;
   }
 
   setVisible(flag) {
-    this.visible = Boolean(flag);
+    const next = Boolean(flag);
+    const turnedOn = next && !this.visible;
+    this.visible = next;
     this.group.visible = this.visible;
+    if (turnedOn && this._pendingPuffs) {
+      const puffs = this._pendingPuffs;
+      this._pendingPuffs = null;
+      this._updateTrackedPuffs(puffs);
+    }
   }
 
   _makeStableSubParams(id) {
@@ -230,17 +236,29 @@ export class PlumeView {
     return subs;
   }
 
-  update(puffs, leaks, windVec) {
-    if (windVec) {
-      this._windVec = windVec;
-    }
-
-    // Match incoming 20 Hz puffs to persistent tracked puffs by nearest position
-    // so puff IDs, FBM seeds, and jitter offsets NEVER jump when older puffs expire!
+  _updateTrackedPuffs(puffs) {
+    // Match incoming 20 Hz puffs to persistent tracked puffs via 4.0m spatial hash
+    // so puff IDs, FBM seeds, and jitter offsets NEVER jump, in O(N) instead of O(N^2)!
     const prevList = this._trackedPuffs;
     const usedPrev = new Uint8Array(prevList.length);
     const nextList = [];
     const maxMatchDist2 = 16.0; // 4.0m max motion per 50ms tick
+    const invCell = 0.25; // 1 / 4.0m
+
+    const grid = new Map();
+    for (let j = 0; j < prevList.length; j++) {
+      const prev = prevList[j];
+      const cx = Math.floor(prev.currX * invCell);
+      const cy = Math.floor(prev.currY * invCell);
+      const cz = Math.floor(prev.currZ * invCell);
+      const key = ((cx + 512) * 1024 + (cy + 512)) * 1024 + (cz + 512);
+      let bucket = grid.get(key);
+      if (!bucket) {
+        bucket = [];
+        grid.set(key, bucket);
+      }
+      bucket.push(j);
+    }
 
     const count = Math.min(puffs.length, this.maxPhysicalPuffs);
     for (let i = 0; i < count; i++) {
@@ -250,18 +268,33 @@ export class PlumeView {
       const ty = p.pos[2];
       const tz = -p.pos[1];
 
+      const gx = Math.floor(tx * invCell);
+      const gy = Math.floor(ty * invCell);
+      const gz = Math.floor(tz * invCell);
+
       let bestIdx = -1;
       let bestD2 = maxMatchDist2;
-      for (let j = 0; j < prevList.length; j++) {
-        if (usedPrev[j]) continue;
-        const prev = prevList[j];
-        const dx = tx - prev.currX;
-        const dy = ty - prev.currY;
-        const dz = tz - prev.currZ;
-        const d2 = dx * dx + dy * dy + dz * dz;
-        if (d2 < bestD2) {
-          bestD2 = d2;
-          bestIdx = j;
+      for (let ox = -1; ox <= 1; ox++) {
+        const kx = (gx + ox + 512) * 1024;
+        for (let oy = -1; oy <= 1; oy++) {
+          const kxy = (kx + (gy + oy + 512)) * 1024;
+          for (let oz = -1; oz <= 1; oz++) {
+            const bucket = grid.get(kxy + (gz + oz + 512));
+            if (!bucket) continue;
+            for (let b = 0; b < bucket.length; b++) {
+              const j = bucket[b];
+              if (usedPrev[j]) continue;
+              const prev = prevList[j];
+              const dx = tx - prev.currX;
+              const dy = ty - prev.currY;
+              const dz = tz - prev.currZ;
+              const d2 = dx * dx + dy * dy + dz * dz;
+              if (d2 < bestD2) {
+                bestD2 = d2;
+                bestIdx = j;
+              }
+            }
+          }
         }
       }
 
@@ -311,7 +344,22 @@ export class PlumeView {
 
     this._trackedPuffs = nextList;
     this._tickElapsed = 0;
+    this._staticAttrsDirty = true;
     this._writeBuffers(0);
+  }
+
+  update(puffs, leaks, windVec) {
+    if (windVec) {
+      this._windVec = windVec;
+    }
+
+    if (this.visible) {
+      this._pendingPuffs = null;
+      this._updateTrackedPuffs(puffs);
+    } else {
+      // Defer puff matching & GPU buffer uploads until the plume is actually revealed
+      this._pendingPuffs = puffs;
+    }
 
     const key = leaks.map((l) => `${l.id}:${l.pos.join(",")}`).join("|");
     if (key !== this._leakKey) {
@@ -368,6 +416,7 @@ export class PlumeView {
     const alphaLerp = Math.min(1.0, this._tickElapsed / this._tickInterval);
     let writeIdx = 0;
 
+    const writeStatic = this._staticAttrsDirty;
     for (let i = 0; i < this._trackedPuffs.length; i++) {
       const tr = this._trackedPuffs[i];
       tr.ageVis += dt;
@@ -396,8 +445,10 @@ export class PlumeView {
         this.sizes[writeIdx] = baseSize * (0.82 + 0.36 * sub.r3) * sub.centerWeight;
         this.alphas[writeIdx] = baseAlpha * (0.60 + 0.40 * sub.centerWeight);
         this.densities[writeIdx] = density * (0.80 + 0.20 * sub.centerWeight);
-        this.seeds[writeIdx] = sub.seed;
-        this.angles[writeIdx] = sub.angle;
+        if (writeStatic) {
+          this.seeds[writeIdx] = sub.seed;
+          this.angles[writeIdx] = sub.angle;
+        }
         writeIdx++;
       }
     }
@@ -406,8 +457,11 @@ export class PlumeView {
     this.geometry.attributes.aSize.needsUpdate = true;
     this.geometry.attributes.aAlpha.needsUpdate = true;
     this.geometry.attributes.aDensity.needsUpdate = true;
-    this.geometry.attributes.aSeed.needsUpdate = true;
-    this.geometry.attributes.aAngle.needsUpdate = true;
+    if (writeStatic) {
+      this.geometry.attributes.aSeed.needsUpdate = true;
+      this.geometry.attributes.aAngle.needsUpdate = true;
+      this._staticAttrsDirty = false;
+    }
     this.geometry.setDrawRange(0, writeIdx);
   }
 

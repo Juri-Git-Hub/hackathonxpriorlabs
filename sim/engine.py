@@ -84,6 +84,8 @@ class SimEngine:
 
         self._obs_accum: float = 0.0
         self._pending_beliefs: list[BeliefUpdatePayload] = []
+        self._drone_items: list[tuple[str, Drone]] = []
+        self._drone_pos_buf = np.zeros((0, 3), dtype=np.float64)
 
         self._init_drones()
         self.reset_race()
@@ -93,6 +95,8 @@ class SimEngine:
             start = DEFAULT_START_POSITIONS.get(drone_id, (-48.0, -45.0 + 5.0 * i, 5.0))
             self.drones[drone_id] = Drone(drone_id, start)
             self.sensors[drone_id] = GasSensor(seed=self._seed + 200 + i)
+        self._drone_items = list(self.drones.items())
+        self._drone_pos_buf = np.zeros((len(self._drone_items), 3), dtype=np.float64)
 
     def get_world_init(self) -> WorldInitPayload:
         payload=self.world.to_world_init()
@@ -238,7 +242,7 @@ class SimEngine:
             for lk in self.leaks
         )
 
-    def step(self, dt: float | None = None) -> SimTickPayload:
+    def step(self, dt: float | None = None, include_puffs: bool = True) -> SimTickPayload:
         """Advance simulation by one fixed physics step (default 0.05s = 20 Hz)."""
         step_dt = self.DT if dt is None else dt
 
@@ -255,9 +259,11 @@ class SimEngine:
                     self._obs_accum -= self.OBS_INTERVAL
 
                 # Batch local wind query for all drones in a single vectorized call
-                drone_items = list(self.drones.items())
-                drone_positions = np.array([d.pos for _, d in drone_items], dtype=np.float64)
-                drone_winds = self.airflow.sample_wind(drone_positions)
+                drone_items = self._drone_items
+                pos_buf = self._drone_pos_buf
+                for idx, (_, d) in enumerate(drone_items):
+                    pos_buf[idx] = d.pos
+                drone_winds = self.airflow.sample_wind(pos_buf)
 
                 # Step each drone and its chemical sensor
                 for idx, (drone_id, drone) in enumerate(drone_items):
@@ -277,7 +283,7 @@ class SimEngine:
                         drone.samples_taken += 1
 
                         ctx = self.world.query_spatial_context(drone.pos_tuple, wind_amb)
-                        obs = DroneObservation(
+                        obs = DroneObservation.model_construct(
                             sim_time=self.sim_time,
                             drone_id=drone_id,
                             pos=drone.pos_tuple,
@@ -308,7 +314,7 @@ class SimEngine:
                         self._check_completion(drone_id,ppm_meas)
 
 
-            return self.get_tick_payload()
+            return self.get_tick_payload(include_puffs=include_puffs)
 
     def _check_completion(self,drone_id,ppm):
         """Simulator judge only: never feed truth or this decision into TabPFN."""
@@ -333,11 +339,12 @@ class SimEngine:
             self._lock_timers[drone_id]=0
             drone.status='tracking' if ppm>5 else 'searching'
 
-    def get_tick_payload(self) -> SimTickPayload:
+    def get_tick_payload(self, include_puffs: bool = True) -> SimTickPayload:
         """Build SimTickPayload snapshot for broadcasting."""
         with self._lock:
+            construct_drone = DroneTickState.model_construct
             drone_states = [
-                DroneTickState(
+                construct_drone(
                     id=d.id,
                     pos=d.pos_tuple,
                     rot_rpy=d.rot_rpy_tuple,
@@ -348,14 +355,15 @@ class SimEngine:
                     dist_to_nearest_leak=self._dist_to_nearest_leak(d.pos_tuple),
                     status=d.status,
                 )
-                for d in self.drones.values()
+                for _, d in self._drone_items
             ]
-            return SimTickPayload(
+            return SimTickPayload.model_construct(
+                type="sim_tick",
                 sim_time=self.sim_time,
                 wind_vec=self.airflow.current_wind_vec(),
                 leaks=list(self.leaks),
                 drones=drone_states,
-                puffs=self.plume.get_puff_states(),
+                puffs=self.plume.get_puff_states() if include_puffs else [],
                 sensor_dropout_active=self.sensor_dropout_active,
                 paused=self.paused,
                 mission_report=self.mission_report,

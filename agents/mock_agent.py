@@ -30,6 +30,8 @@ class MockTabPFNAgent(BaseAgent):
     def __init__(self, drone_id: str = "tabpfn") -> None:
         super().__init__(drone_id)
         self._grid_np = np.zeros((0, 3), dtype=np.float64)
+        self._grid_norm2 = np.zeros((0, 1), dtype=np.float64)
+        self._center_prior = np.zeros(0, dtype=np.float64)
         self._obs_pos: list[Vec3] = []
         self._obs_log_ppm: list[float] = []
         self._obs_upwind_est: list[Vec3] = []
@@ -40,6 +42,13 @@ class MockTabPFNAgent(BaseAgent):
 
     def reset(self, world_init: WorldInitPayload) -> None:
         self._grid_np = np.array(world_init.grid_coords, dtype=np.float64)
+        if self._grid_np.shape[0] > 0:
+            self._grid_norm2 = np.sum(self._grid_np * self._grid_np, axis=1, keepdims=True)
+            center_d2 = np.sum((self._grid_np - np.array([-4.0, -4.0, 5.0])) ** 2, axis=1)
+            self._center_prior = 0.65 * np.exp(-0.5 * center_d2 / (24.0 ** 2))
+        else:
+            self._grid_norm2 = np.zeros((0, 1), dtype=np.float64)
+            self._center_prior = np.zeros(0, dtype=np.float64)
         self._obs_pos.clear()
         self._obs_log_ppm.clear()
         self._obs_upwind_est.clear()
@@ -85,23 +94,24 @@ class MockTabPFNAgent(BaseAgent):
         upwind_arr = np.array(self._obs_upwind_est, dtype=np.float64)
         y_arr = np.array(self._obs_log_ppm, dtype=np.float64)
 
-        diff_vis = self._grid_np[:, None, :] - obs_arr[None, :, :]
-        dist2_vis = np.sum(diff_vis * diff_vis, axis=2)
-        min_dist = np.sqrt(np.min(dist2_vis, axis=1))
+        # Pairwise squared distances via BLAS GEMM: ||a - b||^2 = ||a||^2 + ||b||^2 - 2 a @ b.T
+        obs_norm2 = np.sum(obs_arr * obs_arr, axis=1)
+        dist2_vis = self._grid_norm2 + obs_norm2[None, :] - 2.0 * (self._grid_np @ obs_arr.T)
+        min_dist = np.sqrt(np.maximum(0.0, np.min(dist2_vis, axis=1)))
 
         # Smooth upwind-aware spatial belief estimate (q50)
-        diff_src = self._grid_np[:, None, :] - upwind_arr[None, :, :]
-        dist2_src = np.sum(diff_src * diff_src, axis=2)
-        length_scale = 14.0
-        weights = np.exp(-0.5 * dist2_src / (length_scale ** 2))
+        upw_norm2 = np.sum(upwind_arr * upwind_arr, axis=1)
+        dist2_src = self._grid_norm2 + upw_norm2[None, :] - 2.0 * (self._grid_np @ upwind_arr.T)
+        np.maximum(0.0, dist2_src, out=dist2_src)
+        inv_2ls2 = -0.5 / (14.0 * 14.0)
+        weights = np.exp(dist2_src * inv_2ls2, out=dist2_src)
         w_sum = np.sum(weights, axis=1) + 1e-6
         q50 = (weights @ y_arr) / w_sum
 
         # Add gentle central facility prior before any strong plume hit
-        max_obs_ppm = float(np.max(np.expm1(y_arr)))
+        max_obs_ppm = float(math.expm1(float(np.max(y_arr))))
         if max_obs_ppm < 4.0:
-            center_d2 = np.sum((self._grid_np - np.array([-4.0, -4.0, 5.0])) ** 2, axis=1)
-            q50 = q50 + 0.65 * np.exp(-0.5 * center_d2 / (24.0 ** 2))
+            q50 = q50 + self._center_prior
 
         uncertainty = np.clip(1.6 * (1.0 - np.exp(-min_dist / 15.0)) + 0.12, 0.05, 2.2)
 
@@ -129,11 +139,12 @@ class MockTabPFNAgent(BaseAgent):
 
         # Emit BeliefUpdatePayload every 2nd observation (~1 Hz)
         if self._step_count % 2 == 0:
-            self._latest_belief = BeliefUpdatePayload(
+            self._latest_belief = BeliefUpdatePayload.model_construct(
+                type="belief_update",
                 sim_time=obs.sim_time,
                 drone_id=self.drone_id,
-                q50=[float(v) for v in q50],
-                uncertainty=[float(v) for v in uncertainty],
+                q50=q50.tolist(),
+                uncertainty=uncertainty.tolist(),
                 estimated_source=est_src,
                 next_waypoint=next_wp,
             )

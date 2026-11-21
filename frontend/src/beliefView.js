@@ -1,12 +1,8 @@
 import * as THREE from "three";
 import { simToThree } from "./coords.js";
 
-function createEstimateLabel(text = "TABPFN EST. SOURCE") {
-  const canvas = document.createElement("canvas");
-  canvas.width = 280;
-  canvas.height = 52;
-  const ctx = canvas.getContext("2d");
-
+function drawEstimateLabel(ctx, text) {
+  ctx.clearRect(0, 0, 280, 52);
   ctx.fillStyle = "rgba(8, 13, 22, 0.92)";
   ctx.beginPath();
   ctx.roundRect(6, 6, 268, 40, 8);
@@ -20,10 +16,18 @@ function createEstimateLabel(text = "TABPFN EST. SOURCE") {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(text, 140, 27);
+}
+
+function createEstimateLabel(text = "TABPFN EST. SOURCE") {
+  const canvas = document.createElement("canvas");
+  canvas.width = 280;
+  canvas.height = 52;
+  const ctx = canvas.getContext("2d");
+  drawEstimateLabel(ctx, text);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  return { tex, ctx };
 }
 
 /**
@@ -107,9 +111,13 @@ export class BeliefView {
     this.estBeam.position.y = 7.5;
     this.estGroup.add(this.estBeam);
 
+    const estLabelRes = createEstimateLabel("TABPFN EST. SOURCE");
+    this._estLabelCtx = estLabelRes.ctx;
+    this._estLabelTex = estLabelRes.tex;
+    this._estLabelText = "TABPFN EST. SOURCE";
     this.estLabel = new THREE.Sprite(
       new THREE.SpriteMaterial({
-        map: createEstimateLabel("TABPFN EST. SOURCE"),
+        map: this._estLabelTex,
         transparent: true,
         depthTest: false,
       })
@@ -147,6 +155,13 @@ export class BeliefView {
     this._tmpVec = new THREE.Vector3();
     this._dronePos = new THREE.Vector3();
     this._hasDronePos = false;
+    this._xyIndexOfGrid = new Int32Array(0);
+    this._xyCount = 0;
+    this._xyMaxQ = new Float32Array(0);
+    this._pixelOffsets = new Int32Array(0);
+    this._pixelPtIdx = new Int32Array(0);
+    this._pixelNormW = new Float32Array(0);
+    this._pixelEdgeFade = new Float32Array(this.res * this.res);
   }
 
   setLayer(layer) { this.layer=layer;if(this.lastBelief)this.update(this.lastBelief); }
@@ -182,6 +197,77 @@ export class BeliefView {
     this.routeLine.geometry.dispose();
     this.routeLine.geometry = new THREE.BufferGeometry();
     this.gridCount = gridCoords.length;
+
+    // Precompute 3D -> 2D XY column index and sparse 64x64 pixel interpolation weights ONCE
+    const xyMap = new Map();
+    const pts2dX = [];
+    const pts2dY = [];
+    const xyIndexOfGrid = new Int32Array(this.gridCount);
+    for (let i = 0; i < this.gridCount; i++) {
+      const [sx, sy] = gridCoords[i];
+      const key = `${Math.round(sx)},${Math.round(sy)}`;
+      let idx2d = xyMap.get(key);
+      if (idx2d === undefined) {
+        idx2d = pts2dX.length;
+        xyMap.set(key, idx2d);
+        pts2dX.push(sx);
+        pts2dY.push(sy);
+      }
+      xyIndexOfGrid[i] = idx2d;
+    }
+    this._xyIndexOfGrid = xyIndexOfGrid;
+    this._xyCount = pts2dX.length;
+    this._xyMaxQ = new Float32Array(this._xyCount);
+
+    const R = this.res;
+    const totalPixels = R * R;
+    const rMax2 = 484.0; // 22m cutoff squared
+    const invRMax2 = 1.0 / rMax2;
+    const offsets = new Int32Array(totalPixels + 1);
+    const ptIdxList = [];
+    const normWList = [];
+    const edgeFadeArr = this._pixelEdgeFade;
+    const tmpIdx = [];
+    const tmpW = [];
+
+    for (let py = 0; py < R; py++) {
+      const simY = 60.0 - (py / (R - 1)) * 120.0;
+      for (let px = 0; px < R; px++) {
+        const simX = -60.0 + (px / (R - 1)) * 120.0;
+        const pFlat = py * R + px;
+        offsets[pFlat] = ptIdxList.length;
+
+        const edgeDist = Math.min(60.0 - Math.abs(simX), 60.0 - Math.abs(simY));
+        edgeFadeArr[pFlat] = Math.min(1.0, Math.max(0.0, edgeDist / 10.0));
+
+        tmpIdx.length = 0;
+        tmpW.length = 0;
+        let wSum = 0.0;
+        for (let k = 0; k < pts2dX.length; k++) {
+          const dx = simX - pts2dX[k];
+          const dy = simY - pts2dY[k];
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= rMax2) continue;
+          const u = 1.0 - d2 * invRMax2;
+          const w = u * u * u;
+          wSum += w;
+          tmpIdx.push(k);
+          tmpW.push(w);
+        }
+        if (wSum >= 1e-4) {
+          const invW = 1.0 / wSum;
+          for (let m = 0; m < tmpIdx.length; m++) {
+            ptIdxList.push(tmpIdx[m]);
+            normWList.push(tmpW[m] * invW);
+          }
+        }
+      }
+    }
+    offsets[totalPixels] = ptIdxList.length;
+    this._pixelOffsets = offsets;
+    this._pixelPtIdx = Int32Array.from(ptIdxList);
+    this._pixelNormW = Float32Array.from(normWList);
+
     this.heatCtx.clearRect(0, 0, this.res, this.res);
     this.heatTex.needsUpdate = true;
     this.estGroup.visible = false;
@@ -195,110 +281,93 @@ export class BeliefView {
     this.lastBelief = belief;
     const hazard = this.layer === "hazard";
     const q50 = hazard
-      ? (belief.hazard_probabilities?.length === this.gridCount ? belief.hazard_probabilities : new Array(this.gridCount).fill(0))
+      ? (belief.hazard_probabilities?.length === this.gridCount ? belief.hazard_probabilities : null)
       : (belief.source_scores?.length === this.gridCount ? belief.source_scores : belief.q50);
     const unc = belief.uncertainty;
 
-    // 1. Reduce 3D candidate grid to 2D max-over-Z points for fast crisp contour interpolation
-    const byXY = new Map();
+    // 1. Reduce 3D candidate grid to 2D max-over-Z values using precomputed index map
+    const xyMaxQ = this._xyMaxQ;
+    xyMaxQ.fill(-Infinity);
+    const xyIdxMap = this._xyIndexOfGrid;
     let minQ = hazard ? 0 : Infinity;
     let maxQ = hazard ? 1 : 0;
     let sumUnc = 0.0;
     for (let i = 0; i < this.gridCount; i++) {
-      const val = q50[i];
+      const val = q50 ? q50[i] : 0;
       if (val < minQ) minQ = val;
       if (val > maxQ) maxQ = val;
       sumUnc += unc[i];
 
-      const [sx, sy] = this.gridCoords[i];
-      const key = `${Math.round(sx)},${Math.round(sy)}`;
-      const prev = byXY.get(key);
-      if (!prev || val > prev.q) {
-        byXY.set(key, { x: sx, y: sy, q: val, u: unc[i] });
+      const col = xyIdxMap[i];
+      if (val > xyMaxQ[col]) {
+        xyMaxQ[col] = val;
       }
     }
     const meanUnc = sumUnc / this.gridCount;
-    const span = Math.max(0.22, maxQ - minQ);
-    const pts2d = Array.from(byXY.values());
+    const invSpan = 1.0 / Math.max(0.22, maxQ - minQ);
 
-    // 2. Evaluate smooth polynomial-kernel scalar field on 64x64 grid (<0.4ms total!)
+    // 2. Evaluate scalar field on 64x64 grid via precomputed sparse normalized kernel weights
     const R = this.res;
+    const totalPixels = R * R;
     const data = this.heatImg.data;
-    const rMax2 = 484.0; // 22m cutoff squared
-    const invRMax2 = 1.0 / rMax2;
+    const offsets = this._pixelOffsets;
+    const ptIdx = this._pixelPtIdx;
+    const normW = this._pixelNormW;
+    const edgeFadeArr = this._pixelEdgeFade;
 
-    for (let py = 0; py < R; py++) {
-      const simY = 60.0 - (py / (R - 1)) * 120.0;
-      for (let px = 0; px < R; px++) {
-        const simX = -60.0 + (px / (R - 1)) * 120.0;
-
-        let wSum = 0.0;
-        let qSum = 0.0;
-        for (let k = 0; k < pts2d.length; k++) {
-          const p = pts2d[k];
-          const dx = simX - p.x;
-          const dy = simY - p.y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 >= rMax2) continue;
-          const u = 1.0 - d2 * invRMax2;
-          const w = u * u * u;
-          wSum += w;
-          qSum += w * p.q;
-        }
-
-        const idx = (py * R + px) * 4;
-        if (wSum < 1e-4) {
-          data[idx + 3] = 0;
-          continue;
-        }
-
-        const qInterp = qSum / wSum;
-        const norm = Math.min(1.0, Math.max(0.0, (qInterp - minQ) / span));
-
-        // Smooth edge vignette so heatmap never clips harshly at the [-60, 60] fence boundary
-        const edgeDist = Math.min(60.0 - Math.abs(simX), 60.0 - Math.abs(simY));
-        const edgeFade = Math.min(1.0, Math.max(0.0, edgeDist / 10.0));
-
-        // Keep background tarmac 100% unobstructed; draw crisp topographic iso-contour rings
-        if (norm < 0.50 || edgeFade < 0.02) {
-          data[idx + 3] = 0;
-          continue;
-        }
-
-        const t = (norm - 0.50) / 0.50;
-        const contourDist = Math.min(
-          Math.abs(t - 0.18),
-          Math.abs(t - 0.50),
-          Math.abs(t - 0.80)
-        );
-        const onContour = contourDist < 0.036;
-
-        // Ultra-clean aerospace radar contour lines with minimal subtle interior tint
-        let rC, gC, bC, aC;
-        if (onContour) {
-          rC = t > 0.65 ? 232 : 34;
-          gC = t > 0.65 ? 121 : 211;
-          bC = 249;
-          aC = Math.round(235 * edgeFade);
-        } else if (t < 0.5) {
-          const s = t * 2.0;
-          rC = Math.round(6 + 18 * s);
-          gC = Math.round(150 + 55 * s);
-          bC = Math.round(205 + 35 * s);
-          aC = Math.round((8 + 16 * s) * edgeFade);
-        } else {
-          const s = (t - 0.5) * 2.0;
-          rC = Math.round(24 + 175 * s);
-          gC = Math.round(205 - 90 * s);
-          bC = Math.round(240 + 10 * s);
-          aC = Math.round((24 + 28 * s) * edgeFade);
-        }
-
-        data[idx] = rC;
-        data[idx + 1] = gC;
-        data[idx + 2] = bC;
-        data[idx + 3] = aC;
+    for (let pFlat = 0; pFlat < totalPixels; pFlat++) {
+      const start = offsets[pFlat];
+      const end = offsets[pFlat + 1];
+      const idx = pFlat * 4;
+      const edgeFade = edgeFadeArr[pFlat];
+      if (start === end || edgeFade < 0.02) {
+        data[idx + 3] = 0;
+        continue;
       }
+
+      let qInterp = 0.0;
+      for (let m = start; m < end; m++) {
+        qInterp += normW[m] * xyMaxQ[ptIdx[m]];
+      }
+
+      const norm = Math.min(1.0, Math.max(0.0, (qInterp - minQ) * invSpan));
+      if (norm < 0.50) {
+        data[idx + 3] = 0;
+        continue;
+      }
+
+      const t = (norm - 0.50) * 2.0;
+      const contourDist = Math.min(
+        Math.abs(t - 0.18),
+        Math.abs(t - 0.50),
+        Math.abs(t - 0.80)
+      );
+      const onContour = contourDist < 0.036;
+
+      let rC, gC, bC, aC;
+      if (onContour) {
+        rC = t > 0.65 ? 232 : 34;
+        gC = t > 0.65 ? 121 : 211;
+        bC = 249;
+        aC = Math.round(235 * edgeFade);
+      } else if (t < 0.5) {
+        const s = t * 2.0;
+        rC = Math.round(6 + 18 * s);
+        gC = Math.round(150 + 55 * s);
+        bC = Math.round(205 + 35 * s);
+        aC = Math.round((8 + 16 * s) * edgeFade);
+      } else {
+        const s = (t - 0.5) * 2.0;
+        rC = Math.round(24 + 175 * s);
+        gC = Math.round(205 - 90 * s);
+        bC = Math.round(240 + 10 * s);
+        aC = Math.round((24 + 28 * s) * edgeFade);
+      }
+
+      data[idx] = rC;
+      data[idx + 1] = gC;
+      data[idx + 2] = bC;
+      data[idx + 3] = aC;
     }
 
     this.heatCtx.putImageData(this.heatImg, 0, 0);
@@ -321,12 +390,13 @@ export class BeliefView {
 
     this.heatTex.needsUpdate = true;
 
-    // Update label with live uncertainty metric
-    const oldTex = this.estLabel.material.map;
-    this.estLabel.material.map = createEstimateLabel(
-      `TABPFN EST. (±${(meanUnc * 4.5).toFixed(1)}m)`
-    );
-    if (oldTex) oldTex.dispose();
+    // Update persistent label canvas only when formatted text changes (zero texture churn)
+    const nextLabelText = `TABPFN EST. (±${(meanUnc * 4.5).toFixed(1)}m)`;
+    if (nextLabelText !== this._estLabelText) {
+      this._estLabelText = nextLabelText;
+      drawEstimateLabel(this._estLabelCtx, nextLabelText);
+      this._estLabelTex.needsUpdate = true;
+    }
 
     simToThree(belief.estimated_source, this._tmpVec);
     this.estGroup.position.set(this._tmpVec.x, 0.08, this._tmpVec.z);

@@ -186,8 +186,10 @@ class TabPFNAgent(AsyncInferenceAgent):
         travel_dist = np.linalg.norm(self._grid_np - drone_pos, axis=1)
 
         visited = np.array([[r["x"], r["y"], r["z"]] for r in rows], dtype=np.float64)
-        diff = self._grid_np[:, None, :] - visited[None, :, :]
-        min_visit_dist = np.sqrt(np.min(np.sum(diff * diff, axis=2), axis=1))
+        g_norm2 = np.sum(self._grid_np * self._grid_np, axis=1, keepdims=True)
+        v_norm2 = np.sum(visited * visited, axis=1)
+        dist2 = g_norm2 + v_norm2[None, :] - 2.0 * (self._grid_np @ visited.T)
+        min_visit_dist = np.sqrt(np.maximum(0.0, np.min(dist2, axis=1)))
         revisit_mask = np.where(min_visit_dist < self.REVISIT_RADIUS_M, -1e6, 0.0)
 
         scores = q50 + beta * uncertainty - self.TRAVEL_PENALTY * travel_dist + revisit_mask
@@ -205,11 +207,12 @@ class TabPFNAgent(AsyncInferenceAgent):
             float(self._grid_np[est_idx, 2]),
         )
 
-        belief = BeliefUpdatePayload(
+        belief = BeliefUpdatePayload.model_construct(
+            type="belief_update",
             sim_time=obs.sim_time,
             drone_id=self.drone_id,
-            q50=[float(v) for v in q50],
-            uncertainty=[float(v) for v in uncertainty],
+            q50=q50.tolist(),
+            uncertainty=uncertainty.tolist(),
             estimated_source=est_src,
             next_waypoint=next_wp,
         )

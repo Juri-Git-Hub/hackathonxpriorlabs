@@ -309,32 +309,37 @@ async function bootstrap() {
   const pointer = new THREE.Vector2();
   let downX = 0;
   let downY = 0;
+  let isPointerDown = false;
+  let cachedCanvasRect = renderer.domElement.getBoundingClientRect();
+  let pendingMoveEvt = null;
+  let hoverRafPending = false;
 
   function setPointerFromEvent(evt) {
-    const rect = renderer.domElement.getBoundingClientRect();
-    pointer.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+    pointer.x = ((evt.clientX - cachedCanvasRect.left) / cachedCanvasRect.width) * 2 - 1;
+    pointer.y = -((evt.clientY - cachedCanvasRect.top) / cachedCanvasRect.height) * 2 + 1;
   }
 
   function raycastInteractive(evt) {
     setPointerFromEvent(evt);
     raycaster.setFromCamera(pointer, camera);
-    const targets = [
-      ...droneView.getInteractiveObjects(),
-      ...refineryView.getInteractiveObjects(),
-    ];
+    const targets = droneView.getInteractiveObjects().concat(refineryView.getInteractiveObjects());
     return raycaster.intersectObjects(targets, false);
   }
 
   function raycastLeakPlacement(evt) {
     setPointerFromEvent(evt);
     raycaster.setFromCamera(pointer, camera);
-    const targets = [...refineryView.getInteractiveObjects()];
-    if (refineryView.groundMesh) targets.push(refineryView.groundMesh);
+    const base = refineryView.getInteractiveObjects();
+    const targets = refineryView.groundMesh ? base.concat(refineryView.groundMesh) : base;
     return raycaster.intersectObjects(targets, false);
   }
 
-  renderer.domElement.addEventListener("pointermove", (evt) => {
+  function processHoverMove() {
+    hoverRafPending = false;
+    const evt = pendingMoveEvt;
+    pendingMoveEvt = null;
+    if (!evt || isPointerDown) return;
+
     if (placeLeakMode) {
       const hits = raycastLeakPlacement(evt);
       if (hits.length > 0) {
@@ -350,14 +355,29 @@ async function bootstrap() {
 
     const hits = raycastInteractive(evt);
     renderer.domElement.style.cursor = hits.length > 0 ? "pointer" : "default";
+  }
+
+  renderer.domElement.addEventListener("pointermove", (evt) => {
+    if (isPointerDown) return;
+    pendingMoveEvt = evt;
+    if (!hoverRafPending) {
+      hoverRafPending = true;
+      requestAnimationFrame(processHoverMove);
+    }
   });
 
   renderer.domElement.addEventListener("pointerdown", (evt) => {
+    isPointerDown = true;
     downX = evt.clientX;
     downY = evt.clientY;
   });
 
+  window.addEventListener("pointerup", () => {
+    isPointerDown = false;
+  });
+
   renderer.domElement.addEventListener("pointerup", (evt) => {
+    isPointerDown = false;
     if (evt.button !== 0) return;
     // Ignore orbit/pan drags
     if (Math.hypot(evt.clientX - downX, evt.clientY - downY) > 6) return;
@@ -464,6 +484,7 @@ async function bootstrap() {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
+    cachedCanvasRect = renderer.domElement.getBoundingClientRect();
   });
 
   generateWorld.addEventListener("click", () => {

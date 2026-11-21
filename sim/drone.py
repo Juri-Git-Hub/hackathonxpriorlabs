@@ -244,18 +244,58 @@ class Drone:
         inv_mass = 1.0 / mass
         g = self.GRAVITY
         k_f = self.K_F
+        inv_kf = 1.0 / k_f
         c_m = self.C_M
+        inv_cm = 1.0 / c_m
         l_eff = self.L_EFF
-        inv_ixx = 1.0 / self.I_XX
-        inv_iyy = 1.0 / self.I_YY
-        inv_izz = 1.0 / self.I_ZZ
+        inv_leff = 1.0 / l_eff
+        ixx = self.I_XX
+        iyy = self.I_YY
+        izz = self.I_ZZ
+        inv_ixx = 1.0 / ixx
+        inv_iyy = 1.0 / iyy
+        inv_izz = 1.0 / izz
+        izz_m_iyy = izz - iyy
+        ixx_m_izz = ixx - izz
+        iyy_m_ixx = iyy - ixx
+        j_rotor = self.J_ROTOR
+        rotor_radius = self.ROTOR_RADIUS
+        ge_thresh = 4.0 * rotor_radius
+        k_r_xy = self.K_R_XY
+        k_r_z = self.K_R_Z
+        k_w_xy = self.K_W_XY
+        k_w_z = self.K_W_Z
+        c_drag_bx = self.C_DRAG_BX
+        c_drag_by = self.C_DRAG_BY
+        c_drag_bz = self.C_DRAG_BZ
+        k_rotor_h = self.K_ROTOR_H
+        c_omega_xy = self.C_OMEGA_XY
+        c_omega_z = self.C_OMEGA_Z
+        max_speed_xy = self.MAX_SPEED_XY
+        max_speed_z = self.MAX_SPEED_Z
+        max_vxy = max_speed_xy * 1.35
+        max_vz = max_speed_z * 1.6
+        min_alt = self.MIN_ALTITUDE
+        min_alt_p05 = min_alt + 0.5
+        bldg_clear = self.BUILDING_CLEARANCE
+        bldg_clear_half = bldg_clear * 0.5
+        influence = bldg_clear + 2.5
+        influence_sq = influence * influence
+        p_base = self.P_BASE
+        k_t = self.K_T
+        k_v = self.K_V
+        min_fz = 0.25 * mass * g
         motor_alpha = min(1.0, sub_dt / self.TAU_MOTOR)
         tan_max_tilt = math.tan(self.MAX_TILT_RAD)
         om_min_sq = self.OMEGA_MIN * self.OMEGA_MIN
         om_max_sq = self.OMEGA_MAX * self.OMEGA_MAX
+        bldg_bounds = world._bldg_bounds_scalar
+        height_above_surface = world.height_above_surface
+        m_sqrt = math.sqrt
+        m_hypot = math.hypot
 
         # Update desired yaw smoothly toward horizontal velocity when moving
-        v_xy_tick = math.hypot(vx, vy)
+        v_xy_tick = m_hypot(vx, vy)
         if not depleted and v_xy_tick > 0.45:
             tgt_yaw = math.atan2(vy, vx)
             yaw_diff = (tgt_yaw - self._desired_yaw + math.pi) % (2.0 * math.pi) - math.pi
@@ -296,10 +336,71 @@ class Drone:
             r21 = 2.0 * (yz + wxq)
             r22 = 1.0 - 2.0 * (xx + yy)
 
-            # 2) Obstacle avoidance + soft-penalty contact forces
-            rep_ax, rep_ay, rep_az, c_fx, c_fy, c_fz = self._repulsive_and_contact(
-                px, py, pz, vx, vy, vz, tx, ty, world
-            )
+            # 2) Obstacle avoidance + soft-penalty contact forces (inlined with d2 broad-phase)
+            rep_ax = 0.0
+            rep_ay = 0.0
+            rep_az = 0.0
+            c_fx = 0.0
+            c_fy = 0.0
+            c_fz = 0.0
+            to_tx = tx - px
+            to_ty = ty - py
+            for x0, y0, z0, x1, y1, z1, cx, cy, cz in bldg_bounds:
+                clx = x0 if px < x0 else (x1 if px > x1 else px)
+                cly = y0 if py < y0 else (y1 if py > y1 else py)
+                clz = z0 if pz < z0 else (z1 if pz > z1 else pz)
+                dx = px - clx
+                dy = py - cly
+                dz = pz - clz
+                d2 = dx * dx + dy * dy + dz * dz
+                if d2 < influence_sq:
+                    dist = m_sqrt(d2)
+                    if dist < 1e-4:
+                        awx = px - cx
+                        awy = py - cy
+                        awz = pz - cz
+                        naw = m_sqrt(awx * awx + awy * awy + awz * awz)
+                        if naw > 1e-4:
+                            nx, ny, nz = awx / naw, awy / naw, awz / naw
+                        else:
+                            nx, ny, nz = 0.0, 0.0, 1.0
+                        mag = 22.0
+                    else:
+                        inv_d = 1.0 / dist
+                        nx, ny, nz = dx * inv_d, dy * inv_d, dz * inv_d
+                        denom_r = dist - bldg_clear_half
+                        if denom_r < 0.35:
+                            denom_r = 0.35
+                        mag = 5.5 * ((influence - dist) / denom_r)
+                        if mag > 22.0:
+                            mag = 22.0
+
+                    rep_ax += nx * mag
+                    rep_ay += ny * mag
+                    rep_az += nz * mag
+
+                    hnorm = m_hypot(nx, ny)
+                    if hnorm > 0.3:
+                        t1x = -ny / hnorm
+                        t1y = nx / hnorm
+                        if t1x * to_tx + t1y * to_ty < 0.0:
+                            t1x = -t1x
+                            t1y = -t1y
+                        rep_ax += t1x * (0.85 * mag)
+                        rep_ay += t1y * (0.85 * mag)
+                        if pz < z1 + 1.5:
+                            rep_az += 0.45 * mag
+
+                    if dist < bldg_clear:
+                        overlap = bldg_clear - dist
+                        vn = vx * nx + vy * ny + vz * nz
+                        fn = 120.0 * overlap - 18.0 * (vn if vn < 0.0 else 0.0)
+                        c_fx += fn * nx
+                        c_fy += fn * ny
+                        c_fz += fn * nz
+
+            if pz < min_alt_p05:
+                rep_az += 6.0 * (min_alt_p05 - pz)
 
             # 3) Control law -> desired motor speeds (w0_cmd..w3_cmd)
             if depleted:
@@ -315,20 +416,32 @@ class Drone:
                 vdy = 1.25 * ey
                 vdz = 1.35 * ez
 
-                vd_xy = math.hypot(vdx, vdy)
-                if vd_xy > self.MAX_SPEED_XY:
-                    sc = self.MAX_SPEED_XY / vd_xy
+                vd_xy = m_hypot(vdx, vdy)
+                if vd_xy > max_speed_xy:
+                    sc = max_speed_xy / vd_xy
                     vdx *= sc
                     vdy *= sc
-                if vdz > self.MAX_SPEED_Z:
-                    vdz = self.MAX_SPEED_Z
-                elif vdz < -self.MAX_SPEED_Z:
-                    vdz = -self.MAX_SPEED_Z
+                if vdz > max_speed_z:
+                    vdz = max_speed_z
+                elif vdz < -max_speed_z:
+                    vdz = -max_speed_z
 
                 # Integral wind-drag rejection (clamped anti-windup)
-                ie_x = max(-2.5, min(2.5, ie_x + 0.35 * (vdx - vx) * sub_dt))
-                ie_y = max(-2.5, min(2.5, ie_y + 0.35 * (vdy - vy) * sub_dt))
-                ie_z = max(-2.0, min(2.0, ie_z + 0.40 * (vdz - vz) * sub_dt))
+                ie_x += 0.35 * (vdx - vx) * sub_dt
+                if ie_x > 2.5:
+                    ie_x = 2.5
+                elif ie_x < -2.5:
+                    ie_x = -2.5
+                ie_y += 0.35 * (vdy - vy) * sub_dt
+                if ie_y > 2.5:
+                    ie_y = 2.5
+                elif ie_y < -2.5:
+                    ie_y = -2.5
+                ie_z += 0.40 * (vdz - vz) * sub_dt
+                if ie_z > 2.0:
+                    ie_z = 2.0
+                elif ie_z < -2.0:
+                    ie_z = -2.0
 
                 ac_x = 2.8 * (vdx - vx) + ie_x + rep_ax
                 ac_y = 2.8 * (vdy - vy) + ie_y + rep_ay
@@ -339,11 +452,10 @@ class Drone:
                 f_des_y = mass * ac_y
                 f_des_z = mass * (ac_z + g)
 
-                min_fz = 0.25 * mass * g
                 if f_des_z < min_fz:
                     f_des_z = min_fz
 
-                f_xy = math.hypot(f_des_x, f_des_y)
+                f_xy = m_hypot(f_des_x, f_des_y)
                 max_f_xy = f_des_z * tan_max_tilt
                 if f_xy > max_f_xy and f_xy > 1e-6:
                     sc = max_f_xy / f_xy
@@ -351,16 +463,16 @@ class Drone:
                     f_des_y *= sc
 
                 # Construct desired rotation matrix R_d = [b1d, b2d, b3d]
-                f_norm = math.sqrt(f_des_x * f_des_x + f_des_y * f_des_y + f_des_z * f_des_z)
-                b3d_x = f_des_x / f_norm
-                b3d_y = f_des_y / f_norm
-                b3d_z = f_des_z / f_norm
+                inv_fn = 1.0 / m_sqrt(f_des_x * f_des_x + f_des_y * f_des_y + f_des_z * f_des_z)
+                b3d_x = f_des_x * inv_fn
+                b3d_y = f_des_y * inv_fn
+                b3d_z = f_des_z * inv_fn
 
                 # b2d = normalize(b3d x b1c), where b1c = [cos(yaw_d), sin(yaw_d), 0]
                 b2d_x = -b3d_z * sin_yd
                 b2d_y = b3d_z * cos_yd
                 b2d_z = b3d_x * sin_yd - b3d_y * cos_yd
-                b2_norm = math.sqrt(b2d_x * b2d_x + b2d_y * b2d_y + b2d_z * b2d_z)
+                b2_norm = m_sqrt(b2d_x * b2d_x + b2d_y * b2d_y + b2d_z * b2d_z)
                 if b2_norm > 1e-6:
                     inv_b2 = 1.0 / b2_norm
                     b2d_x *= inv_b2
@@ -387,9 +499,9 @@ class Drone:
                 er_z = 0.5 * (e10 - e01)
 
                 # Geometric SE(3) torque command with gyroscopic feedforward
-                tau_cx = -self.K_R_XY * er_x - self.K_W_XY * ox + (self.I_ZZ - self.I_YY) * oy * oz
-                tau_cy = -self.K_R_XY * er_y - self.K_W_XY * oy + (self.I_XX - self.I_ZZ) * ox * oz
-                tau_cz = -self.K_R_Z * er_z - self.K_W_Z * oz + (self.I_YY - self.I_XX) * ox * oy
+                tau_cx = -k_r_xy * er_x - k_w_xy * ox + izz_m_iyy * oy * oz
+                tau_cy = -k_r_xy * er_y - k_w_xy * oy + ixx_m_izz * ox * oz
+                tau_cz = -k_r_z * er_z - k_w_z * oz + iyy_m_ixx * ox * oy
 
                 # Collective thrust projected onto actual body +Z axis
                 t_cmd = f_des_x * r02 + f_des_y * r12 + f_des_z * r22
@@ -397,20 +509,19 @@ class Drone:
                     t_cmd = min_fz
 
                 # Exact orthogonal X-quad control allocation -> rotor squared speeds
-                tx_l = tau_cx / l_eff
-                ty_l = tau_cy / l_eff
-                tz_c = tau_cz / c_m
+                tx_l = tau_cx * inv_leff
+                ty_l = tau_cy * inv_leff
+                tz_c = tau_cz * inv_cm
 
-                f0_c = 0.25 * (t_cmd + tx_l - ty_l + tz_c)
-                f1_c = 0.25 * (t_cmd - tx_l - ty_l - tz_c)
-                f2_c = 0.25 * (t_cmd - tx_l + ty_l + tz_c)
-                f3_c = 0.25 * (t_cmd + tx_l + ty_l - tz_c)
+                q0 = 0.25 * (t_cmd + tx_l - ty_l + tz_c) * inv_kf
+                q1 = 0.25 * (t_cmd - tx_l - ty_l - tz_c) * inv_kf
+                q2 = 0.25 * (t_cmd - tx_l + ty_l + tz_c) * inv_kf
+                q3 = 0.25 * (t_cmd + tx_l + ty_l - tz_c) * inv_kf
 
-                inv_kf = 1.0 / k_f
-                w0_cmd = math.sqrt(max(om_min_sq, min(om_max_sq, f0_c * inv_kf)))
-                w1_cmd = math.sqrt(max(om_min_sq, min(om_max_sq, f1_c * inv_kf)))
-                w2_cmd = math.sqrt(max(om_min_sq, min(om_max_sq, f2_c * inv_kf)))
-                w3_cmd = math.sqrt(max(om_min_sq, min(om_max_sq, f3_c * inv_kf)))
+                w0_cmd = m_sqrt(om_min_sq if q0 < om_min_sq else (om_max_sq if q0 > om_max_sq else q0))
+                w1_cmd = m_sqrt(om_min_sq if q1 < om_min_sq else (om_max_sq if q1 > om_max_sq else q1))
+                w2_cmd = m_sqrt(om_min_sq if q2 < om_min_sq else (om_max_sq if q2 > om_max_sq else q2))
+                w3_cmd = m_sqrt(om_min_sq if q3 < om_min_sq else (om_max_sq if q3 > om_max_sq else q3))
 
             # 4) 1st-order brushless motor + ESC lag
             w0 += motor_alpha * (w0_cmd - w0)
@@ -429,19 +540,23 @@ class Drone:
             tau_mz = c_m * (f0 - f1 + f2 - f3)
 
             # 5) Cheeseman-Bennett Ground Effect (near ground or building rooftops)
-            h_agl = world.height_above_surface(px, py, pz)
+            h_agl = height_above_surface(px, py, pz)
             ge_factor = 1.0
-            if h_agl < 4.0 * self.ROTOR_RADIUS:
-                ratio = self.ROTOR_RADIUS / (4.0 * max(h_agl, 0.15))
-                denom = max(0.80, 1.0 - ratio * ratio)
-                ge_factor = min(1.25, 1.0 / denom)
+            if h_agl < ge_thresh:
+                ratio = rotor_radius / (4.0 * (0.15 if h_agl < 0.15 else h_agl))
+                denom = 1.0 - ratio * ratio
+                if denom < 0.80:
+                    denom = 0.80
+                ge_factor = 1.0 / denom
+                if ge_factor > 1.25:
+                    ge_factor = 1.25
             t_eff = t_raw * ge_factor
 
             # 6) Aerodynamic forces: anisotropic body drag + rotor blade-flapping H-force
             vrx = vx - wx
             vry = vy - wy
             vrz = vz - wz
-            vrel_norm = math.sqrt(vrx * vrx + vry * vry + vrz * vrz)
+            vrel_sq = vrx * vrx + vry * vry + vrz * vrz
 
             # Relative velocity in body frame: v_b = R^T * v_rel
             vbx = r00 * vrx + r10 * vry + r20 * vrz
@@ -449,10 +564,13 @@ class Drone:
             vbz = r02 * vrx + r12 * vry + r22 * vrz
 
             omega_sum = w0 + w1 + w2 + w3
+            abs_vbx = vbx if vbx >= 0.0 else -vbx
+            abs_vby = vby if vby >= 0.0 else -vby
+            abs_vbz = vbz if vbz >= 0.0 else -vbz
             # Body-frame drag force
-            fb_x = -self.C_DRAG_BX * abs(vbx) * vbx - self.K_ROTOR_H * omega_sum * vbx
-            fb_y = -self.C_DRAG_BY * abs(vby) * vby - self.K_ROTOR_H * omega_sum * vby
-            fb_z = -self.C_DRAG_BZ * abs(vbz) * vbz
+            fb_x = -c_drag_bx * abs_vbx * vbx - k_rotor_h * omega_sum * vbx
+            fb_y = -c_drag_by * abs_vby * vby - k_rotor_h * omega_sum * vby
+            fb_z = -c_drag_bz * abs_vbz * vbz
 
             # Rotate drag back to world frame: F_drag = R * F_b
             fd_x = r00 * fb_x + r01 * fb_y + r02 * fb_z
@@ -460,41 +578,43 @@ class Drone:
             fd_z = r20 * fb_x + r21 * fb_y + r22 * fb_z
 
             # 7) Rotational dynamics: motor torque + aero damping + gyroscopic precession + wind torque
-            # Rotor net angular momentum along body Z: J_r * (-w0 + w1 - w2 + w3)
-            h_rot_z = self.J_ROTOR * (-w0 + w1 - w2 + w3)
-            # Subtle wind-gust pitching/rolling disturbance from relative airspeed
-            tau_wx = 0.0022 * vby * abs(vby)
-            tau_wy = -0.0022 * vbx * abs(vbx)
+            h_rot_z = j_rotor * (-w0 + w1 - w2 + w3)
+            tau_wx = 0.0022 * vby * abs_vby
+            tau_wy = -0.0022 * vbx * abs_vbx
 
-            # Euler's rigid-body rotation equation: J * d(omega)/dt = tau - omega x (J*omega + [0,0,h_rot_z])
-            net_tx = tau_mx - self.C_OMEGA_XY * ox + tau_wx - (self.I_ZZ - self.I_YY) * oy * oz - oy * h_rot_z
-            net_ty = tau_my - self.C_OMEGA_XY * oy + tau_wy - (self.I_XX - self.I_ZZ) * ox * oz + ox * h_rot_z
-            net_tz = tau_mz - self.C_OMEGA_Z * oz - (self.I_YY - self.I_XX) * ox * oy
+            net_tx = tau_mx - c_omega_xy * ox + tau_wx - izz_m_iyy * oy * oz - oy * h_rot_z
+            net_ty = tau_my - c_omega_xy * oy + tau_wy - ixx_m_izz * ox * oz + ox * h_rot_z
+            net_tz = tau_mz - c_omega_z * oz - iyy_m_ixx * ox * oy
 
             ox += (net_tx * inv_ixx) * sub_dt
             oy += (net_ty * inv_iyy) * sub_dt
             oz += (net_tz * inv_izz) * sub_dt
 
-            # Clamp extreme angular rates for numerical safety
-            ox = max(-12.0, min(12.0, ox))
-            oy = max(-12.0, min(12.0, oy))
-            oz = max(-8.0, min(8.0, oz))
+            if ox > 12.0:
+                ox = 12.0
+            elif ox < -12.0:
+                ox = -12.0
+            if oy > 12.0:
+                oy = 12.0
+            elif oy < -12.0:
+                oy = -12.0
+            if oz > 8.0:
+                oz = 8.0
+            elif oz < -8.0:
+                oz = -8.0
 
             # Integrate unit quaternion: dq/dt = 0.5 * q * [0, ox, oy, oz]
-            dqw = 0.5 * (-qx * ox - qy * oy - qz * oz)
-            dqx = 0.5 * (qw * ox + qy * oz - qz * oy)
-            dqy = 0.5 * (qw * oy - qx * oz + qz * ox)
-            dqz = 0.5 * (qw * oz + qx * oy - qy * ox)
+            half_dt = 0.5 * sub_dt
+            qw_n = qw + half_dt * (-qx * ox - qy * oy - qz * oz)
+            qx_n = qx + half_dt * (qw * ox + qy * oz - qz * oy)
+            qy_n = qy + half_dt * (qw * oy - qx * oz + qz * ox)
+            qz_n = qz + half_dt * (qw * oz + qx * oy - qy * ox)
 
-            qw += dqw * sub_dt
-            qx += dqx * sub_dt
-            qy += dqy * sub_dt
-            qz += dqz * sub_dt
-            q_inv = 1.0 / math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
-            qw *= q_inv
-            qx *= q_inv
-            qy *= q_inv
-            qz *= q_inv
+            q_inv = 1.0 / m_sqrt(qw_n * qw_n + qx_n * qx_n + qy_n * qy_n + qz_n * qz_n)
+            qw = qw_n * q_inv
+            qx = qx_n * q_inv
+            qy = qy_n * q_inv
+            qz = qz_n * q_inv
 
             # 8) Translational Newton's law (Symplectic Euler)
             last_ax = (t_eff * r02 + fd_x + c_fx) * inv_mass
@@ -506,13 +626,11 @@ class Drone:
             vz += last_az * sub_dt
 
             # Soft aerodynamic terminal cap for numerical stability
-            vxy_now = math.hypot(vx, vy)
-            max_vxy = self.MAX_SPEED_XY * 1.35
+            vxy_now = m_hypot(vx, vy)
             if vxy_now > max_vxy:
                 sc = max_vxy / vxy_now
                 vx *= sc
                 vy *= sc
-            max_vz = self.MAX_SPEED_Z * 1.6
             if vz > max_vz:
                 vz = max_vz
             elif vz < -max_vz:
@@ -523,17 +641,17 @@ class Drone:
             pz += vz * sub_dt
 
             # Floor landing contact at MIN_ALTITUDE
-            if pz < self.MIN_ALTITUDE:
-                pz = self.MIN_ALTITUDE
+            if pz < min_alt:
+                pz = min_alt
                 if vz < 0.0:
-                    vz = -0.15 * vz  # damped ground bounce
+                    vz = -0.15 * vz
                 if depleted:
                     vx *= 0.85
                     vy *= 0.85
 
             # Accumulate physical power draw
             if not depleted:
-                power = self.P_BASE + self.K_T * (t_raw ** 1.5) + self.K_V * (vrel_norm * vrel_norm)
+                power = p_base + k_t * (t_raw * m_sqrt(t_raw)) + k_v * vrel_sq
                 energy_j += power * sub_dt
 
         # Hard facility bounds & safety clearance backstop

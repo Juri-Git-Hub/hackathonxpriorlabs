@@ -53,17 +53,35 @@ def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DE
     latest_beliefs = {}
     stream_lock = asyncio.Lock()
 
+    cached_wind_key: tuple[int, int] = (-1, -1)
+    cached_wind_json = ""
+
+    def get_cached_wind_field_json() -> str:
+        nonlocal cached_wind_key, cached_wind_json
+        key = (id(engine.airflow), engine.airflow._field_version)
+        if key != cached_wind_key:
+            cached_wind_json = engine.get_wind_field().model_dump_json()
+            cached_wind_key = key
+        return cached_wind_json
+
     async def broadcast_json(payload_text: str) -> None:
         if not clients:
             return
-        dead: list[WebSocket] = []
-        for ws in list(clients):
+        client_list = list(clients)
+        if len(client_list) == 1:
+            ws = client_list[0]
             try:
                 await ws.send_text(payload_text)
             except Exception:
-                dead.append(ws)
-        for ws in dead:
-            clients.discard(ws)
+                clients.discard(ws)
+            return
+        results = await asyncio.gather(
+            *(ws.send_text(payload_text) for ws in client_list),
+            return_exceptions=True,
+        )
+        for ws, res in zip(client_list, results):
+            if isinstance(res, Exception):
+                clients.discard(ws)
 
     async def sim_loop() -> None:
         dt = engine.DT
@@ -71,8 +89,9 @@ def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DE
         while True:
             t0 = time.perf_counter()
             async with stream_lock:
-                tick = engine.step(dt)
-                if clients:
+                has_clients = bool(clients)
+                tick = engine.step(dt, include_puffs=has_clients)
+                if has_clients:
                     await broadcast_json(tick.model_dump_json())
                     for belief in engine.pop_belief_updates():
                         latest_beliefs[belief.drone_id]=belief
@@ -81,7 +100,7 @@ def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DE
                     # Drain pending beliefs when nobody is connected
                     for belief in engine.pop_belief_updates():latest_beliefs[belief.drone_id]=belief
 
-                if clients and time.monotonic()>=status_at:
+                if has_clients and time.monotonic()>=status_at:
                     await broadcast_json(backend_status().model_dump_json())
                     status_at=time.monotonic()+1
             elapsed = time.perf_counter() - t0
@@ -141,7 +160,7 @@ def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DE
                 await websocket.send_text(backend_status().model_dump_json())
                 for belief in latest_beliefs.values():
                     await websocket.send_text(belief.model_dump_json())
-                await websocket.send_text(engine.get_wind_field().model_dump_json())
+                await websocket.send_text(get_cached_wind_field_json())
                 clients.add(websocket)
 
             while True:
@@ -169,7 +188,7 @@ def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DE
                         await broadcast_json(engine.get_world_init().model_dump_json())
                     await broadcast_json(backend_status().model_dump_json())
                     if engine.world is not previous_world or cmd.action in ("set_wind", "reset_race"):
-                        await broadcast_json(engine.get_wind_field().model_dump_json())
+                        await broadcast_json(get_cached_wind_field_json())
         except WebSocketDisconnect:
             pass
         finally:
