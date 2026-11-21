@@ -66,9 +66,19 @@ python -m pytest -q
 python -m integration.evaluate
 ```
 
-Build sowie Live-Browserprüfung mit echter 4090 bestanden: Modellstatus ready, 3D-Szene und WebSocket aktiv, Pause/Einzelschritt (+0,5 s) und Layerwechsel geprüft. 44 funktionale Tests bestehen. Der geerbte Benchmark `test_headless_engine_speed_over_500_steps_per_sec` scheitert hier; er scheitert auch auf unverändertem main (ca. 386 Schritte/s im Vergleichslauf). Die Live-Physik benötigt 20 Hz. Der Benchmark wurde nicht abgeschwächt.
+Build sowie Live-Browserprüfung mit echter 4090 bestanden: Modellstatus ready, 3D-Szene und WebSocket aktiv, Pause/Einzelschritt (+0,5 s) und Layerwechsel geprüft. 48 funktionale Tests bestehen. Der geerbte Benchmark `test_headless_engine_speed_over_500_steps_per_sec` scheitert hier; er scheitert auch auf unverändertem main (ca. 386 Schritte/s im Vergleichslauf). Die Live-Physik benötigt 20 Hz. Der Benchmark wurde nicht abgeschwächt.
 
 `reports/main3d_evaluation.json` enthält die aktuelle episodisch getrennte Modellprüfung und den echten API-Smoke-Test. Kandidatenmetriken sind keine Erfolgsquote der Lecksuche; insbesondere ist das Quellenmodell bislang noch schwach. Ältere Berichte gehören zu früheren Physik-/2D-Versionen.
 
 
 Das HUD meldet `mission_state` (`searching`, `paused`, `no_leak`, `depleted`), `active_leaks` und `battery_pct` aus `backend_status`. Diese Simulator-/Betriebsdiagnose dient nur der Anzeige, nicht als Eingabe an TabPFN. Bei leerem Akku werden keine neuen Messungen mehr gesammelt; ohne aktive Leckquelle gibt es nichts zu lokalisieren. Ein Neustart stellt Standardleck und vollen Akku wieder her. Die Quellenmodellqualität ist davon unabhängig weiterhin unzureichend für zuverlässige Ortung.
+
+## Fundabschluss und Bericht
+
+Die Simulation beendet die TabPFN-Suche und pausiert automatisch, wenn **zwei Sekunden durchgehend** folgende Bedingungen erfüllt sind: Drohne innerhalb von 5 m um ein tatsächliches Leck, frische TabPFN-Quellenschätzung (höchstens 5 s alt) ebenfalls innerhalb 5 m und lokaler Sensorwert >15 ppm. Ein hoher Gaswert ohne Quellenschätzung reicht nicht. Die echte Leckposition dient ausschließlich diesem separat gekennzeichneten Simulator-Judge und geht nicht in die Agentenfeatures ein.
+
+`mission_report` wird in `sim_tick` und `backend_status` übertragen; `mission_state` wird `found`. Der Bericht enthält Simulationssuchdauer, Echtzeit seit Reset (inklusive Pausen), XYZ-Schätzung, Modellklassifikationsscore, Messanzahl, Gaswert, Alter der Schätzung und den Simulator-Ortungsfehler. Der Score ist **unkalibriert und keine Wahrscheinlichkeit einer korrekten Ortung**. Ohne Score, etwa im Mock-Modus, wird keine scheinbare Sicherheit ausgegeben. Der Fund ist vom Simulator bestätigt, nicht autonom statistisch verifiziert.
+
+Nach Abschluss kann die Mission nicht versehentlich über Pause/Einzelschritt fortgesetzt werden. Bericht und Simulation bleiben bis `reset_race` eingefroren; ein erneut verbundener Browser erhält den Bericht ebenfalls. „Neue Suche starten“ setzt ihn zurück. Die Modellqualität und die Wahrscheinlichkeit, überhaupt einen Fund zu erreichen, werden durch diese Abschlussfunktion nicht verbessert.
+
+Tests: `python -m pytest tests/test_mission_completion.py tests/test_ws_contract.py -q` und `node --test frontend/test/hud.test.js` prüfen Stopp, Bericht, Reset, Reconnect und ehrliche Scoreanzeige.

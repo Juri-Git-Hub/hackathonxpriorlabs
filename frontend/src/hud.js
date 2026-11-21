@@ -57,6 +57,7 @@ export class HudController {
   }
 
   _bindEvents() {
+    document.getElementById("btn-new-mission").addEventListener("click",()=>{this.onResetTrails();this.onSendCommand({action:"reset_race"});});
     document.getElementById("prediction-layer").addEventListener("change", e => this.onLayer(e.target.value));
     document.getElementById("show-route").addEventListener("change", e => this.onRoute(e.target.checked));
     document.getElementById("btn-step").addEventListener("click", () => this.onSendCommand({action:"step"}));
@@ -137,8 +138,10 @@ export class HudController {
   }
 
   updateBackendStatus(status) {
+    this.modelMode=status.mode;
+    this.updateReport(status.mission_report);
     const mission=document.getElementById("mission-status");
-    const states={no_leak:"No active leak — restart mission or place a leak",depleted:"Battery empty — restart mission",paused:"Paused",searching:"Searching for leak"};
+    const states={found:"Leck gefunden — Suche beendet",no_leak:"No active leak — restart mission or place a leak",depleted:"Battery empty — restart mission",paused:"Paused",searching:"Searching for leak"};
     mission.textContent=states[status.mission_state] || (status.mode==="mock" ? "Mock mission" : "Searching");
     mission.style.color=["no_leak","depleted"].includes(status.mission_state) ? "#fca5a5" : "#cbd5e1";
     document.getElementById("model-status").textContent = `${status.mode} · ${status.state}${status.error ? ": " + status.error : ""}`;
@@ -149,13 +152,26 @@ export class HudController {
     document.getElementById("source-estimate").textContent = `Estimated source (x,y,z): ${belief.estimated_source.map(v => v.toFixed(1)).join(", ")} m`;
   }
 
+  updateReport(report) {
+    this.completed=Boolean(report);
+    document.getElementById("mission-report").classList.toggle("hidden",!report);
+    for (const id of ["btn-pause","btn-step","btn-clear-leaks","btn-place-leak","btn-dropout","wind-angle","wind-speed"]) document.getElementById(id).disabled=this.completed;
+    if (!report)return;
+    document.getElementById("report-duration").textContent=`Suchdauer: ${report.elapsed_sim_seconds.toFixed(1)} s Simulationszeit · ${report.measurement_count} Messungen`;
+    document.getElementById("report-position").textContent=`Geschätzte Quelle (x,y,z): ${report.estimated_source.map(x=>x.toFixed(1)).join(", ")} m`;
+    document.getElementById("report-score").textContent=report.model_score==null ? "Modellbewertung: nicht verfügbar (z. B. Mock-Modus)" : `Modellbewertung: ${(report.model_score*100).toFixed(1)} % Klassifikationsscore (unkalibriert)`;
+    document.getElementById("report-evidence").textContent=`${this.modelMode==="mock" ? "Mock-Fund" : "Im Simulator bestätigt"} · Ortungsfehler ${report.estimated_error_m.toFixed(1)} m · ${report.ppm_at_detection.toFixed(1)} ppm vor Ort`;
+    document.getElementById("report-wall").textContent=`Echtzeit seit Reset: ${report.elapsed_wall_seconds.toFixed(1)} s (inkl. Pausen) · Schätzung ${report.estimate_age_seconds.toFixed(1)} s alt`;
+  }
+
   updateTick(tick) {
+    this.updateReport(tick.mission_report);
     if (tick.paused !== undefined) {
       this.paused=tick.paused;
       this.btnPause.textContent=this.paused ? "Resume" : "Pause";
       this.btnPause.classList.toggle("btn-active",this.paused);
     }
-    document.getElementById("btn-step").disabled=!this.paused;
+    document.getElementById("btn-step").disabled=this.completed || !this.paused;
     this.elSimTime.textContent = `${tick.sim_time.toFixed(1)}s`;
 
     const [wx, wy] = tick.wind_vec;

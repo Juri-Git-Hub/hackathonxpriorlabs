@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import threading
+import time
 from typing import Optional, Protocol
 
 import numpy as np
@@ -14,6 +15,7 @@ from shared.schemas import (
     DroneTickState,
     JudgeCommand,
     LeakSource,
+    MissionReport,
     SimTickPayload,
     Vec3,
     WorldInitPayload,
@@ -105,6 +107,9 @@ class SimEngine:
         """Reset simulation time, plume, drones, sensors, and all agents."""
         with self._lock:
             self.sim_time = 0.0
+            self.mission_report=None
+            self._mission_wall_start=time.monotonic()
+            self._latest_agent_beliefs={}
             self._obs_accum = 0.0
             self.paused = False
             self._pending_beliefs.clear()
@@ -129,6 +134,7 @@ class SimEngine:
     def apply_command(self, cmd: JudgeCommand) -> None:
         """Apply a JudgeCommand thread-safely."""
         with self._lock:
+            if self.mission_report is not None and cmd.action!='reset_race':return
             if cmd.action == "set_wind":
                 if cmd.wind_angle_deg is not None and cmd.wind_speed is not None:
                     self.airflow.set_wind(cmd.wind_angle_deg, cmd.wind_speed)
@@ -240,31 +246,36 @@ class SimEngine:
                             self._best_estimate[drone_id] = (ppm_meas, drone.pos_tuple)
 
                         belief = agent.pop_belief_update()
-                        est_pos = self._best_estimate[drone_id][1]
                         if belief is not None:
                             self._pending_beliefs.append(belief)
-                            est_pos = belief.estimated_source
+                            self._latest_agent_beliefs[drone_id]=belief
+                        self._check_completion(drone_id,ppm_meas)
 
-                        # Update lock/tracking status
-                        if drone.status != "locked":
-                            est_dist = self._dist_to_nearest_leak(est_pos)
-                            drone_dist = self._dist_to_nearest_leak(drone.pos_tuple)
-                            if (
-                                est_dist <= self.LOCK_DISTANCE_M
-                                and (ppm_meas > 15.0 or drone_dist <= self.LOCK_DISTANCE_M)
-                            ):
-                                self._lock_timers[drone_id] += self.OBS_INTERVAL
-                                if self._lock_timers[drone_id] >= self.LOCK_SUSTAIN_S:
-                                    drone.status = "locked"
-                                else:
-                                    drone.status = "tracking"
-                            else:
-                                self._lock_timers[drone_id] = max(
-                                    0.0, self._lock_timers[drone_id] - self.OBS_INTERVAL
-                                )
-                                drone.status = "tracking" if ppm_meas > 5.0 else "searching"
 
             return self.get_tick_payload()
+
+    def _check_completion(self,drone_id,ppm):
+        """Simulator judge only: never feed truth or this decision into TabPFN."""
+        if self.mission_report is not None:return
+        drone=self.drones[drone_id]
+        belief=self._latest_agent_beliefs.get(drone_id)
+        # A high gas reading alone is not a TabPFN source localization.
+        fresh=belief is not None and 0<=self.sim_time-belief.sim_time<=5
+        estimate=belief.estimated_source if belief is not None else drone.pos_tuple
+        error=self._dist_to_nearest_leak(estimate)
+        close=self._dist_to_nearest_leak(drone.pos_tuple)<=self.LOCK_DISTANCE_M
+        if fresh and error<=self.LOCK_DISTANCE_M and close and ppm>15:
+            self._lock_timers[drone_id]+=self.OBS_INTERVAL
+            drone.status='tracking'
+            if self._lock_timers[drone_id]+1e-9>=self.LOCK_SUSTAIN_S:
+                drone.status='locked'
+                if drone_id=='tabpfn':
+                    self.mission_report=MissionReport(elapsed_sim_seconds=self.sim_time,elapsed_wall_seconds=time.monotonic()-self._mission_wall_start,estimated_source=estimate,model_score=belief.source_model_score,regional_score_mass=belief.regional_score_mass,estimated_error_m=error,measurement_count=drone.samples_taken,ppm_at_detection=ppm,estimate_age_seconds=self.sim_time-belief.sim_time)
+                    drone.set_target(drone.pos_tuple)
+                    self.paused=True
+        else:
+            self._lock_timers[drone_id]=0
+            drone.status='tracking' if ppm>5 else 'searching'
 
     def get_tick_payload(self) -> SimTickPayload:
         """Build SimTickPayload snapshot for broadcasting."""
@@ -290,7 +301,8 @@ class SimEngine:
                 drones=drone_states,
                 puffs=self.plume.get_puff_states(),
                 sensor_dropout_active=self.sensor_dropout_active,
-            paused=self.paused,
+                paused=self.paused,
+                mission_report=self.mission_report,
             )
 
     def pop_belief_updates(self) -> list[BeliefUpdatePayload]:

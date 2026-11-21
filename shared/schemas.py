@@ -89,6 +89,20 @@ class PuffState(BaseModel):
     opacity: float
 
 
+class MissionReport(BaseModel):
+    elapsed_sim_seconds: float
+    elapsed_wall_seconds: float
+    estimated_source: Vec3
+    model_score: Optional[float] = None
+    regional_score_mass: Optional[float] = None
+    confidence_note: str = "Uncalibrated model score; not a probability that the location is correct."
+    simulator_confirmed: bool = True
+    estimated_error_m: float
+    measurement_count: int
+    ppm_at_detection: float
+    estimate_age_seconds: float
+
+
 class SimTickPayload(BaseModel):
     type: Literal["sim_tick"] = "sim_tick"
     sim_time: float
@@ -98,6 +112,7 @@ class SimTickPayload(BaseModel):
     puffs: list[PuffState]  # Capped at <= 400 active puffs for 60 FPS rendering
     sensor_dropout_active: bool
     paused: bool = False
+    mission_report: Optional[MissionReport] = None
 
 
 class BeliefUpdatePayload(BaseModel):
@@ -115,13 +130,16 @@ class BeliefUpdatePayload(BaseModel):
     measurement_count: int = 0
     exposure_ppm_seconds: float = 0.0
     score_kind: str = "legacy_quantile"
+    source_model_score: Optional[float] = None
+    regional_score_mass: Optional[float] = None
 
 
 class BackendStatusPayload(BaseModel):
     type: Literal["backend_status"] = "backend_status"
     sim_time: float
     mode: str
-    mission_state: Literal["searching", "paused", "depleted", "no_leak"] = "searching"
+    mission_state: Literal["searching", "paused", "depleted", "no_leak", "found"] = "searching"
+    mission_report: Optional[MissionReport] = None
     active_leaks: int = 0
     battery_pct: float = 100.0
     state: Literal["pending", "ready", "error", "mock"]

@@ -44,6 +44,17 @@
       <div class="hint">Source layer: normalized ranking scores, not calibrated probabilities.</div>
     </div>
 
+    <section id="mission-report" class="hud-panel hidden" role="status" aria-live="polite">
+      <div class="panel-title">Leck gefunden · Suche beendet</div>
+      <p id="report-duration"></p>
+      <p id="report-position"></p>
+      <p id="report-score"></p>
+      <p id="report-evidence"></p>
+      <p id="report-wall" class="hint"></p>
+      <p class="hint">Modell-Score ist unkalibriert und keine Trefferwahrscheinlichkeit. Der Fund wird separat vom Simulator geprüft.</p>
+      <button id="btn-new-mission" class="btn btn-accent">Neue Suche starten</button>
+    </section>
+
     <!-- Top-right scoreboard -->
     <div id="scoreboard" class="hud-panel">
       <div class="panel-title">Live Drone Telemetry</div>

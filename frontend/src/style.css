@@ -280,3 +280,8 @@ body {
 #backend-controls .control-row { margin-top: 10px; align-items: center; }
 #model-status { overflow-wrap: anywhere; }
 @media (max-width: 760px) { #backend-controls { top: 95px; width: 290px; max-height: 28vh; } }
+
+#mission-report { top: 110px; left: 50%; transform: translateX(-50%); width: min(410px, 90vw); z-index: 30; border-color: #34d399; }
+#mission-report p { margin: 9px 0; line-height: 1.45; }
+#mission-report .panel-title { color: #6ee7b7; }
+button:disabled { opacity: .45; cursor: default; }

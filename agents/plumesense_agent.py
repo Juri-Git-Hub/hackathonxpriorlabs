@@ -74,7 +74,7 @@ class PlumeSenseAgent(AsyncInferenceAgent):
             route=self.planner.route(current_pos,waypoint)[1:]
             estimate=tuple(map(float,grid[int(np.argmax(source))]))
             normalized=source/max(float(source.sum()),1e-9)
-            belief=BeliefUpdatePayload(sim_time=obs.sim_time,drone_id=self.drone_id,q50=normalized.tolist(),uncertainty=(1-np.abs(2*source-1)).tolist(),estimated_source=estimate,next_waypoint=waypoint,source_scores=normalized.tolist(),hazard_probabilities=hazard.tolist(),route=[current_pos,*route],inference_seconds=time.perf_counter()-start,measurement_count=len(history),exposure_ppm_seconds=self.exposure,score_kind='source_score')
+            belief=BeliefUpdatePayload(sim_time=obs.sim_time,drone_id=self.drone_id,q50=normalized.tolist(),uncertainty=(1-np.abs(2*source-1)).tolist(),estimated_source=estimate,next_waypoint=waypoint,source_scores=normalized.tolist(),hazard_probabilities=hazard.tolist(),route=[current_pos,*route],inference_seconds=time.perf_counter()-start,measurement_count=len(history),exposure_ppm_seconds=self.exposure,score_kind='source_score',source_model_score=float(source.max()),regional_score_mass=float(normalized[np.linalg.norm(grid-np.array(estimate),axis=1)<=6].sum()))
             # Publish diagnostics only for the same race generation.
             with self._history_lock:
                 if self.history and history[0] is self.history[0]:

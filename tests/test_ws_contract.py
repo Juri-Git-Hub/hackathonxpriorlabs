@@ -126,3 +126,28 @@ def test_demo_has_only_tabpfn_and_exposes_mission_blockers():
             WorldInitPayload.model_validate_json(ws.receive_text())
             s=BackendStatusPayload.model_validate_json(ws.receive_text())
             assert s.active_leaks==0 and s.mission_state=='no_leak'
+
+def test_completed_report_is_sent_on_reconnect_and_cleared_by_reset():
+    import numpy as np
+    import json
+    app=create_app(mock_agents=True)
+    e=app.state.engine
+    with e._lock:
+        p=e.leaks[0].pos;e.drones['tabpfn'].pos=np.array(p)
+        e._latest_agent_beliefs['tabpfn']=BeliefUpdatePayload(sim_time=1,drone_id='tabpfn',q50=[1],uncertainty=[0],estimated_source=p,next_waypoint=p)
+        for i in range(4):e.sim_time=1+i*.5;e._check_completion('tabpfn',30)
+    with TestClient(app) as client:
+        for _ in range(2):
+            with client.websocket_connect('/ws') as ws:
+                ws.receive_text()
+                status=json.loads(ws.receive_text())
+                assert status['mission_state']=='found'
+                assert status['mission_report']['elapsed_sim_seconds']==2.5
+        with client.websocket_connect('/ws') as ws:
+            ws.receive_text();ws.receive_text()
+            ws.send_text(JudgeCommand(action='reset_race').model_dump_json())
+            for _ in range(30):
+                msg=json.loads(ws.receive_text())
+                if msg['type']=='backend_status' and msg['mission_state']!='found':
+                    assert msg['mission_report'] is None;break
+            else:raise AssertionError('Reset did not clear completion report')

@@ -115,7 +115,7 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
 
     def backend_status():
         agent=agents['tabpfn'];error=getattr(agent,'error',None)
-        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api',state='mock' if mock_agents else 'error' if error else 'ready' if getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused,active_leaks=len(engine.leaks),battery_pct=engine.drones['tabpfn'].battery_pct,mission_state='no_leak' if not engine.leaks else 'depleted' if engine.drones['tabpfn'].status=='depleted' else 'paused' if engine.paused else 'searching')
+        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api',state='mock' if mock_agents else 'error' if error else 'ready' if getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused,active_leaks=len(engine.leaks),battery_pct=engine.drones['tabpfn'].battery_pct,mission_report=engine.mission_report,mission_state='found' if engine.mission_report is not None else 'no_leak' if not engine.leaks else 'depleted' if engine.drones['tabpfn'].status=='depleted' else 'paused' if engine.paused else 'searching')
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
