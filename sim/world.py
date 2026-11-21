@@ -1,4 +1,4 @@
-"""Deterministic 3D industrial refinery world geometry, assets, and candidate grid."""
+"""Deterministic 3D industrial refinery world geometry, assets, occlusion, and candidate grid."""
 
 from __future__ import annotations
 
@@ -84,11 +84,40 @@ class World:
             FacilityAsset(id="valve_05", asset_type="valve", pos=(0.0, -25.0, 2.5), age_years=12.5),
         ]
 
-        # Precomputed NumPy arrays for fast vectorized geometry queries
+        # Precomputed NumPy arrays for fast vectorized geometry & physics queries
         self._bldg_min = np.array([b.min_xyz for b in self.buildings], dtype=np.float64)
         self._bldg_max = np.array([b.max_xyz for b in self.buildings], dtype=np.float64)
         self._bldg_center = 0.5 * (self._bldg_min + self._bldg_max)
         self._bldg_half = 0.5 * (self._bldg_max - self._bldg_min)
+
+        # Kind-specific aerodynamic & occlusion properties
+        self._bldg_is_cylinder = np.array(
+            [b.kind == "storage_tank" for b in self.buildings], dtype=bool
+        )
+        self._bldg_is_porous = np.array(
+            [b.kind == "pipe_rack" for b in self.buildings], dtype=bool
+        )
+        self._bldg_cyl_radius = np.minimum(self._bldg_half[:, 0], self._bldg_half[:, 1])
+        # Gas transmission through obstacle when segment crosses it
+        # Solid buildings/tanks strongly block gas (only ~5% corner diffraction);
+        # open-truss pipe racks allow ~55% transmission.
+        self._bldg_transmission = np.where(self._bldg_is_porous, 0.55, 0.05)
+
+        # Scalar tuples for zero-overhead inner-loop drone physics
+        self._bldg_bounds_scalar: list[tuple[float, float, float, float, float, float, float, float, float]] = [
+            (
+                float(self._bldg_min[i, 0]),
+                float(self._bldg_min[i, 1]),
+                float(self._bldg_min[i, 2]),
+                float(self._bldg_max[i, 0]),
+                float(self._bldg_max[i, 1]),
+                float(self._bldg_max[i, 2]),
+                float(self._bldg_center[i, 0]),
+                float(self._bldg_center[i, 1]),
+                float(self._bldg_center[i, 2]),
+            )
+            for i in range(len(self.buildings))
+        ]
 
         self._asset_pos = np.array([a.pos for a in self.assets], dtype=np.float64)
         self._asset_age = np.array([a.age_years for a in self.assets], dtype=np.float64)
@@ -116,11 +145,28 @@ class World:
 
     def is_inside_building(self, pos: Vec3, margin: float = 0.0) -> bool:
         """Return True if pos lies inside any BuildingBox expanded by margin."""
-        p = np.asarray(pos, dtype=np.float64)
-        lo = self._bldg_min - np.array([margin, margin, 0.0])
-        hi = self._bldg_max + margin
-        inside = np.all((p >= lo) & (p <= hi), axis=1)
-        return bool(np.any(inside))
+        px, py, pz = pos
+        for x0, y0, z0, x1, y1, z1, _, _, _ in self._bldg_bounds_scalar:
+            if (
+                px >= x0 - margin
+                and px <= x1 + margin
+                and py >= y0 - margin
+                and py <= y1 + margin
+                and pz >= z0
+                and pz <= z1 + margin
+            ):
+                return True
+        return False
+
+    def height_above_surface(self, px: float, py: float, pz: float) -> float:
+        """Vertical clearance above ground (z=0) or any building/tank roof directly below."""
+        h_agl = pz
+        for x0, y0, _, x1, y1, z1, _, _, _ in self._bldg_bounds_scalar:
+            if x0 <= px <= x1 and y0 <= py <= y1 and pz >= z1:
+                h_roof = pz - z1
+                if h_roof < h_agl:
+                    h_agl = h_roof
+        return max(0.05, h_agl)
 
     def push_outside_buildings(
         self, points_nx3: np.ndarray, margin: float = 0.0
@@ -171,6 +217,52 @@ class World:
             pts[inside] = sub
 
         return pts
+
+    def segment_transmission(self, p_from_nx3: np.ndarray, p_to: Vec3) -> np.ndarray:
+        """Vectorized gas-transmission factor in (0, 1] from N puff centers to p_to.
+
+        Uses a vectorized slab ray-AABB intersection test so solid buildings and
+        storage tanks physically block gas from teleporting straight through walls,
+        while open-truss pipe racks partially attenuate it.
+        """
+        n = p_from_nx3.shape[0]
+        trans = np.ones(n, dtype=np.float64)
+        if n == 0:
+            return trans
+
+        target = np.asarray(p_to, dtype=np.float64)
+        d = target[None, :] - p_from_nx3  # (N, 3)
+
+        # Safe inverse direction avoiding division by zero
+        eps = 1e-9
+        abs_d = np.abs(d)
+        parallel = abs_d < eps
+        inv_d = np.where(parallel, 0.0, 1.0 / np.where(parallel, 1.0, d))
+
+        for i in range(len(self.buildings)):
+            bmin = self._bldg_min[i]
+            bmax = self._bldg_max[i]
+
+            t1 = (bmin[None, :] - p_from_nx3) * inv_d
+            t2 = (bmax[None, :] - p_from_nx3) * inv_d
+
+            tmin_ax = np.minimum(t1, t2)
+            tmax_ax = np.maximum(t1, t2)
+
+            # For axes parallel to the ray, check if origin is inside slab
+            in_slab = (p_from_nx3 >= bmin[None, :]) & (p_from_nx3 <= bmax[None, :])
+            tmin_ax = np.where(parallel, np.where(in_slab, -1e9, 1e9), tmin_ax)
+            tmax_ax = np.where(parallel, np.where(in_slab, 1e9, -1e9), tmax_ax)
+
+            t_enter = np.max(tmin_ax, axis=1)
+            t_exit = np.min(tmax_ax, axis=1)
+
+            # Strictly interior segment crossing (avoids self-occluding surface-grazing puffs)
+            hit = (t_exit >= t_enter) & (t_exit > 0.04) & (t_enter < 0.96)
+            if np.any(hit):
+                trans[hit] *= self._bldg_transmission[i]
+
+        return trans
 
     def is_in_wind_shadow(self, pos: Vec3, wind_vec: Vec2) -> bool:
         """Return True if pos lies in the downwind wake cavity of any building."""

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Drone Gas Leak Detection — 3D Sim</title>
+  </head>
+  <body>
+    <div id="canvas-container"></div>
+
+    <!-- Top-left title & connection status -->
+    <div id="header-bar" class="hud-panel">
+      <div class="header-title">
+        <span class="dot" id="conn-dot"></span>
+        <h1>Drone Gas Leak Detection</h1>
+        <span id="conn-label" class="badge">Connecting...</span>
+      </div>
+      <div class="header-meta">
+        <span>Sim Time: <strong id="sim-time">0.0s</strong></span>
+        <span>Wind: <strong id="wind-readout">0.0 m/s</strong></span>
+        <span id="dropout-badge" class="badge badge-warn hidden">NaN DROPOUTS ACTIVE</span>
+      </div>
+    </div>
+
+    <!-- Top-right scoreboard -->
+    <div id="scoreboard" class="hud-panel">
+      <div class="panel-title">Live Race Scoreboard</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Drone</th>
+            <th>Status</th>
+            <th>PPM</th>
+            <th>Dist</th>
+            <th>Samples</th>
+            <th>Bat</th>
+          </tr>
+        </thead>
+        <tbody id="scoreboard-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Bottom-left judge controls -->
+    <div id="controls" class="hud-panel">
+      <div class="panel-title">Judge Controls</div>
+
+      <div class="control-row">
+        <label>
+          Wind Dir (<span id="wind-angle-val">15</span>°)
+          <input type="range" id="wind-angle" min="0" max="360" step="5" value="15" />
+        </label>
+        <label>
+          Wind Speed (<span id="wind-speed-val">3.5</span> m/s)
+          <input type="range" id="wind-speed" min="0.5" max="8.0" step="0.5" value="3.5" />
+        </label>
+      </div>
+
+      <div class="button-grid">
+        <button id="btn-reveal-plume" class="btn">Reveal True Plume</button>
+        <button id="btn-toggle-belief" class="btn btn-active">TabPFN Belief Cloud</button>
+        <button id="btn-dropout" class="btn">Inject Sensor Dropouts (NaN)</button>
+        <button id="btn-place-leak" class="btn">Click Ground: Place Leak</button>
+        <button id="btn-clear-leaks" class="btn">Clear Leaks</button>
+        <button id="btn-pause" class="btn">Pause</button>
+        <button id="btn-reset" class="btn btn-accent">Reset Race</button>
+      </div>
+
+      <div id="hint-text" class="hint">
+        Drag to orbit · Scroll to zoom · Right-drag to pan
+      </div>
+    </div>
+
+    <!-- Bottom-right wind compass & legend -->
+    <div id="legend" class="hud-panel">
+      <div class="compass-wrap">
+        <svg id="wind-compass" viewBox="0 0 80 80" width="68" height="68">
+          <circle cx="40" cy="40" r="34" fill="none" stroke="#2a3548" stroke-width="2" />
+          <text x="40" y="13" text-anchor="middle" fill="#64748b" font-size="9">N (+Y)</text>
+          <text x="69" y="43" text-anchor="middle" fill="#64748b" font-size="9">E</text>
+          <g id="wind-arrow-group" transform="rotate(0 40 40)">
+            <line x1="40" y1="58" x2="40" y2="20" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+            <polygon points="40,14 34,26 46,26" fill="#38bdf8" />
+          </g>
+        </svg>
+        <div class="legend-items">
+          <div><span class="swatch" style="background:#22d3ee"></span> TabPFN Drone</div>
+          <div><span class="swatch" style="background:#fb923c"></span> Gradient (Surge-Cast)</div>
+          <div><span class="swatch" style="background:#94a3b8"></span> Lawnmower</div>
+          <div><span class="swatch" style="background:#e879f9"></span> Belief Cloud (q50 / unc)</div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

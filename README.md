@@ -80,6 +80,15 @@ python -m server.app --mock-agents --port 8000
   - Emits `BeliefUpdatePayload` at ~1 Hz
   - Accepts `JudgeCommand` JSON messages (`set_wind`, `place_leak`, `clear_leaks`, `toggle_dropout`, `reset_race`, `pause`)
 
+### 4. Run the 3D Three.js Frontend MVP
+```bash
+cd frontend
+npm install
+npm run dev
+```
+- Open `http://localhost:5173` (connects live to `ws://localhost:8000/ws`)
+- Standalone UI mock mode (no Python required): `http://localhost:5173/?mock=true`
+
 ---
 
 ## Guide for Parallel Workstreams
