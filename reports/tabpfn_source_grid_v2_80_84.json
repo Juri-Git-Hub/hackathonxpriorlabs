@@ -1,0 +1,196 @@
+{
+  "backend": "tabpfn-api",
+  "training_episodes": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74
+  ],
+  "test_episodes": [
+    80,
+    81,
+    82,
+    83,
+    84
+  ],
+  "mean_error": 5.348488139693243,
+  "within_two_cells_rate": 0.4666666666666667,
+  "results": [
+    {
+      "episode": 80,
+      "time": 30,
+      "error": 0.0,
+      "within_two_cells": true,
+      "signal_seen": true
+    },
+    {
+      "episode": 80,
+      "time": 60,
+      "error": 0.0,
+      "within_two_cells": true,
+      "signal_seen": true
+    },
+    {
+      "episode": 80,
+      "time": 90,
+      "error": 0.0,
+      "within_two_cells": true,
+      "signal_seen": true
+    },
+    {
+      "episode": 81,
+      "time": 30,
+      "error": 17.029386365926403,
+      "within_two_cells": false,
+      "signal_seen": false
+    },
+    {
+      "episode": 81,
+      "time": 60,
+      "error": 17.029386365926403,
+      "within_two_cells": false,
+      "signal_seen": false
+    },
+    {
+      "episode": 81,
+      "time": 90,
+      "error": 16.1245154965971,
+      "within_two_cells": false,
+      "signal_seen": false
+    },
+    {
+      "episode": 82,
+      "time": 30,
+      "error": 4.123105625617661,
+      "within_two_cells": false,
+      "signal_seen": true
+    },
+    {
+      "episode": 82,
+      "time": 60,
+      "error": 1.0,
+      "within_two_cells": true,
+      "signal_seen": true
+    },
+    {
+      "episode": 82,
+      "time": 90,
+      "error": 4.242640687119285,
+      "within_two_cells": false,
+      "signal_seen": true
+    },
+    {
+      "episode": 83,
+      "time": 30,
+      "error": 4.47213595499958,
+      "within_two_cells": false,
+      "signal_seen": false
+    },
+    {
+      "episode": 83,
+      "time": 60,
+      "error": 4.123105625617661,
+      "within_two_cells": false,
+      "signal_seen": false
+    },
+    {
+      "episode": 83,
+      "time": 90,
+      "error": 12.083045973594572,
+      "within_two_cells": false,
+      "signal_seen": true
+    },
+    {
+      "episode": 84,
+      "time": 30,
+      "error": 0.0,
+      "within_two_cells": true,
+      "signal_seen": true
+    },
+    {
+      "episode": 84,
+      "time": 60,
+      "error": 0.0,
+      "within_two_cells": true,
+      "signal_seen": true
+    },
+    {
+      "episode": 84,
+      "time": 90,
+      "error": 0.0,
+      "within_two_cells": true,
+      "signal_seen": true
+    }
+  ]
+}

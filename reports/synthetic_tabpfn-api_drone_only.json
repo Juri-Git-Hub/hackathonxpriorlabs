@@ -1,0 +1,31 @@
+{
+  "sensor_mode": "drone_only",
+  "backend": "tabpfn-api",
+  "dataset": "synthetic",
+  "fit_seconds": 0.010722926999733318,
+  "predict_seconds": 0.47622912699989683,
+  "metrics": {
+    "n": 3888,
+    "positives": 130,
+    "f1": 0.0,
+    "auroc": 0.5520366807221517,
+    "brier": 0.035862631748142276
+  },
+  "spatial_slices": {
+    "False": {
+      "n": 3877,
+      "positives": 130,
+      "f1": 0.0,
+      "auroc": 0.5511383465746957,
+      "brier": 0.03596364728095315
+    },
+    "True": {
+      "n": 11,
+      "positives": 0,
+      "f1": 0.0,
+      "auroc": null,
+      "brier": 0.0002592480474357801
+    }
+  },
+  "navigation": []
+}

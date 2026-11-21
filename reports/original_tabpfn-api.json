@@ -1,0 +1,13 @@
+{
+  "backend": "tabpfn-api",
+  "dataset": "original",
+  "fit_seconds": 0.005183954001040547,
+  "predict_seconds": 0.7821175220014993,
+  "metrics": {
+    "n": 2232,
+    "positives": 138,
+    "f1": 0.8865248226950354,
+    "auroc": 0.9938021676840663,
+    "brier": 0.010807638727586149
+  }
+}

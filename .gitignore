@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.pytest_cache/
+data/synthetic.csv
+reports/*_predictions.csv
+data/synthetic_drone_only.csv
+data/source_histories.csv
