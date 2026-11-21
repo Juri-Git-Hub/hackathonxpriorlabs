@@ -76,6 +76,11 @@ export class DroneView {
     return target.copy(entry.root.position);
   }
 
+  getDroneHighlightObject(id) {
+    const entry = this.drones.get(id);
+    return entry ? entry.bodyRig : null;
+  }
+
   _createDroneRig(id) {
     const colorHex = DRONE_COLORS[id] ?? 0x38bdf8;
     const root = new THREE.Group();
@@ -126,7 +131,9 @@ export class DroneView {
       new THREE.SphereGeometry(2.8, 10, 8),
       new THREE.MeshBasicMaterial({ visible: false })
     );
+    hitSphere.visible = false;
     hitSphere.userData.inspect = { kind: "drone", id };
+    hitSphere.userData.inspectRoot = bodyRig;
     root.add(hitSphere);
     this.interactiveObjects.push(hitSphere);
 

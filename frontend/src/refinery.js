@@ -25,6 +25,7 @@ export class RefineryView {
     obj.traverse((child) => {
       if (child.isMesh) {
         child.userData.inspect = meta;
+        child.userData.inspectRoot = obj;
         this.interactiveObjects.push(child);
       }
     });
@@ -587,31 +588,36 @@ export class RefineryView {
 
     for (let i = 0; i < worldInit.assets.length; i++) {
       const asset = worldInit.assets[i];
+      const assetGroup = new THREE.Group();
+      const valvePos = simToThree(asset.pos);
+
       const valve = valveTemplate.clone(true);
-      simToThree(asset.pos, valve.position);
+      valve.position.copy(valvePos);
       valve.scale.setScalar(1.3);
       valve.rotation.y = (i * Math.PI) / 4;
-      this.group.add(valve);
-      this._tagInteractive(valve, {
+      assetGroup.add(valve);
+
+      // Grounded vertical steel riser pipe & concrete footing under every valve
+      const h = Math.max(0.2, valvePos.y);
+      const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, h, 10), riserMat);
+      riser.position.set(valvePos.x, h * 0.5, valvePos.z);
+      riser.castShadow = true;
+      riser.receiveShadow = true;
+      assetGroup.add(riser);
+
+      const footing = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 1.1), baseMat);
+      footing.position.set(valvePos.x, 0.11, valvePos.z);
+      footing.receiveShadow = true;
+      assetGroup.add(footing);
+
+      this.group.add(assetGroup);
+      this._tagInteractive(assetGroup, {
         kind: "asset",
         id: asset.id,
         assetType: asset.asset_type,
         ageYears: asset.age_years,
         posSim: asset.pos,
       });
-
-      // Grounded vertical steel riser pipe & concrete footing under every valve
-      const h = Math.max(0.2, valve.position.y);
-      const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, h, 10), riserMat);
-      riser.position.set(valve.position.x, h * 0.5, valve.position.z);
-      riser.castShadow = true;
-      riser.receiveShadow = true;
-      this.group.add(riser);
-
-      const footing = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 1.1), baseMat);
-      footing.position.set(valve.position.x, 0.11, valve.position.z);
-      footing.receiveShadow = true;
-      this.group.add(footing);
     }
 
     // 6. Connected 3D industrial piping network (driven by backend WorldInitPayload.pipes)

@@ -79,15 +79,67 @@ export class CameraRig {
     this._fly = null;
     this._focusTarget = null;
 
+    // Crisp 1:1 drag while held + smooth inertial coast only after release
+    this._isDragging = false;
+    this._hasPrevDragPose = false;
+    this._prevSpherical = new THREE.Spherical();
+    this._curSpherical = new THREE.Spherical();
+    this._prevTarget = new THREE.Vector3();
+    this._dragThetaVel = 0;
+    this._dragPhiVel = 0;
+    this._dragPanVel = new THREE.Vector3();
+    this._coastThetaVel = 0;
+    this._coastPhiVel = 0;
+    this._coastPanVel = new THREE.Vector3();
+
     this._bindEvents();
   }
 
+  _clearCoast() {
+    this._coastThetaVel = 0;
+    this._coastPhiVel = 0;
+    this._coastPanVel.set(0, 0, 0);
+  }
+
   _bindEvents() {
+    const dom = this.controls.domElement;
+
+    dom.addEventListener("pointerdown", () => {
+      // Disable OrbitControls internal damping while pointer is held so camera
+      // tracks 1:1 and never drifts while you hold the mouse stationary.
+      this._isDragging = true;
+      this._hasPrevDragPose = false;
+      this._dragThetaVel = 0;
+      this._dragPhiVel = 0;
+      this._dragPanVel.set(0, 0, 0);
+      this._clearCoast();
+      this.controls.enableDamping = false;
+    });
+
+    const endDrag = () => {
+      if (!this._isDragging) return;
+      this._isDragging = false;
+      this._hasPrevDragPose = false;
+      this.controls.enableDamping = true;
+
+      // Transfer recent drag velocity into post-release coast (zero if paused before release)
+      const maxAngVel = 5.5;
+      this._coastThetaVel = THREE.MathUtils.clamp(this._dragThetaVel, -maxAngVel, maxAngVel);
+      this._coastPhiVel = THREE.MathUtils.clamp(this._dragPhiVel, -maxAngVel, maxAngVel);
+      this._coastPanVel.copy(this._dragPanVel);
+      if (this._coastPanVel.length() > 160) {
+        this._coastPanVel.setLength(160);
+      }
+    };
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+
     this.controls.addEventListener("start", () => {
       // User grabbed the mouse to orbit/pan: stop automated camera moves
       this._fly = null;
       this._focusTarget = null;
       this._followPullIn = false;
+      this._clearCoast();
       if (this.autoOrbit) {
         this.setAutoOrbit(false);
       }
@@ -110,6 +162,7 @@ export class CameraRig {
         this.keys.add(evt.code);
         this._fly = null;
         this._focusTarget = null;
+        this._clearCoast();
         if (this.followDroneId) {
           this.setFollowDrone(null);
         }
@@ -133,6 +186,12 @@ export class CameraRig {
       this.keys.clear();
       this.shiftHeld = false;
       this.altHeld = false;
+      if (this._isDragging) {
+        this._isDragging = false;
+        this._hasPrevDragPose = false;
+        this.controls.enableDamping = true;
+      }
+      this._clearCoast();
     };
     window.addEventListener("blur", clearKeys);
     document.addEventListener("visibilitychange", () => {
@@ -153,6 +212,7 @@ export class CameraRig {
   }
 
   flyTo(posArr, targetArr, duration = 0.65, presetKey = null) {
+    this._clearCoast();
     this.followDroneId = null;
     this._hasLastFollowPos = false;
     this._focusTarget = null;
@@ -219,6 +279,7 @@ export class CameraRig {
   }
 
   setImmediate(posArr, targetArr) {
+    this._clearCoast();
     this._fly = null;
     this._focusTarget = null;
     this.followDroneId = null;
@@ -261,18 +322,16 @@ export class CameraRig {
 
     this._desiredVel.set(0, 0, 0);
     if (moveForward !== 0 || moveRight !== 0 || moveUp !== 0) {
-      this.camera.getWorldDirection(this._fwd);
-      this._fwd.y = 0;
-      if (this._fwd.lengthSq() < 1e-5) {
-        // Looking straight down/up: fall back to screen-up projected onto XZ
-        this._fwd.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
-        this._fwd.y = 0;
-        if (this._fwd.lengthSq() < 1e-5) {
-          this._fwd.set(0, 0, -1);
-        }
+      // Derive horizontal basis from camera's screen-right axis, which stays
+      // well-defined (unit length, no gimbal singularity) even when looking straight down.
+      this._right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+      this._right.y = 0;
+      if (this._right.lengthSq() < 1e-6) {
+        this._right.set(1, 0, 0);
+      } else {
+        this._right.normalize();
       }
-      this._fwd.normalize();
-      this._right.crossVectors(this._fwd, WORLD_UP).normalize();
+      this._fwd.crossVectors(WORLD_UP, this._right).normalize();
 
       this._desiredVel
         .addScaledVector(this._fwd, moveForward)
@@ -352,6 +411,61 @@ export class CameraRig {
       const offset = this._delta.subVectors(this.camera.position, this.controls.target);
       offset.applyAxisAngle(WORLD_UP, this.autoOrbitSpeed * dt);
       this.camera.position.copy(this.controls.target).add(offset);
+    }
+
+    // 5. Measure drag velocity while held; apply smooth inertial coast after release
+    if (this._isDragging) {
+      const offset = this._delta.subVectors(this.camera.position, this.controls.target);
+      this._curSpherical.setFromVector3(offset);
+      if (this._hasPrevDragPose && dt > 1e-4) {
+        let dTheta = this._curSpherical.theta - this._prevSpherical.theta;
+        if (dTheta > Math.PI) dTheta -= Math.PI * 2;
+        if (dTheta < -Math.PI) dTheta += Math.PI * 2;
+        const dPhi = this._curSpherical.phi - this._prevSpherical.phi;
+
+        // Fast EMA (~40ms time constant): captures flicks, drops to ~0 if held still before release
+        const ema = 1 - Math.exp(-26 * dt);
+        this._dragThetaVel = THREE.MathUtils.lerp(this._dragThetaVel, dTheta / dt, ema);
+        this._dragPhiVel = THREE.MathUtils.lerp(this._dragPhiVel, dPhi / dt, ema);
+
+        this._tmpTarget
+          .subVectors(this.controls.target, this._prevTarget)
+          .divideScalar(dt);
+        this._dragPanVel.lerp(this._tmpTarget, ema);
+      }
+      this._prevSpherical.copy(this._curSpherical);
+      this._prevTarget.copy(this.controls.target);
+      this._hasPrevDragPose = true;
+    } else if (
+      Math.abs(this._coastThetaVel) > 1e-3 ||
+      Math.abs(this._coastPhiVel) > 1e-3 ||
+      this._coastPanVel.lengthSq() > 1e-3
+    ) {
+      const offset = this._delta.subVectors(this.camera.position, this.controls.target);
+      this._curSpherical.setFromVector3(offset);
+      this._curSpherical.theta += this._coastThetaVel * dt;
+      this._curSpherical.phi = THREE.MathUtils.clamp(
+        this._curSpherical.phi + this._coastPhiVel * dt,
+        Math.max(0.01, this.controls.minPolarAngle),
+        this.controls.maxPolarAngle
+      );
+      offset.setFromSpherical(this._curSpherical);
+      this.camera.position.copy(this.controls.target).add(offset);
+
+      if (this._coastPanVel.lengthSq() > 1e-3) {
+        this._tmpTarget.copy(this._coastPanVel).multiplyScalar(dt);
+        if (this.camera.position.y + this._tmpTarget.y < 1.5) {
+          this._tmpTarget.y = 1.5 - this.camera.position.y;
+        }
+        this.camera.position.add(this._tmpTarget);
+        this.controls.target.add(this._tmpTarget);
+        if (this.controls.target.y < 0) this.controls.target.y = 0;
+      }
+
+      const decay = Math.exp(-7.5 * dt);
+      this._coastThetaVel *= decay;
+      this._coastPhiVel *= decay;
+      this._coastPanVel.multiplyScalar(decay);
     }
   }
 }
