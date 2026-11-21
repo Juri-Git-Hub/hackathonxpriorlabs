@@ -2,7 +2,7 @@ import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import { threeToSim } from "./coords.js";
+import { simToThree, threeToSim } from "./coords.js";
 import { loadModelAssets } from "./assets.js";
 import { setupEnvironment } from "./environment.js";
 import { SimWsClient } from "./wsClient.js";
@@ -36,7 +36,7 @@ async function bootstrap() {
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.maxPolarAngle = Math.PI / 2 - 0.03;
-  controls.minDistance = 12;
+  controls.minDistance = 8;
   controls.maxDistance = 190;
   controls.target.set(0, 6, 0);
 
@@ -49,7 +49,63 @@ async function bootstrap() {
   const beliefView = new BeliefView(scene);
   const droneView = new DroneView(scene, models.quadrotor);
 
+  // Live 3D placement reticle ring (visible when Place Leak mode is active)
+  const reticle = new THREE.Mesh(
+    new THREE.RingGeometry(1.1, 1.65, 28),
+    new THREE.MeshBasicMaterial({
+      color: 0xf43f5e,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+    })
+  );
+  reticle.rotation.x = -Math.PI / 2;
+  reticle.visible = false;
+  scene.add(reticle);
+
+  // Expanding pulse rings when a leak is placed (instant visual confirmation)
+  const pulseRings = [];
+  function spawnLeakPulse(simPos) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.8, 1.35, 28),
+      new THREE.MeshBasicMaterial({
+        color: 0xef4444,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+      })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    simToThree(simPos, ring.position);
+    scene.add(ring);
+    pulseRings.push({ mesh: ring, age: 0 });
+  }
+
   let placeLeakMode = false;
+  let followDroneId = null;
+  let focusTarget = null;
+
+  function placeLeakAt(simPos) {
+    const pos = [
+      Number(simPos[0].toFixed(2)),
+      Number(simPos[1].toFixed(2)),
+      Math.max(1.0, Number(simPos[2].toFixed(2))),
+    ];
+    wsClient.sendCommand({
+      action: "place_leak",
+      leak_pos: pos,
+    });
+    spawnLeakPulse(pos);
+    // Automatically reveal plume if hidden so the user immediately sees the new leak
+    if (!hud.plumeVisible) {
+      hud.setPlumeVisible(true);
+    }
+    hud.showToast(
+      `Gas leak placed at (${pos[0].toFixed(1)}, ${pos[1].toFixed(1)}, ${pos[2].toFixed(1)}m)`
+    );
+  }
 
   // 4. WebSocket client & HUD
   const wsClient = new SimWsClient({
@@ -77,32 +133,120 @@ async function bootstrap() {
     onToggleBelief: (visible) => beliefView.setVisible(visible),
     onTogglePlaceLeakMode: (active) => {
       placeLeakMode = active;
+      reticle.visible = false;
       renderer.domElement.style.cursor = active ? "crosshair" : "default";
     },
     onResetTrails: () => droneView.clearTrails(),
+    onSelectDrone: (droneId) => {
+      hud.showInspector({ kind: "drone", id: droneId });
+      const pos = droneView.getDroneWorldPos(droneId);
+      if (pos) {
+        focusTarget = pos.clone();
+      }
+    },
+    onFollowDrone: (droneId) => {
+      followDroneId = droneId;
+      if (droneId) focusTarget = null;
+    },
+    onFocusPosition: (simPos) => {
+      followDroneId = null;
+      focusTarget = simToThree(simPos, new THREE.Vector3());
+    },
+    onPlaceLeakAt: (simPos) => {
+      placeLeakAt(simPos);
+    },
   });
 
-  // 5. Click-on-ground raycast to place a hidden leak
+  // 5. Interactive Raycasting (hover reticle + click drones/pipes/valves/buildings + place leaks)
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  let downX = 0;
+  let downY = 0;
 
-  renderer.domElement.addEventListener("pointerdown", (evt) => {
-    if (!placeLeakMode || evt.button !== 0 || !refineryView.groundMesh) return;
-
+  function setPointerFromEvent(evt) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+  }
 
+  function raycastInteractive(evt) {
+    setPointerFromEvent(evt);
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObject(refineryView.groundMesh);
+    const targets = [
+      ...droneView.getInteractiveObjects(),
+      ...refineryView.getInteractiveObjects(),
+    ];
+    return raycaster.intersectObjects(targets, false);
+  }
+
+  function raycastLeakPlacement(evt) {
+    setPointerFromEvent(evt);
+    raycaster.setFromCamera(pointer, camera);
+    const targets = [...refineryView.getInteractiveObjects()];
+    if (refineryView.groundMesh) targets.push(refineryView.groundMesh);
+    return raycaster.intersectObjects(targets, false);
+  }
+
+  renderer.domElement.addEventListener("pointermove", (evt) => {
+    if (placeLeakMode) {
+      const hits = raycastLeakPlacement(evt);
+      if (hits.length > 0) {
+        const hit = hits[0];
+        reticle.position.copy(hit.point);
+        reticle.position.y = Math.max(0.15, hit.point.y + 0.08);
+        reticle.visible = true;
+      } else {
+        reticle.visible = false;
+      }
+      return;
+    }
+
+    const hits = raycastInteractive(evt);
+    renderer.domElement.style.cursor = hits.length > 0 ? "pointer" : "default";
+  });
+
+  renderer.domElement.addEventListener("pointerdown", (evt) => {
+    downX = evt.clientX;
+    downY = evt.clientY;
+  });
+
+  renderer.domElement.addEventListener("pointerup", (evt) => {
+    if (evt.button !== 0) return;
+    // Ignore orbit/pan drags
+    if (Math.hypot(evt.clientX - downX, evt.clientY - downY) > 6) return;
+
+    if (placeLeakMode) {
+      const hits = raycastLeakPlacement(evt);
+      if (hits.length > 0) {
+        const hit = hits[0];
+        const simPos = threeToSim(hit.point);
+        // If clicked on ground, elevate to realistic pipe height; on pipe/valve use exact 3D height
+        if (hit.object === refineryView.groundMesh) {
+          simPos[2] = 3.5;
+        }
+        placeLeakAt(simPos);
+        hud.setPlaceLeakMode(false);
+      }
+      return;
+    }
+
+    const hits = raycastInteractive(evt);
     if (hits.length > 0) {
-      const simPos = threeToSim(hits[0].point);
-      simPos[2] = 3.5;
-      wsClient.sendCommand({
-        action: "place_leak",
-        leak_pos: simPos,
-      });
-      hud.setPlaceLeakMode(false);
+      const hit = hits[0];
+      const meta = hit.object.userData.inspect;
+      if (meta) {
+        const hitSimPos = threeToSim(hit.point);
+        hud.showInspector(meta, hitSimPos);
+      }
+    } else {
+      hud.clearInspector();
+    }
+  });
+
+  window.addEventListener("keydown", (evt) => {
+    if (evt.key === "Escape") {
+      if (placeLeakMode) hud.setPlaceLeakMode(false);
+      else hud.clearInspector();
     }
   });
 
@@ -116,10 +260,41 @@ async function bootstrap() {
   wsClient.start();
 
   const clock = new THREE.Clock();
+  const tmpFollow = new THREE.Vector3();
+
   function animate() {
     requestAnimationFrame(animate);
     const dt = Math.min(clock.getDelta(), 0.05);
     const elapsed = clock.elapsedTime;
+
+    if (followDroneId) {
+      const p = droneView.getDroneWorldPos(followDroneId, tmpFollow);
+      if (p) {
+        controls.target.lerp(p, Math.min(1.0, dt * 6.0));
+      }
+    } else if (focusTarget) {
+      controls.target.lerp(focusTarget, Math.min(1.0, dt * 6.0));
+      if (controls.target.distanceTo(focusTarget) < 0.25) {
+        focusTarget = null;
+      }
+    }
+
+    // Animate leak placement pulse rings
+    for (let i = pulseRings.length - 1; i >= 0; i--) {
+      const pr = pulseRings[i];
+      pr.age += dt;
+      const t = pr.age / 1.2;
+      if (t >= 1.0) {
+        scene.remove(pr.mesh);
+        pr.mesh.geometry.dispose();
+        pr.mesh.material.dispose();
+        pulseRings.splice(i, 1);
+      } else {
+        pr.mesh.scale.setScalar(1.0 + t * 5.0);
+        pr.mesh.material.opacity = (1.0 - t) * 0.9;
+      }
+    }
+
     controls.update();
     droneView.animate(dt);
     plumeView.animate(dt);

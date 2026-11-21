@@ -56,7 +56,18 @@ export class DroneView {
     this.scene = scene;
     this.quadrotorTemplate = quadrotorTemplate;
     this.drones = new Map();
+    this.interactiveObjects = [];
     this._tmpVec = new THREE.Vector3();
+  }
+
+  getInteractiveObjects() {
+    return this.interactiveObjects;
+  }
+
+  getDroneWorldPos(id, target = new THREE.Vector3()) {
+    const entry = this.drones.get(id);
+    if (!entry || !entry.initialized) return null;
+    return target.copy(entry.root.position);
   }
 
   _createDroneRig(id) {
@@ -93,6 +104,15 @@ export class DroneView {
     // Floating crisp callsign badge
     const label = createLabelSprite(DRONE_LABELS[id] ?? id.toUpperCase(), colorHex);
     root.add(label);
+
+    // Generous invisible click-target sphere so flying drones are easy to click
+    const hitSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(2.2, 10, 8),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitSphere.userData.inspect = { kind: "drone", id };
+    root.add(hitSphere);
+    this.interactiveObjects.push(hitSphere);
 
     this.scene.add(root);
 

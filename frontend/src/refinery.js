@@ -69,11 +69,26 @@ export class RefineryView {
     this.group = new THREE.Group();
     this.scene.add(this.group);
     this.groundMesh = null;
+    this.interactiveObjects = [];
   }
 
-  _addPipeRun(pointsSim, radius, mat, flangeMat, supportMat) {
+  _tagInteractive(obj, meta) {
+    obj.traverse((child) => {
+      if (child.isMesh) {
+        child.userData.inspect = meta;
+        this.interactiveObjects.push(child);
+      }
+    });
+  }
+
+  getInteractiveObjects() {
+    return this.interactiveObjects;
+  }
+
+  _addPipeRun(pointsSim, radius, mat, flangeMat, supportMat, pipeMeta) {
     const pts = pointsSim.map((p) => simToThree(p));
     const up = new THREE.Vector3(0, 1, 0);
+    const runGroup = new THREE.Group();
 
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i];
@@ -89,7 +104,7 @@ export class RefineryView {
       seg.quaternion.setFromUnitVectors(up, dir.clone().normalize());
       seg.castShadow = true;
       seg.receiveShadow = true;
-      this.group.add(seg);
+      runGroup.add(seg);
 
       // Add bolted flange collars every ~7m along long horizontal runs
       if (len > 4.5) {
@@ -102,7 +117,7 @@ export class RefineryView {
           fl.position.copy(fPos);
           fl.quaternion.copy(seg.quaternion);
           fl.castShadow = true;
-          this.group.add(fl);
+          runGroup.add(fl);
         }
       }
 
@@ -128,7 +143,12 @@ export class RefineryView {
       const elbow = new THREE.Mesh(elbowGeo, mat);
       elbow.position.copy(pts[i]);
       elbow.castShadow = true;
-      this.group.add(elbow);
+      runGroup.add(elbow);
+    }
+
+    this.group.add(runGroup);
+    if (pipeMeta) {
+      this._tagInteractive(runGroup, { kind: "pipe", radius, ...pipeMeta });
     }
   }
 
@@ -175,7 +195,8 @@ export class RefineryView {
       0.34,
       matYellowGas,
       matFlange,
-      matSupport
+      matSupport,
+      { id: "line_gas_main", name: "Main Methane Header", service: "High-Pressure Gas", pressureBar: 18.4 }
     );
 
     // 2. Tank East south discharge line -> valve_03
@@ -191,7 +212,8 @@ export class RefineryView {
       0.28,
       matSteel,
       matFlange,
-      matSupport
+      matSupport,
+      { id: "line_east_transfer", name: "East Tank Transfer Line", service: "Process Feed", pressureBar: 11.2 }
     );
 
     // 3. Central Pipe Rack -> Tank North (dual silver + yellow lines via flange_02 & tank_port_n1)
@@ -206,7 +228,8 @@ export class RefineryView {
       0.32,
       matYellowGas,
       matFlange,
-      matSupport
+      matSupport,
+      { id: "line_north_gas", name: "North Tank Gas Feed", service: "High-Pressure Gas", pressureBar: 16.0 }
     );
     this._addPipeRun(
       [
@@ -219,7 +242,8 @@ export class RefineryView {
       0.30,
       matBlueCoolant,
       matFlange,
-      matSupport
+      matSupport,
+      { id: "line_north_coolant", name: "North Cooling Return", service: "Coolant Loop", pressureBar: 6.5 }
     );
 
     // 4. Compressor Building -> Tank North & Pipe Rack (via flange_04 & pipe_junc_03)
@@ -232,7 +256,8 @@ export class RefineryView {
       0.28,
       matSteel,
       matFlange,
-      matSupport
+      matSupport,
+      { id: "line_comp_discharge", name: "Compressor Discharge", service: "Compressed Vapor", pressureBar: 22.0 }
     );
     this._addPipeRun(
       [
@@ -244,7 +269,8 @@ export class RefineryView {
       0.26,
       matBlueCoolant,
       matFlange,
-      matSupport
+      matSupport,
+      { id: "line_comp_coolant", name: "Compressor Coolant", service: "Coolant Loop", pressureBar: 5.8 }
     );
 
     // 5. South header: flange_01 -> valve_05 -> Control Building (flange_03 & valve_04)
@@ -259,7 +285,8 @@ export class RefineryView {
       0.30,
       matYellowGas,
       matFlange,
-      matSupport
+      matSupport,
+      { id: "line_south_header", name: "South Manifold Gas Line", service: "High-Pressure Gas", pressureBar: 17.5 }
     );
     this._addPipeRun(
       [
@@ -272,7 +299,8 @@ export class RefineryView {
       0.26,
       matSteel,
       matFlange,
-      matSupport
+      matSupport,
+      { id: "line_control_bypass", name: "Control Unit Bypass", service: "Instrument Line", pressureBar: 9.0 }
     );
   }
 
@@ -327,6 +355,7 @@ export class RefineryView {
     while (this.group.children.length > 0) {
       this.group.remove(this.group.children.pop());
     }
+    this.interactiveObjects = [];
 
     const [minX, minY] = worldInit.bounds_min;
     const [maxX, maxY] = worldInit.bounds_max;
@@ -439,6 +468,13 @@ export class RefineryView {
         instance.scale.set(sx, sz, sy);
       }
       this.group.add(instance);
+      this._tagInteractive(instance, {
+        kind: "building",
+        id: b.id,
+        structureKind: b.kind,
+        size: [sx, sy, sz],
+        centerSim: [cx, cy, 0.5 * sz],
+      });
 
       // Exact axis-aligned safety outline around each building footprint
       const pad = 0.7;
@@ -477,6 +513,13 @@ export class RefineryView {
       valve.scale.setScalar(1.3);
       valve.rotation.y = (i * Math.PI) / 4;
       this.group.add(valve);
+      this._tagInteractive(valve, {
+        kind: "asset",
+        id: asset.id,
+        assetType: asset.asset_type,
+        ageYears: asset.age_years,
+        posSim: asset.pos,
+      });
 
       // Grounded vertical steel riser pipe & concrete footing under every valve
       const h = Math.max(0.2, valve.position.y);

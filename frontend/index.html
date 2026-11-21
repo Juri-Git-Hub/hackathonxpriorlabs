@@ -18,8 +18,23 @@
       <div class="header-meta">
         <span>Sim Time: <strong id="sim-time">0.0s</strong></span>
         <span>Wind: <strong id="wind-readout">0.0 m/s</strong></span>
+        <span>Leaks: <strong id="leak-count">0</strong></span>
         <span id="dropout-badge" class="badge badge-warn hidden">NaN DROPOUTS ACTIVE</span>
       </div>
+    </div>
+
+    <!-- Transient feedback toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Interactive Object Inspector (opens on click: drone / pipe / valve / building) -->
+    <div id="inspector" class="hud-panel hidden">
+      <div class="inspector-header">
+        <span id="inspector-type" class="badge">OBJECT</span>
+        <strong id="inspector-title">Selected</strong>
+        <button id="inspector-close" class="icon-btn" title="Close">✕</button>
+      </div>
+      <div id="inspector-body" class="inspector-body"></div>
+      <div id="inspector-actions" class="inspector-actions"></div>
     </div>
 
     <!-- Top-right scoreboard -->
