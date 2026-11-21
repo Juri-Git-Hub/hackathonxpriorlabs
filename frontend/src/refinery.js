@@ -359,11 +359,12 @@ export class RefineryView {
 
     const surface = presentation.surface ?? "concrete";
 
-    // 1. Expansive 1200x1200m surrounding landscape with smooth apron, rolling berms,
-    //    and distant 3D perimeter hills/mountains tailored to each world's biome.
+    // 1. Expansive 1240x1240m surrounding landscape with smooth apron, rolling berms,
+    //    and distant 3D perimeter hills/mountains with non-repeating vertex color shading.
     const outerGeo = new THREE.PlaneGeometry(1240, 1240, 96, 96);
     outerGeo.rotateX(-Math.PI / 2);
     const posAttr = outerGeo.attributes.position;
+    const colors = new Float32Array(posAttr.count * 3);
     const hillAmp =
       surface === "asphalt" ? 1.55 :
       surface === "desert" ? 1.35 :
@@ -373,8 +374,8 @@ export class RefineryView {
       const vx = posAttr.getX(i);
       const vz = posAttr.getZ(i);
       const distOut = Math.max(Math.abs(vx) - 65, Math.abs(vz) - 65, 0);
+      let h = -0.08;
       if (distOut > 0) {
-        // Gentle near-field berms (65..180m) + dramatic distant rolling hills (180..600m)
         const nearBlend = Math.min(1.0, distOut / 55);
         const farBlend = Math.min(1.0, Math.max(0, distOut - 95) / 260);
         const nearBerm =
@@ -387,16 +388,21 @@ export class RefineryView {
             18.0 * Math.sin(vx * 0.009 + 0.6) * Math.cos(vz * 0.011 - 0.4) +
             11.0 * Math.sin(vx * 0.019 - vz * 0.015) +
             5.5 * Math.cos(vx * 0.033 + vz * 0.027));
-        posAttr.setY(i, Math.max(-0.15, nearBerm + farHills - 0.15));
-      } else {
-        posAttr.setY(i, -0.08);
+        h = Math.max(-0.15, nearBerm + farHills - 0.15);
       }
+      posAttr.setY(i, h);
+      // Organic macro elevation + low-frequency variation breaks up any texture repeat
+      const macro = 0.90 + 0.10 * Math.sin(vx * 0.008 + vz * 0.006) + Math.min(0.22, Math.max(0, h / 120));
+      colors[i * 3] = macro;
+      colors[i * 3 + 1] = macro;
+      colors[i * 3 + 2] = surface === "frost" ? Math.min(1.18, macro * 1.04) : macro;
     }
+    outerGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     outerGeo.computeVertexNormals();
     const outerTex = createOuterTerrainTexture(surface);
-    outerTex.repeat.set(22, 22);
     const outerMat = new THREE.MeshStandardMaterial({
       map: outerTex,
+      vertexColors: true,
       roughness: surface === "wet_slate" ? 0.82 : 0.96,
       metalness: 0.02,
     });
@@ -439,20 +445,22 @@ export class RefineryView {
     launchPad.receiveShadow = true;
     this.group.add(launchPad);
 
-    // 3. Industrial site details (concrete Jersey barriers, safety station, equipment skids)
-    const barrierMat = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      roughness: 0.9,
-      metalness: 0.08,
-    });
-    const barrierGeo = new THREE.BoxGeometry(4.2, 0.95, 0.65);
-    for (let i = 0; i < 6; i++) {
-      const b = new THREE.Mesh(barrierGeo, barrierMat);
-      b.position.set(-42.5, 0.48, -28 + i * 11);
-      b.rotation.y = Math.PI / 2;
-      b.castShadow = true;
-      b.receiveShadow = true;
-      this.group.add(b);
+    // 3. Industrial site details (concrete Jersey barriers only on classic refinery where layout is fixed)
+    if (!worldInit.map_id || worldInit.map_id === "refinery") {
+      const barrierMat = new THREE.MeshStandardMaterial({
+        color: 0x475569,
+        roughness: 0.9,
+        metalness: 0.08,
+      });
+      const barrierGeo = new THREE.BoxGeometry(4.2, 0.95, 0.65);
+      for (let i = 0; i < 6; i++) {
+        const b = new THREE.Mesh(barrierGeo, barrierMat);
+        b.position.set(-42.5, 0.48, -28 + i * 11);
+        b.rotation.y = Math.PI / 2;
+        b.castShadow = true;
+        b.receiveShadow = true;
+        this.group.add(b);
+      }
     }
 
     // Perimeter yellow boundary line
@@ -518,6 +526,19 @@ export class RefineryView {
       if (b.kind === "storage_tank") {
         const diam = Math.min(sx, sy);
         instance.scale.set(diam, sz, diam);
+      } else if (
+        sy > sx * 1.15 &&
+        (modelKey === "pipe_rack" ||
+          modelKey === "transfer_gantry" ||
+          modelKey === "compressor" ||
+          modelKey === "metering_skid" ||
+          modelKey === "receiver_skid" ||
+          modelKey === "compressor_train" ||
+          modelKey === "pump_house")
+      ) {
+        // Rotate elongated directional structures 90 deg when aligned N-S so pipes/barrels never squash
+        instance.rotation.y = Math.PI / 2;
+        instance.scale.set(sy, sz, sx);
       } else {
         instance.scale.set(sx, sz, sy);
       }

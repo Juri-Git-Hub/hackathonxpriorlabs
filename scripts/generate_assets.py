@@ -803,12 +803,15 @@ def build_metering_skid() -> None:
     add_box("CabHood", (-0.34, 0.0, 0.82), (0.26, 0.38, 0.045), mat_skid)
     add_box("CabHMI", (-0.225, 0.0, 0.56), (0.015, 0.16, 0.12), mat_screen)
 
-    # Protective open steel weather canopy roof on 4 corner posts
+    # Protective open steel weather canopy roof on 4 corner posts (dark steel top + thin yellow perimeter trim)
     for cx in (-0.44, 0.44):
         for cy in (-0.43, 0.43):
             add_box(f"CanopyPost_{cx:.2f}_{cy:.2f}", (cx, cy, 0.52), (0.038, 0.038, 0.84), mat_skid)
-    add_box("CanopyRoof", (0.0, 0.0, 0.955), (0.96, 0.94, 0.045), mat_steel)
-    add_box("CanopyTrim", (0.0, 0.0, 0.985), (0.98, 0.96, 0.02), mat_amber)
+    add_box("CanopyRoof", (0.0, 0.0, 0.955), (0.96, 0.94, 0.045), mat_skid)
+    add_box("CanopyTrimN", (0.0, 0.475, 0.965), (0.98, 0.025, 0.035), mat_amber)
+    add_box("CanopyTrimS", (0.0, -0.475, 0.965), (0.98, 0.025, 0.035), mat_amber)
+    add_box("CanopyTrimE", (0.485, 0.0, 0.965), (0.025, 0.96, 0.035), mat_amber)
+    add_box("CanopyTrimW", (-0.485, 0.0, 0.965), (0.025, 0.96, 0.035), mat_amber)
 
     export_glb("metering_skid.glb")
 

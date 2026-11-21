@@ -455,22 +455,112 @@ tr.row-tabpfn td:first-child {
   vertical-align: middle;
 }
 
-/* Small integration block; retain main's scene and other HUD panels. */
-#backend-controls { top: 100px; left: 14px; width: 350px; max-height: 38vh; overflow: auto; }
-.world-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  margin: 10px 0 6px;
+/* --- Top-Center World Selector Pill --- */
+#world-switcher-pill {
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(10, 15, 24, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.52);
+  white-space: nowrap;
+  z-index: 20;
 }
-.world-buttons .btn { min-height: 34px; padding: 5px 4px; }
-.world-buttons .btn:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
-#layout-status { margin: 0 0 10px; }
-#layout-status:empty { display: none; }
+
+.world-pill-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.world-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #cbd5e1;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, color 0.14s, box-shadow 0.14s;
+}
+
+.world-pill-btn:hover:not(:disabled) {
+  background: rgba(51, 65, 85, 0.72);
+  color: #f8fafc;
+}
+
+.world-pill-btn.btn-active {
+  background: rgba(34, 211, 238, 0.22);
+  border-color: rgba(34, 211, 238, 0.85);
+  color: #67e8f9;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.22);
+}
+
+.world-pill-btn:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 2px;
+}
+
+.world-pill-sep {
+  width: 1px;
+  height: 20px;
+  background: rgba(148, 163, 184, 0.26);
+  margin: 0 4px;
+}
+
+.world-pill-random {
+  background: rgba(14, 165, 233, 0.22);
+  border: 1px solid rgba(56, 189, 248, 0.65);
+  color: #e0f2fe;
+}
+
+.world-pill-random:hover:not(:disabled) {
+  background: rgba(14, 165, 233, 0.36);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.world-pill-random.btn-active {
+  background: rgba(168, 85, 247, 0.26);
+  border-color: #c084fc;
+  color: #f3e8ff;
+  box-shadow: 0 0 14px rgba(192, 132, 252, 0.26);
+}
+
+.world-seed-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.18);
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.world-seed-badge:empty {
+  display: none;
+}
+
+/* Small integration block; retain main's scene and other HUD panels. */
+#backend-controls { top: 96px; left: 14px; width: 340px; max-height: 36vh; overflow: auto; }
 #backend-controls select, #backend-controls input[type=number] { background: #111827; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px; max-width: 130px; }
 #backend-controls .control-row { margin-top: 10px; align-items: center; }
 #model-status { overflow-wrap: anywhere; }
-@media (max-width: 760px) { #backend-controls { top: 95px; width: 290px; max-height: 28vh; } }
+@media (max-width: 1280px) {
+  #world-switcher-pill { top: 74px; }
+  .world-pill-btn { padding: 5px 10px; font-size: 11.5px; }
+}
+@media (max-width: 760px) { #backend-controls { top: 126px; width: 290px; max-height: 28vh; } }
 
 #mission-report { top: 110px; left: 50%; transform: translateX(-50%); width: min(410px, 90vw); z-index: 30; border-color: #34d399; }
 #mission-report p { margin: 9px 0; line-height: 1.45; }
@@ -478,7 +568,7 @@ tr.row-tabpfn td:first-child {
 button:disabled { opacity: .45; cursor: default; }
 .toast {
   position: fixed;
-  top: 16px;
+  top: 72px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(15, 23, 42, 0.94);

@@ -79,7 +79,7 @@ _MODEL_SIZE_HINT: dict[str, tuple[tuple[float, float], tuple[float, float]]] = {
     "horton_sphere": ((0.78, 0.96), (13.0, 17.5)),
     "cryogenic_vessel": ((0.62, 0.85), (16.5, 22.0)),
     "hyperbolic_tower": ((0.88, 1.08), (19.0, 25.0)),
-    "exhaust_stack": ((0.38, 0.52), (18.0, 24.0)),
+    "exhaust_stack": ((0.18, 0.28), (19.0, 25.0)),
     "storage_tank": ((0.85, 1.05), (12.0, 16.5)),
     "metering_skid": ((0.75, 0.95), (5.5, 7.5)),
     "receiver_skid": ((0.78, 0.98), (6.0, 8.0)),
