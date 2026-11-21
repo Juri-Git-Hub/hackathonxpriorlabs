@@ -22,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
 from agents.base import BaseAgent
+from integration.navigation import RoutedAgent
 from agents.gradient import GradientAgent
 from agents.lawnmower import LawnmowerAgent
 from agents.mock_agent import MockTabPFNAgent
@@ -41,8 +42,8 @@ def build_agents(mock_agents: bool = True) -> dict[str, BaseAgent]:
 
     return {
         "tabpfn": primary,
-        "gradient": GradientAgent(drone_id="gradient"),
-        "lawnmower": LawnmowerAgent(drone_id="lawnmower"),
+        "gradient": RoutedAgent(GradientAgent(drone_id="gradient")),
+        "lawnmower": RoutedAgent(LawnmowerAgent(drone_id="lawnmower")),
     }
 
 

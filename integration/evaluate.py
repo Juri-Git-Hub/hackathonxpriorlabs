@@ -28,8 +28,10 @@ def main():
             if runtime.agent.error:raise RuntimeError(runtime.agent.error)
             time.sleep(.1)
         if runtime.agent.source_scores is None or 'tabpfn' not in runtime.beliefs:raise RuntimeError('No real API belief within 30s')
+        # Let the physical controller follow the newly computed spatial route.
+        time.sleep(3)
         tick,belief=runtime.snapshot()
-        result['live_smoke']=dict(sim_time=tick.sim_time,wall_seconds=time.monotonic()-start,grid_points=len(runtime.agent.source_scores),hazard_points=len(runtime.agent.hazard),inference_seconds=runtime.agent.latency,belief_received='tabpfn' in belief)
+        result['live_smoke']=dict(sim_time=tick.sim_time,wall_seconds=time.monotonic()-start,grid_points=len(runtime.agent.source_scores),hazard_points=len(runtime.agent.hazard),inference_seconds=runtime.agent.latency,belief_received='tabpfn' in belief,drone_height_m=next(d.pos[2] for d in tick.drones if d.id=='tabpfn'),target_height_m=next(d.target_pos[2] for d in tick.drones if d.id=='tabpfn'))
     finally:runtime.close()
     (ROOT/'reports/main3d_evaluation.json').write_text(json.dumps(result,indent=2));print(json.dumps(result,indent=2))
 

@@ -39,7 +39,7 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
             assert world_init.type == "world_init"
             assert len(world_init.buildings) >= 4
             assert len(world_init.assets) >= 12
-            assert 400 <= len(world_init.grid_coords) <= 650
+            assert 400 <= len(world_init.grid_coords) <= 1000
 
             # 2. Send judge commands
             ws.send_text(

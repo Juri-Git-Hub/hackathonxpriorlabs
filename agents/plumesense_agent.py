@@ -8,6 +8,7 @@ from shared.schemas import BeliefUpdatePayload
 from integration.features import features,SOURCE,HAZARD
 from integration.generate import DATA
 from plumesense import Predictor,TARGET
+from integration.navigation import Planner3D
 
 
 def load_models(backend='tabpfn-api'):
@@ -28,8 +29,16 @@ class PlumeSenseAgent(AsyncInferenceAgent):
         self.error=None;self.hazard=None;self.source_scores=None;self.latency=0.;self.exposure=0.
     def _on_reset(self,world_init):
         with self._history_lock:
+            self.planner=Planner3D(world_init);self.route=[]
             self.history=[];self.grid=np.asarray(world_init.grid_coords)
             self.waypoint=None;self.target_time=-100.;self.error=None;self.hazard=None;self.source_scores=None;self.exposure=0.
+    def update(self,obs):
+        super().update(obs)
+        with self._history_lock:
+            while len(self.route)>1 and np.linalg.norm(np.array(self.route[0])-obs.pos)<2:
+                self.route.pop(0)
+            return self.route[0] if self.route else obs.pos
+
     def _record_observation(self,obs):
         with self._history_lock:
             if not self.history or obs.sim_time>self.history[-1].sim_time:
@@ -55,16 +64,23 @@ class PlumeSenseAgent(AsyncInferenceAgent):
             utility=(alpha*mass+(1-alpha)*coverage)/(1+.015*distance)
             utility[nearest<4]=-1
             if waypoint is None or np.linalg.norm(np.array(waypoint)-obs.pos)<5 or obs.sim_time-target_time>=6:
-                waypoint=tuple(map(float,grid[int(np.argmax(utility))]));target_time=obs.sim_time
+                waypoint=None
+                for index in np.argsort(utility)[::-1][:30]:
+                    candidate=tuple(map(float,grid[index]))
+                    if self.planner.route(obs.pos,candidate):waypoint=candidate;break
+                target_time=obs.sim_time
+            if waypoint is None:raise RuntimeError('No reachable 3D measurement target')
+            with self._history_lock:current_pos=self.history[-1].pos
+            route=self.planner.route(current_pos,waypoint)[1:]
             estimate=tuple(map(float,grid[int(np.argmax(source))]))
             normalized=source/max(float(source.sum()),1e-9)
             belief=BeliefUpdatePayload(sim_time=obs.sim_time,drone_id=self.drone_id,q50=normalized.tolist(),uncertainty=(1-np.abs(2*source-1)).tolist(),estimated_source=estimate,next_waypoint=waypoint)
             # Publish diagnostics only for the same race generation.
             with self._history_lock:
                 if self.history and history[0] is self.history[0]:
-                    self.waypoint=waypoint;self.target_time=target_time;self.error=None
+                    self.route=route;self.waypoint=waypoint;self.target_time=target_time;self.error=None
                     self.hazard=hazard;self.source_scores=normalized;self.latency=time.perf_counter()-start
-            return waypoint,belief
+            return (route[0] if route else obs.pos),belief
         except Exception as exc:
             with self._history_lock:
                 if self.history and history[0] is self.history[0]:self.error=str(exc)

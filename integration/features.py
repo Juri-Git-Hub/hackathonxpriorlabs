@@ -4,7 +4,7 @@ import pandas as pd
 
 SOURCE='target_source_near'
 HAZARD='target_hazard_t4'
-DATA_VERSION='main3d-v1'
+DATA_VERSION='main3d-v2-volumetric'
 
 def features(history,grid):
     q=np.asarray(grid,float);n=len(q);last=history[-1]

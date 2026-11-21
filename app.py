@@ -57,6 +57,12 @@ for col in [1,2,3]:
         fig.add_trace(go.Scatter3d(x=[drone.pos[0]],y=[drone.pos[1]],z=[drone.pos[2]],mode='markers',marker=dict(color=color,size=5),name=drone.id,showlegend=col==1),1,col)
     if reveal:
         for leak in tick.leaks:fig.add_trace(go.Scatter3d(x=[leak.pos[0]],y=[leak.pos[1]],z=[leak.pos[2]],mode='markers',marker=dict(color='red',symbol='x',size=7),showlegend=False),1,col)
+with r.agent._history_lock:
+    route=np.array(r.agent.route)
+if len(route):
+    start=np.array(next(d.pos for d in tick.drones if d.id=='tabpfn'))
+    route=np.vstack([start,route])
+    for col in [1,2,3]:fig.add_trace(go.Scatter3d(x=route[:,0],y=route[:,1],z=route[:,2],mode='lines+markers',line=dict(color='cyan',dash='dash'),marker=dict(size=2),name='3D-Flugroute',showlegend=col==1),1,col)
 if reveal and tick.puffs:
     p=np.array([v.pos for v in tick.puffs]);fig.add_trace(go.Scatter3d(x=p[:,0],y=p[:,1],z=p[:,2],mode='markers',marker=dict(color='orange',size=5,opacity=.15),showlegend=False),1,1)
 for col,values,scale in [(2,r.agent.source_scores,'Blues'),(3,r.agent.hazard,'YlOrRd')]:
@@ -69,7 +75,7 @@ st.plotly_chart(fig,width='stretch')
 st.write(f'Simulationszeit: {tick.sim_time:.1f} s · Wind: {tick.wind_vec} · Letzte kombinierte Inferenz: {r.agent.latency:.2f} s')
 b=beliefs.get('tabpfn')
 if b:st.write(f'TabPFN-Quellenschätzung: {tuple(round(x,1) for x in b.estimated_source)} · Messziel: {tuple(round(x,1) for x in b.next_waypoint)}')
-st.dataframe([dict(Drohne=d.id,Gas_ppm=round(d.ppm,2),Messungen=d.samples_taken,Status=d.status,Batterie=round(d.battery_pct,1)) for d in tick.drones],hide_index=True)
+st.dataframe([dict(Drohne=d.id,X_m=round(d.pos[0],1),Y_m=round(d.pos[1],1),Hoehe_m=round(d.pos[2],1),Zielhoehe_m=round(d.target_pos[2],1),Gas_ppm=round(d.ppm,2),Messungen=d.samples_taken,Status=d.status,Batterie=round(d.battery_pct,1)) for d in tick.drones],hide_index=True)
 if r.agent.error:st.error(f'TabPFN-API: {r.agent.error}')
 if r.error:st.error(f'Simulationsfehler: {r.error}')
 st.caption('Quellenscores sind normierte Klassifikationsscores, keine kalibrierten Wahrscheinlichkeiten. Gefahrenschwelle: 10 ppm, Prognosehorizont: 4 Sekunden. Status „locked“ wird von main mit Ground Truth ausschließlich zur Auswertung vergeben; der Agent erhält diese Daten nicht.')

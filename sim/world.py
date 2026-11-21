@@ -100,10 +100,10 @@ class World:
         self.grid_coords_np = np.array(self.grid_coords, dtype=np.float64)
 
     def _generate_candidate_grid(self, safety_margin: float = 2.0) -> list[Vec3]:
-        """Generate ~450-600 navigable 3D candidate points outside buildings + margin."""
+        """Generate ~800 navigable 3D candidate points outside buildings + margin."""
         xs = np.linspace(-52.0, 52.0, 12)
         ys = np.linspace(-52.0, 52.0, 12)
-        zs = np.linspace(3.0, 18.0, 4)
+        zs = np.array([3., 8., 13., 18., 23., 28.])
 
         coords: list[Vec3] = []
         for z in zs:

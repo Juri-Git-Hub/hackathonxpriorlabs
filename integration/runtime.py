@@ -3,6 +3,7 @@ import atexit
 import threading
 import time
 from agents.plumesense_agent import PlumeSenseAgent
+from integration.navigation import RoutedAgent
 from agents.gradient import GradientAgent
 from agents.lawnmower import LawnmowerAgent
 from sim.engine import SimEngine
@@ -10,7 +11,7 @@ from sim.engine import SimEngine
 class Runtime:
     def __init__(self,seed=42,models=None):
         self.agent=PlumeSenseAgent(models=models)
-        self.engine=SimEngine({'tabpfn':self.agent,'gradient':GradientAgent(),'lawnmower':LawnmowerAgent()},seed=seed)
+        self.engine=SimEngine({'tabpfn':self.agent,'gradient':RoutedAgent(GradientAgent()),'lawnmower':RoutedAgent(LawnmowerAgent())},seed=seed)
         self.engine.paused=True;self.beliefs={};self.stop=threading.Event();self.error=None
         self.thread=threading.Thread(target=self._run,daemon=True);self.thread.start();atexit.register(self.close)
     def _run(self):

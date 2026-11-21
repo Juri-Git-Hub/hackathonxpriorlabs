@@ -52,7 +52,7 @@ class WorldInitPayload(BaseModel):
     bounds_max: Vec3 = (60.0, 60.0, 30.0)
     buildings: list[BuildingBox]
     assets: list[FacilityAsset]
-    grid_coords: list[Vec3]  # N candidate 3D points (~400-600) for TabPFN belief cloud
+    grid_coords: list[Vec3]  # N candidate 3D points (~800) for TabPFN belief cloud
 
 
 class DroneObservation(BaseModel):

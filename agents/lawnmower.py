@@ -23,7 +23,7 @@ def _point_in_buildings(
 
 
 class LawnmowerAgent(BaseAgent):
-    """Sweeps a deterministic 3D serpentine path at z = 4.0m and z = 10.0m."""
+    """Volumetric serpentine scan: ascend/descend at successive XY columns."""
 
     WAYPOINT_TOLERANCE = 4.5
 
@@ -36,15 +36,17 @@ class LawnmowerAgent(BaseAgent):
         waypoints: list[Vec3] = []
         x_coords = [-46.0, -30.0, -14.0, 2.0, 18.0, 34.0, 48.0]
         y_coords = [-46.0, -28.0, -10.0, 8.0, 26.0, 44.0]
-        altitudes = [4.0, 10.0]
+        altitudes = [3.0, 8.0, 13.0, 18.0, 23.0, 28.0]
 
-        for z in altitudes:
-            for row_i, y in enumerate(y_coords):
-                xs = x_coords if row_i % 2 == 0 else list(reversed(x_coords))
-                for x in xs:
-                    pt = (x, y, z)
-                    if not _point_in_buildings(pt, world_init.buildings, margin=3.0):
-                        waypoints.append(pt)
+        column=0
+        for row_i,y in enumerate(y_coords):
+            xs=x_coords if row_i%2==0 else list(reversed(x_coords))
+            for x in xs:
+                levels=altitudes if column%2==0 else list(reversed(altitudes))
+                for z in levels:
+                    pt=(x,y,z)
+                    if not _point_in_buildings(pt,world_init.buildings,margin=3):waypoints.append(pt)
+                column+=1
 
         self._waypoints = waypoints if waypoints else [(0.0, 0.0, 6.0)]
         self._idx = 0

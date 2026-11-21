@@ -21,7 +21,7 @@ from sim.world import World
 
 def test_world_grid_bounds_and_clearance() -> None:
     world = World()
-    assert 400 <= len(world.grid_coords) <= 650
+    assert 400 <= len(world.grid_coords) <= 1000
     for pt in world.grid_coords:
         assert not world.is_inside_building(pt, margin=1.99)
         assert world.bounds_min[0] <= pt[0] <= world.bounds_max[0]
