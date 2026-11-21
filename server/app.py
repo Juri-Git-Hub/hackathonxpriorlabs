@@ -22,9 +22,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
 from agents.base import BaseAgent
-from integration.navigation import RoutedAgent
-from agents.gradient import GradientAgent
-from agents.lawnmower import LawnmowerAgent
 from agents.mock_agent import MockTabPFNAgent
 from agents.plumesense_agent import PlumeSenseAgent
 from shared.schemas import JudgeCommand, BackendStatusPayload
@@ -36,7 +33,7 @@ logger = logging.getLogger("gas_leak_server")
 
 
 def build_agents(mock_agents: bool = True) -> dict[str, BaseAgent]:
-    """Instantiate the 3 competing drone agents."""
+    """Instantiate only the TabPFN drone for the live demo."""
     if mock_agents:
         primary: BaseAgent = MockTabPFNAgent(drone_id="tabpfn")
     else:
@@ -44,8 +41,6 @@ def build_agents(mock_agents: bool = True) -> dict[str, BaseAgent]:
 
     return {
         "tabpfn": primary,
-        "gradient": RoutedAgent(GradientAgent(drone_id="gradient")),
-        "lawnmower": RoutedAgent(LawnmowerAgent(drone_id="lawnmower")),
     }
 
 
@@ -120,7 +115,7 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
 
     def backend_status():
         agent=agents['tabpfn'];error=getattr(agent,'error',None)
-        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api',state='mock' if mock_agents else 'error' if error else 'ready' if getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused)
+        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api',state='mock' if mock_agents else 'error' if error else 'ready' if getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused,active_leaks=len(engine.leaks),battery_pct=engine.drones['tabpfn'].battery_pct,mission_state='no_leak' if not engine.leaks else 'depleted' if engine.drones['tabpfn'].status=='depleted' else 'paused' if engine.paused else 'searching')
 
     @app.get("/health")
     async def health() -> dict[str, Any]:

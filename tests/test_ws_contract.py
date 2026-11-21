@@ -69,7 +69,7 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
                 if '"sim_tick"' in raw:
                     tick = SimTickPayload.model_validate_json(raw)
                     seen_ticks += 1
-                    assert len(tick.drones) == 3
+                    assert [d.id for d in tick.drones] == ['tabpfn']
                     assert len(tick.puffs) <= 400
                     if tick.sensor_dropout_active:
                         dropout_applied = True
@@ -115,3 +115,14 @@ def test_reset_rejects_negative_seed():
     import pytest
     from pydantic import ValidationError
     with pytest.raises(ValidationError):JudgeCommand(action='reset_race',seed=-1)
+
+def test_demo_has_only_tabpfn_and_exposes_mission_blockers():
+    from shared.schemas import BackendStatusPayload
+    app=create_app(mock_agents=True)
+    assert list(app.state.engine.drones)==['tabpfn']
+    app.state.engine.apply_command(JudgeCommand(action='clear_leaks'))
+    with TestClient(app) as client:
+        with client.websocket_connect('/ws') as ws:
+            WorldInitPayload.model_validate_json(ws.receive_text())
+            s=BackendStatusPayload.model_validate_json(ws.receive_text())
+            assert s.active_leaks==0 and s.mission_state=='no_leak'

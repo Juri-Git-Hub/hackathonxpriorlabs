@@ -121,6 +121,9 @@ class BackendStatusPayload(BaseModel):
     type: Literal["backend_status"] = "backend_status"
     sim_time: float
     mode: str
+    mission_state: Literal["searching", "paused", "depleted", "no_leak"] = "searching"
+    active_leaks: int = 0
+    battery_pct: float = 100.0
     state: Literal["pending", "ready", "error", "mock"]
     error: Optional[str] = None
     inference_seconds: float = 0.0

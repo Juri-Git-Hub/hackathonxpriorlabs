@@ -25,6 +25,7 @@
     <!-- Backend integration controls; scene and existing main HUD remain intact. -->
     <div id="backend-controls" class="hud-panel">
       <div class="panel-title">PlumeSense · Live TabPFN</div>
+      <div id="mission-status" role="status">Waiting for mission…</div>
       <div id="model-status" role="status">Waiting for backend…</div>
       <div id="model-metrics" class="hint">No inference yet</div>
       <div id="source-estimate" class="hint">Source estimate: —</div>
@@ -45,7 +46,7 @@
 
     <!-- Top-right scoreboard -->
     <div id="scoreboard" class="hud-panel">
-      <div class="panel-title">Live Race Scoreboard</div>
+      <div class="panel-title">Live Drone Telemetry</div>
       <table>
         <thead>
           <tr>
@@ -83,7 +84,7 @@
         <button id="btn-place-leak" class="btn">Click Ground: Place Leak</button>
         <button id="btn-clear-leaks" class="btn">Clear Leaks</button>
         <button id="btn-pause" class="btn">Pause</button>
-        <button id="btn-reset" class="btn btn-accent">Reset Race</button>
+        <button id="btn-reset" class="btn btn-accent">Restart Mission</button>
       </div>
 
       <div id="hint-text" class="hint">
@@ -105,8 +106,6 @@
         </svg>
         <div class="legend-items">
           <div><span class="swatch" style="background:#22d3ee"></span> TabPFN Drone</div>
-          <div><span class="swatch" style="background:#fb923c"></span> Gradient (Surge-Cast)</div>
-          <div><span class="swatch" style="background:#94a3b8"></span> Lawnmower</div>
           <div><span class="swatch" style="background:#e879f9"></span> Belief Cloud (q50 / unc)</div>
         </div>
       </div>

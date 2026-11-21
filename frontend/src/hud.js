@@ -137,6 +137,10 @@ export class HudController {
   }
 
   updateBackendStatus(status) {
+    const mission=document.getElementById("mission-status");
+    const states={no_leak:"No active leak — restart mission or place a leak",depleted:"Battery empty — restart mission",paused:"Paused",searching:"Searching for leak"};
+    mission.textContent=states[status.mission_state] || (status.mode==="mock" ? "Mock mission" : "Searching");
+    mission.style.color=["no_leak","depleted"].includes(status.mission_state) ? "#fca5a5" : "#cbd5e1";
     document.getElementById("model-status").textContent = `${status.mode} · ${status.state}${status.error ? ": " + status.error : ""}`;
     document.getElementById("model-metrics").textContent = `${(status.inference_seconds || 0).toFixed(2)} s inference · ${status.measurement_count || 0} measurements · ${(status.exposure_ppm_seconds || 0).toFixed(1)} ppm·s exposure`;
   }

@@ -52,7 +52,7 @@ Die neueste main-Physik (6-DOF, Rotor-/Motordynamik, ABL-Strömung und RK2-Wolke
 
 `agents/plumesense_agent.py` verwendet die unveränderte 4090-API über unseren Predictor mit getrennten Kontexten `source` und `hazard`. Beobachtungen werden in `integration/features.py` zusammengefasst. Keine tatsächliche Quelle und keine zukünftigen Messwerte fließen in X ein. Nur Offline-Labels und die Simulator-Auswertung dürfen Ground Truth lesen.
 
-`integration/navigation.py` plant echte 3D-A*-Flugwege mit geprüften Segmenten gegen Gebäude, horizontalen/vertikalen Flugzeitkosten und Zwischenhöhen bis 28 m. Routenplanung und GPU-Inferenz laufen in Hintergrund-Workern; der Physikthread folgt nur Wegpunkten. Volumetrischer Raster- und Gradient-Agent bleiben Vergleichsstrategien. Quellenmodell und Prognose beeinflussen die Suche; die Flugplanung meidet nicht pauschal Gas, da das Ziel Leckortung ist.
+`integration/navigation.py` plant echte 3D-A*-Flugwege mit geprüften Segmenten gegen Gebäude, horizontalen/vertikalen Flugzeitkosten und Zwischenhöhen bis 28 m. Routenplanung und GPU-Inferenz laufen in Hintergrund-Workern; der Physikthread folgt nur Wegpunkten. In Live-Demo und WebSocket-Server fliegt ausschließlich die TabPFN-Drohne. Raster- und Gradient-Strategien bleiben nur für Offline-Datengenerierung und Tests erhalten. Quellenmodell und Prognose beeinflussen die Suche; die Flugplanung meidet nicht pauschal Gas, da das Ziel Leckortung ist.
 
 Trainingsdaten entstehen mit `integration.generate` aus separaten 3D-Episoden: Quellenlabel innerhalb von 6 m, Gefahrenlabel ≥10 ppm vier Sekunden später. 18 von 24 Episoden dienen als Modellkontext, sechs als Test. Die CSV ist reproduzierbar und nicht versioniert; nach Änderung der Physik erneut erzeugen. Die alten 2D-Backendmodule/Daten bleiben als Vergleich erhalten und werden nicht in die Live-3D-Inferenz eingespeist.
 
@@ -66,6 +66,9 @@ python -m pytest -q
 python -m integration.evaluate
 ```
 
-Build sowie Live-Browserprüfung mit echter 4090 bestanden: Modellstatus ready, 3D-Szene und WebSocket aktiv, Pause/Einzelschritt (+0,5 s) und Layerwechsel geprüft. 43 funktionale Tests bestehen. Der geerbte Benchmark `test_headless_engine_speed_over_500_steps_per_sec` scheitert hier; er scheitert auch auf unverändertem main (ca. 386 Schritte/s im Vergleichslauf). Die Live-Physik benötigt 20 Hz. Der Benchmark wurde nicht abgeschwächt.
+Build sowie Live-Browserprüfung mit echter 4090 bestanden: Modellstatus ready, 3D-Szene und WebSocket aktiv, Pause/Einzelschritt (+0,5 s) und Layerwechsel geprüft. 44 funktionale Tests bestehen. Der geerbte Benchmark `test_headless_engine_speed_over_500_steps_per_sec` scheitert hier; er scheitert auch auf unverändertem main (ca. 386 Schritte/s im Vergleichslauf). Die Live-Physik benötigt 20 Hz. Der Benchmark wurde nicht abgeschwächt.
 
 `reports/main3d_evaluation.json` enthält die aktuelle episodisch getrennte Modellprüfung und den echten API-Smoke-Test. Kandidatenmetriken sind keine Erfolgsquote der Lecksuche; insbesondere ist das Quellenmodell bislang noch schwach. Ältere Berichte gehören zu früheren Physik-/2D-Versionen.
+
+
+Das HUD meldet `mission_state` (`searching`, `paused`, `no_leak`, `depleted`), `active_leaks` und `battery_pct` aus `backend_status`. Diese Simulator-/Betriebsdiagnose dient nur der Anzeige, nicht als Eingabe an TabPFN. Bei leerem Akku werden keine neuen Messungen mehr gesammelt; ohne aktive Leckquelle gibt es nichts zu lokalisieren. Ein Neustart stellt Standardleck und vollen Akku wieder her. Die Quellenmodellqualität ist davon unabhängig weiterhin unzureichend für zuverlässige Ortung.

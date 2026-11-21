@@ -179,28 +179,6 @@ export class SimWsClient {
             dist_to_nearest_leak: 12 + Math.sin(t * 0.5) * 4,
             status: "tracking",
           },
-          {
-            id: "gradient",
-            pos: [Math.cos(t * 0.25 + 1) * 28, Math.sin(t * 0.25 + 1) * 25, 5],
-            rot_rpy: [-0.05, 0.1, t * 0.25],
-            target_pos: [10, 10, 5],
-            ppm: 5 + Math.max(0, Math.cos(t) * 6),
-            battery_pct: Math.max(5, 100 - t * 0.42),
-            samples_taken: Math.floor(t * 2),
-            dist_to_nearest_leak: 24,
-            status: "searching",
-          },
-          {
-            id: "lawnmower",
-            pos: [-45 + ((t * 6) % 90), -35 + Math.floor((t * 6) / 90) * 14, 4],
-            rot_rpy: [0, 0.08, 0],
-            target_pos: [45, -35, 4],
-            ppm: 0.7,
-            battery_pct: Math.max(5, 100 - t * 0.38),
-            samples_taken: Math.floor(t * 2),
-            dist_to_nearest_leak: 38,
-            status: "searching",
-          },
         ],
       });
 
@@ -246,6 +224,7 @@ export class SimWsClient {
       s.simTime += 0.5;
     } else if (cmd.action === "reset_race") {
       s.simTime = 0;
+      s.paused = false;
     }
   }
 }
