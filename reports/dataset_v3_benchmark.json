@@ -1,0 +1,446 @@
+{
+  "dataset_signature": "ec4577c19dc22290fba6dd84e4acfd15efed59decab71de763daeeb98b4297d7",
+  "feature_count": 159,
+  "context_limit": 8192,
+  "training_episode_count": 307,
+  "test_episode_ids": [
+    410,
+    412,
+    414,
+    416,
+    418,
+    420,
+    422,
+    424,
+    426,
+    428,
+    430,
+    432,
+    434,
+    436,
+    438,
+    440
+  ],
+  "validation_episode_ids": [
+    308,
+    310,
+    312,
+    314,
+    316,
+    318,
+    320,
+    322,
+    324,
+    326,
+    328,
+    330,
+    332,
+    334,
+    336,
+    338
+  ],
+  "full_grid": true,
+  "models": {
+    "source_prior": {
+      "context_rows": 0,
+      "context_episode_count": 0,
+      "context_snapshot_count": 0,
+      "context_positive_rate": null,
+      "threshold_from_validation": 0.01,
+      "test": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.0,
+        "auroc": 0.5,
+        "brier": 0.002294842610605787
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.0,
+        "auroc": 0.5,
+        "brier": 0.002294842610605787
+      },
+      "validation": {
+        "rows": 37824,
+        "positives": 84,
+        "f1": 0.0,
+        "auroc": 0.5,
+        "brier": 0.0022158801759901052
+      },
+      "latency": {
+        "prior_from_validation": 0.002220812182741117
+      },
+      "source_ranking": {
+        "episode_bootstrap": {
+          "mean_error_m_95": [
+            69.1702927395839,
+            100.61604136610453
+          ],
+          "within_6m_95": [
+            0.0,
+            0.0
+          ],
+          "resampling_unit": "episode",
+          "episodes": 16
+        },
+        "all": {
+          "snapshots": 48,
+          "mean_error_m": 85.41854257850805,
+          "median_error_m": 81.84405958153637,
+          "within_6m": 0.0
+        },
+        "signal_seen": {
+          "snapshots": 20,
+          "mean_error_m": 90.21055049767082,
+          "median_error_m": 75.35047587690494,
+          "within_6m": 0.0
+        },
+        "no_signal": {
+          "snapshots": 28,
+          "mean_error_m": 81.99567977910603,
+          "median_error_m": 88.3376432861678,
+          "within_6m": 0.0
+        },
+        "top5_within_6m": 0.0
+      }
+    },
+    "source_observation_baseline": {
+      "context_rows": 0,
+      "context_episode_count": 0,
+      "context_snapshot_count": 0,
+      "context_positive_rate": null,
+      "threshold_from_validation": 0.5800000000000001,
+      "test": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.030303030303030304,
+        "auroc": 0.644166263848493,
+        "brier": 0.0034280444702301763
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.02631578947368421,
+        "auroc": 0.644166263848493,
+        "brier": 0.0034280444702301763
+      },
+      "validation": {
+        "rows": 37824,
+        "positives": 84,
+        "f1": 0.19672131147540983,
+        "auroc": 0.6317230045171222,
+        "brier": 0.0026756306306034068
+      },
+      "latency": {},
+      "source_ranking": {
+        "episode_bootstrap": {
+          "mean_error_m_95": [
+            48.076553498448106,
+            76.86478980236711
+          ],
+          "within_6m_95": [
+            0.0,
+            0.0625
+          ],
+          "resampling_unit": "episode",
+          "episodes": 16
+        },
+        "all": {
+          "snapshots": 48,
+          "mean_error_m": 61.615812756339416,
+          "median_error_m": 61.00673032264562,
+          "within_6m": 0.020833333333333332
+        },
+        "signal_seen": {
+          "snapshots": 20,
+          "mean_error_m": 33.08399892446613,
+          "median_error_m": 24.554898753333827,
+          "within_6m": 0.05
+        },
+        "no_signal": {
+          "snapshots": 28,
+          "mean_error_m": 81.99567977910603,
+          "median_error_m": 88.3376432861678,
+          "within_6m": 0.0
+        },
+        "top5_within_6m": 0.020833333333333332
+      }
+    },
+    "source_extra_trees": {
+      "context_rows": 8192,
+      "context_episode_count": 307,
+      "context_snapshot_count": 5042,
+      "context_positive_rate": 0.2073974609375,
+      "threshold_from_validation": 0.62,
+      "test": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.0196078431372549,
+        "auroc": 0.7280729087188129,
+        "brier": 0.03861526798237615
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.042328042328042326,
+        "auroc": 0.7280729087188129,
+        "brier": 0.03861526798237615
+      },
+      "validation": {
+        "rows": 37824,
+        "positives": 84,
+        "f1": 0.18518518518518517,
+        "auroc": 0.7242908875261815,
+        "brier": 0.037748327192000275
+      },
+      "latency": {
+        "fit_seconds": 0.5033102519992099,
+        "predict_seconds": 0.2450375249973149
+      },
+      "source_ranking": {
+        "episode_bootstrap": {
+          "mean_error_m_95": [
+            35.99666154259019,
+            52.16458362427651
+          ],
+          "within_6m_95": [
+            0.0,
+            0.16666666666666666
+          ],
+          "resampling_unit": "episode",
+          "episodes": 16
+        },
+        "all": {
+          "snapshots": 48,
+          "mean_error_m": 43.97342255057567,
+          "median_error_m": 38.38363240314202,
+          "within_6m": 0.0625
+        },
+        "signal_seen": {
+          "snapshots": 20,
+          "mean_error_m": 32.05001103792141,
+          "median_error_m": 23.386794324155048,
+          "within_6m": 0.05
+        },
+        "no_signal": {
+          "snapshots": 28,
+          "mean_error_m": 52.49014505961442,
+          "median_error_m": 48.42574202570966,
+          "within_6m": 0.07142857142857142
+        },
+        "top5_within_6m": 0.0625
+      }
+    },
+    "source_tabpfn": {
+      "context_rows": 8192,
+      "context_episode_count": 307,
+      "context_snapshot_count": 5042,
+      "context_positive_rate": 0.2073974609375,
+      "threshold_from_validation": 0.63,
+      "test": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.0136986301369863,
+        "auroc": 0.6825087668159455,
+        "brier": 0.014784982776175074
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.0072992700729927005,
+        "auroc": 0.6825087668159455,
+        "brier": 0.014784982776175074
+      },
+      "validation": {
+        "rows": 37824,
+        "positives": 84,
+        "f1": 0.06818181818181818,
+        "auroc": 0.7397901052312816,
+        "brier": 0.015816642170297882
+      },
+      "latency": {
+        "validation": {
+          "total_seconds": 31.68088442799126,
+          "mean_request_seconds": 3.168088442799126,
+          "requests": 10,
+          "rows_per_request": 4096
+        },
+        "test": {
+          "total_seconds": 29.64700524899672,
+          "mean_request_seconds": 2.964700524899672,
+          "requests": 10,
+          "rows_per_request": 4096
+        }
+      },
+      "source_ranking": {
+        "episode_bootstrap": {
+          "mean_error_m_95": [
+            39.1403892741448,
+            59.650276169449796
+          ],
+          "within_6m_95": [
+            0.0,
+            0.0
+          ],
+          "resampling_unit": "episode",
+          "episodes": 16
+        },
+        "all": {
+          "snapshots": 48,
+          "mean_error_m": 49.05963366757774,
+          "median_error_m": 47.7021813108835,
+          "within_6m": 0.0
+        },
+        "signal_seen": {
+          "snapshots": 20,
+          "mean_error_m": 39.277370689751066,
+          "median_error_m": 39.65437682638149,
+          "within_6m": 0.0
+        },
+        "no_signal": {
+          "snapshots": 28,
+          "mean_error_m": 56.04696436602537,
+          "median_error_m": 66.37710725443532,
+          "within_6m": 0.0
+        },
+        "top5_within_6m": 0.125
+      }
+    },
+    "hazard_prior": {
+      "context_rows": 0,
+      "context_episode_count": 0,
+      "context_snapshot_count": 0,
+      "context_positive_rate": null,
+      "threshold_from_validation": 0.01,
+      "test": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.09330812854442344,
+        "auroc": 0.5,
+        "brier": 0.04659105103479542
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.0,
+        "auroc": 0.5,
+        "brier": 0.04659105103479542
+      },
+      "validation": {
+        "rows": 37824,
+        "positives": 1587,
+        "f1": 0.0805358909948999,
+        "auroc": 0.5,
+        "brier": 0.04019705656830569
+      },
+      "latency": {
+        "prior_from_validation": 0.04195748730964467
+      }
+    },
+    "hazard_observation_baseline": {
+      "context_rows": 0,
+      "context_episode_count": 0,
+      "context_snapshot_count": 0,
+      "context_positive_rate": null,
+      "threshold_from_validation": 0.12,
+      "test": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.27961508682667846,
+        "auroc": 0.7791452119013026,
+        "brier": 0.09163106659887854
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.23332237923102203,
+        "auroc": 0.7791452119013026,
+        "brier": 0.09163106659887854
+      },
+      "validation": {
+        "rows": 37824,
+        "positives": 1587,
+        "f1": 0.1710432931156849,
+        "auroc": 0.7132425249380875,
+        "brier": 0.05656618493790913
+      },
+      "latency": {}
+    },
+    "hazard_extra_trees": {
+      "context_rows": 8192,
+      "context_episode_count": 307,
+      "context_snapshot_count": 5086,
+      "context_positive_rate": 0.2220458984375,
+      "threshold_from_validation": 0.32,
+      "test": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.31206726013847674,
+        "auroc": 0.7475605653757096,
+        "brier": 0.06399003549785266
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.144367816091954,
+        "auroc": 0.7475605653757096,
+        "brier": 0.06399003549785266
+      },
+      "validation": {
+        "rows": 37824,
+        "positives": 1587,
+        "f1": 0.23010487353485504,
+        "auroc": 0.7484514230068975,
+        "brier": 0.059572593812843855
+      },
+      "latency": {
+        "fit_seconds": 0.49598451999918325,
+        "predict_seconds": 0.20895396999912919
+      }
+    },
+    "hazard_tabpfn": {
+      "context_rows": 8192,
+      "context_episode_count": 307,
+      "context_snapshot_count": 5086,
+      "context_positive_rate": 0.2220458984375,
+      "threshold_from_validation": 0.44,
+      "test": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.3445421624418003,
+        "auroc": 0.8078193001555296,
+        "brier": 0.060134094478968746
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.3245911755630978,
+        "auroc": 0.8078193001555296,
+        "brier": 0.060134094478968746
+      },
+      "validation": {
+        "rows": 37824,
+        "positives": 1587,
+        "f1": 0.21570996978851964,
+        "auroc": 0.7754528799663922,
+        "brier": 0.05952052230784746
+      },
+      "latency": {
+        "validation": {
+          "total_seconds": 30.675172883002233,
+          "mean_request_seconds": 3.0675172883002233,
+          "requests": 10,
+          "rows_per_request": 4096
+        },
+        "test": {
+          "total_seconds": 30.95876316799695,
+          "mean_request_seconds": 3.095876316799695,
+          "requests": 10,
+          "rows_per_request": 4096
+        }
+      }
+    }
+  },
+  "note": "Complete 3D candidate grids and source-independent holdout starts; no navigation success claimed. Candidate probabilities may be miscalibrated due to context sampling. F1 threshold selected using validation only."
+}

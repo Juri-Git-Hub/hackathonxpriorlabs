@@ -26,3 +26,4 @@ frontend/dist/
 .vscode/
 .idea/
 *.log
+data/datasets/

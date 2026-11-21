@@ -1,17 +1,33 @@
 """Our remote source/hazard classifiers adapted to main's async 3D contract."""
 import threading
+import os
+import json
+from pathlib import Path
 import time
 import numpy as np
 import pandas as pd
 from agents.base import AsyncInferenceAgent
 from shared.schemas import BeliefUpdatePayload
-from integration.features import features,SOURCE,HAZARD
+from integration.features import features,rich_features,RICH_VERSION,SOURCE,HAZARD
 from integration.generate import DATA
 from plumesense import Predictor,TARGET
 from integration.navigation import Planner3D
 
 
-def load_models(backend='tabpfn-api'):
+def load_models(backend='tabpfn-api',dataset=None,context_rows=8192):
+    dataset=dataset or os.environ.get('PLUMESENSE_DATASET')
+    if dataset:
+        from integration.dataset_io import sample_context
+        folder=Path(dataset);manifest=json.loads((folder/'manifest.json').read_text())
+        verified=json.loads((folder/'verification.json').read_text())
+        if manifest['feature_version']!=RICH_VERSION or not verified['integrity_passed'] or not verified.get('quality_gate_passed',False) or verified.get('dataset_signature')!=manifest['signature']:
+            raise ValueError('Dataset must pass current version, integrity and coverage gates')
+        columns=manifest['feature_columns'];models=[]
+        if any(c.startswith('target') or c in ['episode_id','split','snapshot_id'] for c in columns):raise ValueError('Invalid feature whitelist')
+        for target,context in [(SOURCE,'source'),(HAZARD,'hazard')]:
+            train=sample_context(folder,target,context_rows);f=train[columns].copy();f[TARGET]=train[target]
+            m=Predictor(backend).fit(f,columns);m.context=context;m.feature_version=RICH_VERSION;models.append(m)
+        return models
     d=pd.read_csv(DATA);cut=int(d.episode_id.nunique()*.75)
     train=d[d.episode_id<cut]
     columns=[c for c in d if c not in [SOURCE,HAZARD,'episode_id','time_step']]
@@ -50,7 +66,7 @@ class PlumeSenseAgent(AsyncInferenceAgent):
         try:
             start=time.perf_counter()
             if self.models is None:self.models=load_models()
-            f=features(history,grid)
+            f=(rich_features if getattr(self.models[0],'feature_version',None)==RICH_VERSION else features)(history,grid)
             source=self.models[0].predict(f);hazard=self.models[1].predict(f)
             positions=np.array([o.pos for o in history])
             nearest=np.linalg.norm(grid[:,None,:]-positions[None,:,:],axis=2).min(axis=1)

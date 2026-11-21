@@ -1,0 +1,4786 @@
+{
+  "config": {
+    "episodes": 512,
+    "seconds": 120,
+    "snapshot_seconds": 5,
+    "candidates": 64,
+    "seed": 73000,
+    "eval_episodes": 16,
+    "dt": 0.05
+  },
+  "signature": "ec4577c19dc22290fba6dd84e4acfd15efed59decab71de763daeeb98b4297d7",
+  "feature_version": "main3d-history-v3",
+  "episodes": [
+    {
+      "episode_id": 0,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 1,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 2,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 3,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 4,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 5,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 6,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 7,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 8,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 9,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 10,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 11,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 12,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 13,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 14,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 15,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 16,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 17,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 18,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 19,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 20,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 21,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 22,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 23,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 24,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 25,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 26,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 27,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 28,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 29,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 30,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 31,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 32,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 33,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 34,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 35,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 36,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 37,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 38,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 39,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 40,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 41,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 42,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 43,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 44,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 45,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 46,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 47,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 48,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 49,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 50,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 51,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 52,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 53,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 54,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 55,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 56,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 57,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 58,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 59,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 60,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 61,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 62,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 63,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 64,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 65,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 66,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 67,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 68,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 69,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 70,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 71,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 72,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 73,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 74,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 75,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 76,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 77,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 78,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 79,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 80,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 81,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 82,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 83,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 84,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 85,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 86,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 87,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 88,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 89,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 90,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 91,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 92,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 93,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 94,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 95,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 96,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 97,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 98,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 99,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 100,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 101,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 102,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 103,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 104,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 105,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 106,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 107,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 108,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 109,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 110,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 111,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 112,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 113,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 114,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 115,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 116,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 117,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 118,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 119,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 120,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 121,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 122,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 123,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 124,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 125,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 126,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 127,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 128,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 129,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 130,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 131,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 132,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 133,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 134,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 135,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 136,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 137,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 138,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 139,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 140,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 141,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 142,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 143,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 144,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 145,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 146,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 147,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 148,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 149,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 150,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 151,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 152,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 153,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 154,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 155,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 156,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 157,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 158,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 159,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 160,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 161,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 162,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 163,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 164,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 165,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 166,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 167,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 168,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 169,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 170,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 171,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 172,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 173,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 174,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 175,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 176,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 177,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 178,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 179,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 180,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 181,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 182,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 183,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 184,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 185,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 186,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 187,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 188,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 189,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 190,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 191,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 192,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 193,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 194,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 195,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 196,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 197,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 198,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 199,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 200,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 201,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 202,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 203,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 204,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 205,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 206,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 207,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 208,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 209,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 210,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 211,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 212,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 213,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 214,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 215,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 216,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 217,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 218,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 219,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 220,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 221,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 222,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 223,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 224,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 225,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 226,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 227,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 228,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 229,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 230,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 231,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 232,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 233,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 234,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 235,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 236,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 237,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 238,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 239,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 240,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 241,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 242,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 243,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 244,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 245,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 246,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 247,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 248,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 249,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 250,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 251,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 252,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 253,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 254,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 255,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 256,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 257,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 258,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 259,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 260,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 261,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 262,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 263,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 264,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 265,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 266,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 267,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 268,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 269,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 270,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 271,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 272,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 273,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 274,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 275,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 276,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 277,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 278,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 279,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 280,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 281,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 282,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 283,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 284,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 285,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 286,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 287,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 288,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 289,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 290,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 291,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 292,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 293,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 294,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 295,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 296,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 297,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 298,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 299,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 300,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 301,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 302,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 303,
+      "split": "train",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 304,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 305,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 306,
+      "split": "train",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": true,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 307,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 308,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 309,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 310,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 311,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 312,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 313,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 314,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 315,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 316,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 317,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 318,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 319,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 320,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 321,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 322,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 323,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 324,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 325,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 326,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 327,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 328,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 329,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 330,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 331,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 332,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 333,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 334,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 335,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 336,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 337,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 338,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 339,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 340,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 341,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 342,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 343,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 344,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 345,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 346,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 347,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 348,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 349,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 350,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 351,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 352,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 353,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 354,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 355,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 356,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 357,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 358,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 359,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 360,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 361,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 362,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 363,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 364,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 365,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 366,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 367,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 368,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 369,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 370,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 371,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 372,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 373,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 374,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 375,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 376,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 377,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 378,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 379,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 380,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 381,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 382,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 383,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 384,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 385,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 386,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 387,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 388,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 389,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 390,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 391,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 392,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 393,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 394,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 395,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 396,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 397,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 398,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 399,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 400,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 401,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 402,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 403,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 404,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 405,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 406,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 407,
+      "split": "validation",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 408,
+      "split": "validation",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 409,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 410,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 411,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 412,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 413,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 414,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 415,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 416,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 417,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 418,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 419,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 420,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 421,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 422,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 423,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 424,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 425,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 426,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 427,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 428,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 429,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 430,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 431,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 432,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 433,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 434,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 435,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 436,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 437,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 438,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 439,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 440,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 441,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 442,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 443,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 444,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 445,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 446,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 447,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 448,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 449,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 450,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 451,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 452,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 453,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 454,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 455,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 456,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 457,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 458,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 459,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 460,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 461,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 462,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 463,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 464,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 465,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 466,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 467,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 468,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 469,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 470,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 471,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 472,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 473,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 474,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 475,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 476,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 477,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 478,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 479,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 480,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 481,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 482,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 483,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 484,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 485,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 486,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 487,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 488,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 489,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 490,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 491,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 492,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 493,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 494,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 495,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 496,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 497,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 498,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 499,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 500,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 501,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 502,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 503,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 504,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 505,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 506,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 507,
+      "split": "test",
+      "gas_contact": false,
+      "rows": 1536,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    },
+    {
+      "episode_id": 508,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "mixed"
+    },
+    {
+      "episode_id": 509,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1608,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "coverage"
+    },
+    {
+      "episode_id": 510,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1560,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "gradient"
+    },
+    {
+      "episode_id": 511,
+      "split": "test",
+      "gas_contact": true,
+      "rows": 1584,
+      "snapshots": 24,
+      "curriculum": false,
+      "policy": "raster"
+    }
+  ],
+  "feature_columns": [
+    "query_x",
+    "query_y",
+    "query_z",
+    "wind_x",
+    "wind_x_missing",
+    "wind_y",
+    "wind_y_missing",
+    "time",
+    "measurement_count",
+    "mean",
+    "max",
+    "std",
+    "peak_0_time",
+    "peak_0_x",
+    "peak_0_y",
+    "peak_0_z",
+    "peak_0_log_ppm",
+    "peak_0_dx",
+    "peak_0_dy",
+    "peak_0_dz",
+    "peak_1_time",
+    "peak_1_x",
+    "peak_1_y",
+    "peak_1_z",
+    "peak_1_log_ppm",
+    "peak_1_dx",
+    "peak_1_dy",
+    "peak_1_dz",
+    "peak_2_time",
+    "peak_2_x",
+    "peak_2_y",
+    "peak_2_z",
+    "peak_2_log_ppm",
+    "peak_2_dx",
+    "peak_2_dy",
+    "peak_2_dz",
+    "peak_3_time",
+    "peak_3_x",
+    "peak_3_y",
+    "peak_3_z",
+    "peak_3_log_ppm",
+    "peak_3_dx",
+    "peak_3_dy",
+    "peak_3_dz",
+    "recent_0_time",
+    "recent_0_x",
+    "recent_0_y",
+    "recent_0_z",
+    "recent_0_log_ppm",
+    "recent_0_dx",
+    "recent_0_dy",
+    "recent_0_dz",
+    "recent_1_time",
+    "recent_1_x",
+    "recent_1_y",
+    "recent_1_z",
+    "recent_1_log_ppm",
+    "recent_1_dx",
+    "recent_1_dy",
+    "recent_1_dz",
+    "recent_2_time",
+    "recent_2_x",
+    "recent_2_y",
+    "recent_2_z",
+    "recent_2_log_ppm",
+    "recent_2_dx",
+    "recent_2_dy",
+    "recent_2_dz",
+    "recent_3_time",
+    "recent_3_x",
+    "recent_3_y",
+    "recent_3_z",
+    "recent_3_log_ppm",
+    "recent_3_dx",
+    "recent_3_dy",
+    "recent_3_dz",
+    "nearest_0_distance",
+    "nearest_0_log_ppm",
+    "nearest_0_age",
+    "nearest_1_distance",
+    "nearest_1_log_ppm",
+    "nearest_1_age",
+    "nearest_2_distance",
+    "nearest_2_log_ppm",
+    "nearest_2_age",
+    "history_idw",
+    "peak_0_wind_x",
+    "peak_0_wind_x_missing",
+    "peak_0_wind_y",
+    "peak_0_wind_y_missing",
+    "peak_0_temp",
+    "peak_0_temp_missing",
+    "peak_1_wind_x",
+    "peak_1_wind_x_missing",
+    "peak_1_wind_y",
+    "peak_1_wind_y_missing",
+    "peak_1_temp",
+    "peak_1_temp_missing",
+    "peak_2_wind_x",
+    "peak_2_wind_x_missing",
+    "peak_2_wind_y",
+    "peak_2_wind_y_missing",
+    "peak_2_temp",
+    "peak_2_temp_missing",
+    "peak_3_wind_x",
+    "peak_3_wind_x_missing",
+    "peak_3_wind_y",
+    "peak_3_wind_y_missing",
+    "peak_3_temp",
+    "peak_3_temp_missing",
+    "recent_0_wind_x",
+    "recent_0_wind_x_missing",
+    "recent_0_wind_y",
+    "recent_0_wind_y_missing",
+    "recent_0_temp",
+    "recent_0_temp_missing",
+    "recent_1_wind_x",
+    "recent_1_wind_x_missing",
+    "recent_1_wind_y",
+    "recent_1_wind_y_missing",
+    "recent_1_temp",
+    "recent_1_temp_missing",
+    "recent_2_wind_x",
+    "recent_2_wind_x_missing",
+    "recent_2_wind_y",
+    "recent_2_wind_y_missing",
+    "recent_2_temp",
+    "recent_2_temp_missing",
+    "recent_3_wind_x",
+    "recent_3_wind_x_missing",
+    "recent_3_wind_y",
+    "recent_3_wind_y_missing",
+    "recent_3_temp",
+    "recent_3_temp_missing",
+    "window_5_mean",
+    "window_5_std",
+    "window_5_n",
+    "window_5_delta",
+    "window_15_mean",
+    "window_15_std",
+    "window_15_n",
+    "window_15_delta",
+    "window_30_mean",
+    "window_30_std",
+    "window_30_n",
+    "window_30_delta",
+    "visited_extent_z",
+    "visited_extent_0",
+    "visited_extent_1",
+    "visited_extent_2",
+    "local_6_n",
+    "local_6_mean",
+    "local_6_max",
+    "local_15_n",
+    "local_15_mean",
+    "local_15_max",
+    "velocity_x",
+    "velocity_y",
+    "velocity_z"
+  ],
+  "rows": 811032,
+  "generation_seconds": 534.6745264429992
+}

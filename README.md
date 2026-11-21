@@ -66,7 +66,7 @@ python -m pytest -q
 python -m integration.evaluate
 ```
 
-Build sowie Live-Browserprüfung mit echter 4090 bestanden: Modellstatus ready, 3D-Szene und WebSocket aktiv, Pause/Einzelschritt (+0,5 s) und Layerwechsel geprüft. 48 funktionale Tests bestehen. Der geerbte Benchmark `test_headless_engine_speed_over_500_steps_per_sec` scheitert hier; er scheitert auch auf unverändertem main (ca. 386 Schritte/s im Vergleichslauf). Die Live-Physik benötigt 20 Hz. Der Benchmark wurde nicht abgeschwächt.
+Build sowie Live-Browserprüfung mit echter 4090 bestanden: Modellstatus ready, 3D-Szene und WebSocket aktiv, Pause/Einzelschritt (+0,5 s) und Layerwechsel geprüft. 57 funktionale Tests bestehen. Der geerbte Benchmark `test_headless_engine_speed_over_500_steps_per_sec` scheitert hier; er scheitert auch auf unverändertem main (ca. 386 Schritte/s im Vergleichslauf). Die Live-Physik benötigt 20 Hz. Der Benchmark wurde nicht abgeschwächt.
 
 `reports/main3d_evaluation.json` enthält die aktuelle episodisch getrennte Modellprüfung und den echten API-Smoke-Test. Kandidatenmetriken sind keine Erfolgsquote der Lecksuche; insbesondere ist das Quellenmodell bislang noch schwach. Ältere Berichte gehören zu früheren Physik-/2D-Versionen.
 
@@ -82,3 +82,49 @@ Die Simulation beendet die TabPFN-Suche und pausiert automatisch, wenn **zwei Se
 Nach Abschluss kann die Mission nicht versehentlich über Pause/Einzelschritt fortgesetzt werden. Bericht und Simulation bleiben bis `reset_race` eingefroren; ein erneut verbundener Browser erhält den Bericht ebenfalls. „Neue Suche starten“ setzt ihn zurück. Die Modellqualität und die Wahrscheinlichkeit, überhaupt einen Fund zu erreichen, werden durch diese Abschlussfunktion nicht verbessert.
 
 Tests: `python -m pytest tests/test_mission_completion.py tests/test_ws_contract.py -q` und `node --test frontend/test/hud.test.js` prüfen Stopp, Bericht, Reset, Reconnect und ehrliche Scoreanzeige.
+
+## Großer V3-Datensatz: erzeugen, prüfen, benchmarken
+
+```bash
+# 512 unabhängige 120-s-Episoden, parallel; benötigt pyarrow.
+python -m integration.dataset --episodes 512 --seconds 120 --workers 12
+# Tiefenprüfung einschließlich Feature-Neuberechnung aus vergangenen Rohmessungen:
+python -m integration.verify_dataset data/datasets/main3d-v3
+# Vollständige 3D-Raster statt nur vorausgewählter Kandidaten:
+python -m integration.benchmark_dataset data/datasets/main3d-v3 --context-rows 8192 --episodes 16 --tabpfn
+```
+
+Ausgabe: `data/datasets/main3d-v3/` mit `manifest.json`, `config.json`, `verification.json`, `benchmark.json` und einzelnen Episodenordnern. Pro Episode: komprimierte Parquet-Kandidaten, rohe Sensorhistorie als JSONL.gz und Metadaten mit Quellenparametern, Dateihashes und Codefingerprint. Gelegentliche vollständige Raster liegen separat unter `full_grid.parquet`. Datendateien sind nicht versioniert; kleine Auswertungsberichte liegen unter `reports/`.
+
+Der Generator variiert Quellenposition/-höhe, Emission, Auftrieb, Wind und Windwechsel, Sensorträgheit, Rauschen, Dropouts und die Suchstrategie. Raster, Gradient, geometrische Flächenabdeckung und gemischte Strategien verwenden nur eigene Beobachtungen. Die reale 3D-Physik und der verrauschte mobile Sensor bleiben maßgeblich. 60 % der Trainingsepisoden dürfen als **Offline-Curriculum** gezielt in einer vorhandenen Wolke starten. Dafür wird ausschließlich beim Datenerzeugen Ground Truth benutzt. **Validierung und Test starten unabhängig von Quelle und Gaskonzentration.** Das Curriculum wird als Metadatum dokumentiert und nicht als Feature übergeben.
+
+Die Aufteilung beträgt 60 % Training, 20 % Validierung, 20 % Test auf Episodenebene. Die Anlagengeometrie ist weiterhin dieselbe: Dies ist kein Nachweis für unbekannte reale Anlagen oder vollständig unbekannte Karten. Der Generator nimmt positive, nahe negative und zufällige entfernte Kandidaten für den Trainingspool auf; deren Klassenverteilung entspricht deshalb nicht der gesamten Karte. Der Benchmark benutzt vollständige Raster aus vorausbestimmten Testepisoden, ohne anhand von Gaskontakt oder Modellfehlern Episoden auszusortieren.
+
+V3 hat 159 Beobachtungsmerkmale. Zusätzlich zur bisherigen Historie sind gemessener Wind und Fehlwertindikatoren an starken/jüngsten Messungen, Temperaturmerkmale, 5-/15-/30-s-Fenster, vertikale/räumliche Abdeckung, lokale historische Messwerte und Geschwindigkeit enthalten. Alle Gasbeobachtungen tragen zu den Zusammenfassungen bei. Es handelt sich weiterhin um eine feste tabellarische Zusammenfassung, nicht um eine verlustfreie Rohzeitreihe.
+
+Die Verifikation prüft vollständige Episoden, Hashes, Featureschema, endliche Werte, verbotene Features, Zeitreihenfolge, eindeutige Rasterabfragen, 4-s-Horizont und Quellen-/Gefahrenlabels. Features werden aus dem jeweiligen **vergangenen** Rohmessungspräfix erneut berechnet. Dies kann spätere oder erfundene Featurewerte entdecken. Die Gefahrenlabels werden gegen gespeicherte zukünftige Simulatorwerte geprüft; kein unabhängiges CFD-Modell wird als Referenz behauptet. Separate Abdeckungsgates prüfen Episodenzahl, Gaskontakt, Suchphasen, Höhenvariation und positive Labels. Bestandene Datenprüfungen garantieren keine erfolgreiche Leckortung.
+
+Fortsetzen: denselben Generatorbefehl mit demselben Ausgabeordner erneut aufrufen. Fertige Episoden werden wiederverwendet; die Workerzahl darf geändert werden. Andere Parameter oder ein anderer relevanter Codefingerprint werden im selben Ordner abgelehnt. Parquet-Inhalte und dekomprimierte Rohhistorien sind deterministisch; gzip-Container können unterschiedliche Header-Zeitstempel haben.
+
+Der Benchmark vergleicht konstanten Prior, ExtraTrees und optional echte TabPFN-Inferenz über die 4090. Beide lernenden Modelle bekommen denselben begrenzten, über Trainingsepisoden verteilten Kontext. Eine große Datenbibliothek wird nicht vollständig in einen einzelnen TabPFN-Fit gepresst. F1-Schwellen werden ausschließlich auf Validierung gewählt; Testdaten werden dafür nicht verwendet. Berichtet werden F1, AUROC, Brier, Latenz sowie vollständige Quellen-Rangfolge, Ortungsfehler und Treffer innerhalb 6 m – separat mit/ohne vorherigen Gaskontakt. Konfidenzintervalle werden nach **Episoden**, nicht nach einzelnen korrelierten Rasterzeilen, gebootstrapped. Dies ist ein Prognosebenchmark und keine Flug-/Fund-Erfolgsquote.
+
+Der bisherige Live-Kontext bleibt unverändert. Nach bestandener Prüfung und Bewertung kann V3 ausdrücklich aktiviert werden:
+
+```bash
+PLUMESENSE_DATASET="$PWD/data/datasets/main3d-v3" python launch_demo.py
+```
+
+Der Loader verlangt passende Featureversion und bestandene Integritäts-/Abdeckungsgates, verwendet ausschließlich Trainingsshards und maximal 8192 Kontextzeilen pro Modell. Validierung und Test werden nie als Modellkontext geladen. Ein neues Dataset wird nicht allein wegen seiner Größe automatisch als besseres Live-Modell eingesetzt.
+
+### Erzeugter und geprüfter V3-Lauf
+
+- 512 Episoden × 120 s, 12.288 Historien-Snapshots, **811.032 Kandidatenzeilen**, 159 Features, ca. 176 MB einschließlich Rohhistorien und Vollrasterdateien.
+- Training: 307 Episoden, davon 253 mit Gaskontakt (82,4 %); Validierung: 102, davon 65 mit Kontakt; Test: 103, davon 70 mit Kontakt. Alle Test-/Validierungsstarts sind quellenunabhängig. Die Abdeckungs-/Integritätsgates und die Neuberechnung aus vergangenen Messpräfixen sind bestanden.
+- Trainingsphasen: 2.115 kalte Such-Snapshots, 1.114 mit aktuellem Gaskontakt, 4.139 nach Verlust des Gaskontakts.
+- Benchmark: je 16 Validierungs-/Testepisoden mit je drei vollständigen Rastern; **37.824 Testabfragen** aus 48 Momentaufnahmen. Der vorab festgelegte Vollraster-Kohort umfasst gerade Episoden-IDs: Default-Eckstart, Mixed-/Gradient-Strategien. Der Bericht behauptet keine Repräsentativität für beliebige Start-/Strategieverteilungen.
+- TabPFN-Gefahr: **F1 0,345, AUROC 0,808, Brier 0,0601**; ExtraTrees: F1 0,312, AUROC 0,748, Brier 0,0640. Der auf Validierung gewählte F1-Schwellenwert ist 0,44. Der reine Validierungsprior erzielt Brier 0,0466; höhere AUROC/F1 bedeuten deshalb nicht bessere Kalibrierung.
+- TabPFN-Quelle: **49,1 m mittlerer Ortungsfehler und 0/48 Treffer innerhalb 6 m**. ExtraTrees: 44,0 m und 3/48. Die Quellenlokalisierung bleibt trotz der deutlich informativeren Daten unzureichend. Es wurde kein erfolgreicher autonomer Suchlauf nachgewiesen und die Live-Demo nicht auf V3 umgestellt.
+
+Ergebnisse: `reports/dataset_v3_summary.json`, `dataset_v3_benchmark.json`, `dataset_v3_verification.json`, `dataset_v3_manifest.json`, `dataset_v3_environment.json`. Sie dokumentieren auch den begrenzten Trainingskontext, Vorhersagelatenzen und episodisches Bootstrap. Eine Datenprüfung ist kein Modellgütesiegel.
+
+Tiefenprüfung lässt sich mit `--workers 8` parallelisieren. `--skip-recompute` prüft weiterhin Schema/Hashes/Labels, ist aber ausdrücklich keine vollständige Prüfung der Feature-Historie. Für den großen Lauf wurde die vollständige Neuberechnung durchgeführt. Zusatztests unter `tests/test_dataset_v3.py` prüfen Reproduzierbarkeit, Fortsetzen, Testtrennung, absichtliche Dateibeschädigung, gefälschte Featurewerte, parallele Prüfung und den Schutz vor Aktivierung eines Datensatzes mit fehlgeschlagenen Abdeckungsgates.
