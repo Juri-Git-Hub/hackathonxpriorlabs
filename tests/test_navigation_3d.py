@@ -38,8 +38,13 @@ def test_tabpfn_agent_can_select_and_follow_high_altitude_goal():
     o=DroneObservation(sim_time=1,drone_id='tabpfn',pos=(-48,-45,5),vel=(0,0,0),wind_measured=(2,0),ppm_measured=20,temp_delta=0,nearest_asset_type='valve',asset_age_years=10,in_wind_shadow=False,upwind_pipe_score=0,battery_pct=100)
     a._record_observation(o);target,belief=a._run_inference(o)
     assert belief.estimated_source[2]>=23
+    # First settle at the gas contact; then a high model hypothesis may propose
+    # a genuinely vertical local measurement rather than an immediate global jump.
+    for t in [1.5,2,2.5,3,3.5,4]:
+        reading=o.model_copy(update={'sim_time':t})
+        a._record_observation(reading);a._run_inference(reading)
     assert a.waypoint[2]>5
-    assert a.route and a.planner.visible(o.pos,target)
+    assert a.route and a.planner.visible(o.pos,a.route[0])
     a.close()
 
 def test_planner_rejects_targets_outside_flight_volume():

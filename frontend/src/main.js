@@ -115,6 +115,8 @@ async function bootstrap() {
       beliefView.initGrid(worldInit.grid_coords);
       droneView.clearTrails();
       document.getElementById("source-estimate").textContent="Source estimate: —";
+      hud.hazardForecastTime=null;
+      hud.updateRiskTime(0);
     },
     onSimTick: (tick) => {
       plumeView.update(tick.puffs, tick.leaks, tick.wind_vec);

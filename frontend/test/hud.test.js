@@ -24,3 +24,23 @@ test('missing or mock model score never becomes a fake certainty percentage',()=
   assert.match(nodes.get('report-score').textContent,/nicht verfügbar/);
   assert.match(nodes.get('report-evidence').textContent,/Mock-Fund/);
 });
+
+test('live status exposes compact inputs and measured local search phase',()=>{
+  const nodes=new Map();
+  globalThis.document={getElementById(id){if(!nodes.has(id))nodes.set(id,{style:{},textContent:'',classList:{toggle(){}}});return nodes.get(id);}};
+  const hud=Object.create(HudController.prototype);
+  hud.updateBackendStatus({mode:'tabpfn-api',state:'ready',mission_state:'searching',search_phase:'track',source_features:12,hazard_features:20,completed_probes:3,measurement_count:22,inference_seconds:.25});
+  assert.match(nodes.get('mission-status').textContent,/Gaskontakt.*3D/);
+  assert.match(nodes.get('model-status').textContent,/12 source \/ 20 risk inputs/);
+  assert.match(nodes.get('model-metrics').textContent,/3 Messstopps/);
+});
+
+test('cached hazard shows its actual forecast time and expiry',()=>{
+  const nodes=new Map();
+  globalThis.document={getElementById(id){if(!nodes.has(id))nodes.set(id,{textContent:''});return nodes.get(id);}};
+  const hud=Object.create(HudController.prototype);
+  hud.updateBelief({sim_time:3,estimated_source:[1,2,3],hazard_forecast_time:4.5});
+  assert.match(nodes.get('risk-forecast-time').textContent,/t=4.5 s$/);
+  hud.updateRiskTime(5);
+  assert.match(nodes.get('risk-forecast-time').textContent,/veraltet/);
+});

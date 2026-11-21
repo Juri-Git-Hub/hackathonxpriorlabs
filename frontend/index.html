@@ -30,9 +30,10 @@
       <div id="model-status" role="status">Waiting for backend…</div>
       <div id="model-metrics" class="hint">No inference yet</div>
       <div id="source-estimate" class="hint">Source estimate: —</div>
+      <div id="risk-forecast-time" class="hint">Gefahrenprognose: —</div>
       <div class="control-row">
         <label>Prediction layer
-          <select id="prediction-layer"><option value="source">Source scores</option><option value="hazard">Future risk · +4 s</option></select>
+          <select id="prediction-layer"><option value="source">Source scores</option><option value="hazard">Gas risk · +4 s forecast</option></select>
         </label>
         <label>Leak height <input id="leak-height" type="number" min="1" max="28" step="0.5" value="3.5" /> m</label>
         <label><input id="show-route" type="checkbox" checked /> 3D route</label>

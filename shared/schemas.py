@@ -125,6 +125,8 @@ class BeliefUpdatePayload(BaseModel):
     next_waypoint: Vec3
     source_scores: list[float] = []
     hazard_probabilities: list[float] = []
+    hazard_observed_at: Optional[float] = None
+    hazard_forecast_time: Optional[float] = None
     route: list[Vec3] = []
     inference_seconds: float = 0.0
     measurement_count: int = 0
@@ -148,6 +150,10 @@ class BackendStatusPayload(BaseModel):
     measurement_count: int = 0
     exposure_ppm_seconds: float = 0.0
     paused: bool = False
+    search_phase: str = "search"
+    completed_probes: int = 0
+    source_features: int = 0
+    hazard_features: int = 0
 
 
 class JudgeCommand(BaseModel):

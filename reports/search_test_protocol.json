@@ -1,0 +1,79 @@
+{
+  "profile": {
+    "name": "windframe12-local-probes-v1",
+    "context_rows": 4096,
+    "source_features": 12,
+    "hazard_features": 20,
+    "source_interval_s": 3,
+    "hazard_interval_s": 10,
+    "sensor_dwell_s": 2.5,
+    "initial_probe_m": 6,
+    "volumetric_expansion_after_s": 60,
+    "min_probe_m": 1.5,
+    "physical_dt_s": 0.05,
+    "success": "unchanged simulator judge: estimate <=5m, drone <=5m, ppm>15 for 2s",
+    "selection_split": "validation",
+    "validation_seeds": [
+      41,
+      42,
+      43
+    ],
+    "test_seeds": [
+      101,
+      102,
+      103
+    ]
+  },
+  "cases": [
+    {
+      "name": "default_seed101",
+      "seed": 101
+    },
+    {
+      "name": "default_seed102",
+      "seed": 102
+    },
+    {
+      "name": "default_seed103",
+      "seed": 103
+    },
+    {
+      "name": "other_valve",
+      "seed": 104,
+      "source": [
+        -17.5,
+        -2.0,
+        3.5
+      ]
+    },
+    {
+      "name": "east_tank_port",
+      "seed": 105,
+      "source": [
+        20.5,
+        -7.0,
+        6.0
+      ]
+    },
+    {
+      "name": "off_asset",
+      "seed": 106,
+      "source": [
+        8.0,
+        -10.0,
+        4.0
+      ]
+    },
+    {
+      "name": "elevated",
+      "seed": 107,
+      "source": [
+        15.0,
+        8.0,
+        13.0
+      ]
+    }
+  ],
+  "code_sha256": "736162056bf943a1959063eb4f2863489a6497fde2b75b8c53d9292b8f662ee6",
+  "selection": "chosen before final test; no outcome-based filtering"
+}
