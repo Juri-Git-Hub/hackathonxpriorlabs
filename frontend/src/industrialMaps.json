@@ -1,7 +1,14 @@
 {
   "refinery": {
     "name": "Refinery",
-    "presentation": {"camera": [-78, 49, 72], "target": [0, 7, 0]}
+    "presentation": {
+      "theme": "refinery_dusk",
+      "surface": "concrete",
+      "zone_label": "SECTOR A · REFINERY COMPLEX",
+      "flare_pos": [48, 46, 0],
+      "camera": [-78, 49, 72],
+      "target": [0, 7, 0]
+    }
   },
   "pipe_loop": {
     "name": "Pipe Loop",
@@ -9,28 +16,39 @@
       {"id": "loop_inlet", "kind": "building", "min_xyz": [-38, -13, 0], "max_xyz": [-24, -1, 7], "model": "metering_skid"},
       {"id": "loop_outlet", "kind": "building", "min_xyz": [24, -13, 0], "max_xyz": [38, -1, 7], "model": "receiver_skid"},
       {"id": "loop_access_west", "kind": "pipe_rack", "min_xyz": [-16, -3, 0], "max_xyz": [-9, 5, 7]},
-      {"id": "loop_access_east", "kind": "pipe_rack", "min_xyz": [9, -3, 0], "max_xyz": [16, 5, 7]}
+      {"id": "loop_access_east", "kind": "pipe_rack", "min_xyz": [9, -3, 0], "max_xyz": [16, 5, 7]},
+      {"id": "loop_surge_sphere", "kind": "storage_tank", "min_xyz": [-7, 20, 0], "max_xyz": [7, 34, 15], "model": "horton_sphere"},
+      {"id": "loop_blowdown_stack", "kind": "storage_tank", "min_xyz": [34, 24, 0], "max_xyz": [38, 28, 22], "model": "exhaust_stack"}
     ],
     "assets": [
       {"id": "loop_inlet_valve", "asset_type": "valve", "pos": [-18, -7.4, 3], "age_years": 9},
       {"id": "loop_high_flange", "asset_type": "flange", "pos": [0, -7.4, 21], "age_years": 22},
-      {"id": "loop_return_valve", "asset_type": "valve", "pos": [18, -7.4, 3], "age_years": 14}
+      {"id": "loop_return_valve", "asset_type": "valve", "pos": [18, -7.4, 3], "age_years": 14},
+      {"id": "loop_surge_valve", "asset_type": "valve", "pos": [-2, 16.8, 4], "age_years": 15}
     ],
     "pipe_runs": [
-      {"id": "line_riser_loop", "name": "Methane Riser Loop", "service": "High-Pressure Gas", "pressureBar": 18.4, "radius": 1.05, "color": 15381256, "points": [[-24, -6, 3], [-12, -6, 3], [-12, -6, 21], [12, -6, 21], [12, -6, 3], [24, -6, 3]]}
+      {"id": "line_riser_loop", "name": "Methane Riser Loop", "service": "High-Pressure Gas", "pressureBar": 18.4, "radius": 1.05, "color": 15381256, "points": [[-24, -6, 3], [-12, -6, 3], [-12, -6, 21], [12, -6, 21], [12, -6, 3], [24, -6, 3]]},
+      {"id": "line_surge_feed", "name": "Surge Sphere Feed", "service": "High-Pressure Gas", "pressureBar": 17.0, "radius": 0.42, "material": "gas", "points": [[-31, -1, 4], [-31, 18, 4], [0, 18, 4], [0, 20, 4]]},
+      {"id": "line_blowdown_vent", "name": "Blowdown Vent Header", "service": "Relief Vent", "pressureBar": 9.5, "radius": 0.34, "material": "steel", "points": [[7, 26, 4], [34, 26, 4]]}
     ],
     "default_leak_asset": "loop_high_flange",
-    "presentation": {"camera": [-37, 25, 57], "target": [0, 9, 6]}
+    "presentation": {
+      "theme": "desert_sun",
+      "surface": "desert",
+      "zone_label": "HIGH-PRESSURE TEST LOOP",
+      "camera": [-42, 27, 60],
+      "target": [0, 9, 4]
+    }
   },
   "tank_terminal": {
     "name": "Tank Terminal",
     "buildings": [
-      {"id": "terminal_pump_house", "kind": "building", "min_xyz": [-40, -29, 0], "max_xyz": [-30, -14, 7]},
-      {"id": "terminal_tank_west_1", "kind": "storage_tank", "min_xyz": [-28.5, -22.5, 0], "max_xyz": [-19.5, -13.5, 18], "model": "cryogenic_vessel"},
+      {"id": "terminal_pump_house", "kind": "building", "min_xyz": [-40, -29, 0], "max_xyz": [-30, -14, 8], "model": "pump_house"},
+      {"id": "terminal_tank_west_1", "kind": "storage_tank", "min_xyz": [-29, -23, 0], "max_xyz": [-19, -13, 14], "model": "horton_sphere"},
       {"id": "terminal_tank_west_2", "kind": "storage_tank", "min_xyz": [-28.5, -7.5, 0], "max_xyz": [-19.5, 1.5, 21], "model": "cryogenic_vessel"},
       {"id": "terminal_tank_west_3", "kind": "storage_tank", "min_xyz": [-28.5, 7.5, 0], "max_xyz": [-19.5, 16.5, 21], "model": "cryogenic_vessel"},
       {"id": "terminal_tank_west_4", "kind": "storage_tank", "min_xyz": [-28.5, 22.5, 0], "max_xyz": [-19.5, 31.5, 18], "model": "cryogenic_vessel"},
-      {"id": "terminal_tank_east_1", "kind": "storage_tank", "min_xyz": [19.5, -22.5, 0], "max_xyz": [28.5, -13.5, 18], "model": "cryogenic_vessel"},
+      {"id": "terminal_tank_east_1", "kind": "storage_tank", "min_xyz": [19, -23, 0], "max_xyz": [29, -13, 14], "model": "horton_sphere"},
       {"id": "terminal_tank_east_2", "kind": "storage_tank", "min_xyz": [19.5, -7.5, 0], "max_xyz": [28.5, 1.5, 21], "model": "cryogenic_vessel"},
       {"id": "terminal_tank_east_3", "kind": "storage_tank", "min_xyz": [19.5, 7.5, 0], "max_xyz": [28.5, 16.5, 21], "model": "cryogenic_vessel"},
       {"id": "terminal_tank_east_4", "kind": "storage_tank", "min_xyz": [19.5, 22.5, 0], "max_xyz": [28.5, 31.5, 18], "model": "cryogenic_vessel"},
@@ -48,27 +66,37 @@
       {"id": "terminal_bridge_header", "name": "Transfer Bridge Header", "service": "Process Feed", "pressureBar": 14, "radius": 0.52, "material": "steel", "points": [[-36, -14, 4], [-36, 38, 4], [-36, 38, 13], [33, 38, 13], [33, 38, 4]]},
       {"id": "terminal_west_header", "name": "West Transfer Header", "service": "High-Pressure Gas", "pressureBar": 16.5, "radius": 0.55, "material": "gas", "points": [[-13, -31, 4], [-13, 38, 4], [-13, 38, 13]]},
       {"id": "terminal_east_header", "name": "East Transfer Header", "service": "High-Pressure Gas", "pressureBar": 16.5, "radius": 0.55, "material": "gas", "points": [[13, -31, 4], [13, 38, 4], [13, 38, 13]]},
-      {"id": "terminal_west_branch_1", "name": "West Vessel 1 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[-13, -18, 4], [-19.5, -18, 4]]},
+      {"id": "terminal_west_branch_1", "name": "West Vessel 1 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[-13, -18, 4], [-19, -18, 4]]},
       {"id": "terminal_west_branch_2", "name": "West Vessel 2 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[-13, -3, 4], [-19.5, -3, 4]]},
       {"id": "terminal_west_branch_3", "name": "West Vessel 3 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[-13, 12, 4], [-19.5, 12, 4]]},
       {"id": "terminal_west_branch_4", "name": "West Vessel 4 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[-13, 27, 4], [-19.5, 27, 4]]},
-      {"id": "terminal_east_branch_1", "name": "East Vessel 1 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[13, -18, 4], [19.5, -18, 4]]},
+      {"id": "terminal_east_branch_1", "name": "East Vessel 1 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[13, -18, 4], [19, -18, 4]]},
       {"id": "terminal_east_branch_2", "name": "East Vessel 2 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[13, -3, 4], [19.5, -3, 4]]},
       {"id": "terminal_east_branch_3", "name": "East Vessel 3 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[13, 12, 4], [19.5, 12, 4]]},
       {"id": "terminal_east_branch_4", "name": "East Vessel 4 Feed", "service": "Process Feed", "pressureBar": 11.2, "radius": 0.36, "material": "steel", "points": [[13, 27, 4], [19.5, 27, 4]]}
     ],
     "default_leak_asset": "terminal_east_flange",
-    "presentation": {"surface": "frost", "center_lane": true, "camera": [-36, 53, 79], "target": [0, 7, 0]}
+    "presentation": {
+      "theme": "arctic_frost",
+      "surface": "frost",
+      "center_lane": true,
+      "zone_label": "CRYOGENIC LNG TERMINAL",
+      "camera": [-36, 53, 79],
+      "target": [0, 7, 0]
+    }
   },
   "compressor_yard": {
     "name": "Compressor Yard",
     "buildings": [
       {"id": "compressor_hall", "kind": "building", "min_xyz": [-34, 14, 0], "max_xyz": [34, 27, 10], "model": "compressor"},
-      {"id": "compressor_receiver", "kind": "storage_tank", "min_xyz": [-7, 32, 0], "max_xyz": [7, 46, 16]},
-      {"id": "compressor_bay_1", "kind": "building", "min_xyz": [-30, -9, 0], "max_xyz": [-18, 3, 4], "model": "compressor_train"},
-      {"id": "compressor_bay_2", "kind": "building", "min_xyz": [-14, -9, 0], "max_xyz": [-2, 3, 4], "model": "compressor_train"},
-      {"id": "compressor_bay_3", "kind": "building", "min_xyz": [2, -9, 0], "max_xyz": [14, 3, 4], "model": "compressor_train"},
-      {"id": "compressor_bay_4", "kind": "building", "min_xyz": [18, -9, 0], "max_xyz": [30, 3, 4], "model": "compressor_train"}
+      {"id": "compressor_receiver", "kind": "storage_tank", "min_xyz": [-8, 32, 0], "max_xyz": [8, 48, 16], "model": "horton_sphere"},
+      {"id": "compressor_stack_west", "kind": "storage_tank", "min_xyz": [-28, 34, 0], "max_xyz": [-24, 38, 22], "model": "exhaust_stack"},
+      {"id": "compressor_stack_east", "kind": "storage_tank", "min_xyz": [24, 34, 0], "max_xyz": [28, 38, 22], "model": "exhaust_stack"},
+      {"id": "compressor_suction_meter", "kind": "building", "min_xyz": [-44, -22, 0], "max_xyz": [-34, -10, 6.5], "model": "metering_skid"},
+      {"id": "compressor_bay_1", "kind": "building", "min_xyz": [-30, -9, 0], "max_xyz": [-18, 3, 4.5], "model": "compressor_train"},
+      {"id": "compressor_bay_2", "kind": "building", "min_xyz": [-14, -9, 0], "max_xyz": [-2, 3, 4.5], "model": "compressor_train"},
+      {"id": "compressor_bay_3", "kind": "building", "min_xyz": [2, -9, 0], "max_xyz": [14, 3, 4.5], "model": "compressor_train"},
+      {"id": "compressor_bay_4", "kind": "building", "min_xyz": [18, -9, 0], "max_xyz": [30, 3, 4.5], "model": "compressor_train"}
     ],
     "assets": [
       {"id": "compressor_inlet_valve", "asset_type": "valve", "pos": [-31, -16.6, 4], "age_years": 13},
@@ -76,7 +104,7 @@
       {"id": "receiver_isolation_valve", "asset_type": "valve", "pos": [1, 30, 8], "age_years": 11}
     ],
     "pipe_runs": [
-      {"id": "compressor_crossfeed", "name": "Compressor Suction Header", "service": "Compressed Gas", "pressureBar": 22.5, "radius": 0.65, "material": "gas", "points": [[-33, -16, 5], [33, -16, 5]]},
+      {"id": "compressor_crossfeed", "name": "Compressor Suction Header", "service": "Compressed Gas", "pressureBar": 22.5, "radius": 0.65, "material": "gas", "points": [[-34, -16, 5], [33, -16, 5]]},
       {"id": "compressor_discharge", "name": "Receiver Feed", "service": "Compressed Gas", "pressureBar": 19.5, "radius": 0.55, "material": "steel", "points": [[0, 27, 8], [0, 32, 8]]},
       {"id": "compressor_train_1", "name": "Compressor Train 1", "service": "Compressed Gas", "pressureBar": 21.5, "radius": 0.55, "material": "gas", "points": [[-26.5, -16, 5], [-26.5, -10, 5], [-26.5, -10, 10], [-21.5, -10, 10], [-21.5, -10, 5], [-21.5, 14, 5]]},
       {"id": "compressor_train_2", "name": "Compressor Train 2", "service": "Compressed Gas", "pressureBar": 21.5, "radius": 0.55, "material": "gas", "points": [[-10.5, -16, 5], [-10.5, -10, 5], [-10.5, -10, 10], [-5.5, -10, 10], [-5.5, -10, 5], [-5.5, 14, 5]]},
@@ -84,34 +112,48 @@
       {"id": "compressor_train_4", "name": "Compressor Train 4", "service": "Compressed Gas", "pressureBar": 21.5, "radius": 0.55, "material": "gas", "points": [[21.5, -16, 5], [21.5, -10, 5], [21.5, -10, 10], [26.5, -10, 10], [26.5, -10, 5], [26.5, 14, 5]]}
     ],
     "default_leak_asset": "compressor_discharge_flange",
-    "presentation": {"surface": "frost", "camera": [-58, 35, 67], "target": [0, 7, 0]}
+    "presentation": {
+      "theme": "alpine_steel",
+      "surface": "asphalt",
+      "zone_label": "GAS COMPRESSION STATION",
+      "camera": [-58, 35, 67],
+      "target": [0, 7, 0]
+    }
   },
   "cooling_works": {
     "name": "Cooling Works",
     "buildings": [
-      {"id": "cooling_pumphouse", "kind": "building", "min_xyz": [-32, 10, 0], "max_xyz": [32, 25, 9]},
-      {"id": "cooling_tower_west", "kind": "building", "min_xyz": [-42, 25, 0], "max_xyz": [-28, 39, 13], "model": "cooling_cell"},
-      {"id": "cooling_tower_east", "kind": "building", "min_xyz": [28, 25, 0], "max_xyz": [42, 39, 13], "model": "cooling_cell"},
+      {"id": "cooling_pumphouse", "kind": "building", "min_xyz": [-32, 10, 0], "max_xyz": [32, 25, 10], "model": "pump_house"},
+      {"id": "cooling_tower_west", "kind": "building", "min_xyz": [-46, 8, 0], "max_xyz": [-34, 20, 13], "model": "cooling_cell"},
+      {"id": "cooling_tower_east", "kind": "building", "min_xyz": [34, 8, 0], "max_xyz": [46, 20, 13], "model": "cooling_cell"},
+      {"id": "cooling_hyperbolic_west", "kind": "storage_tank", "min_xyz": [-44, 28, 0], "max_xyz": [-24, 48, 26], "model": "hyperbolic_tower"},
+      {"id": "cooling_hyperbolic_east", "kind": "storage_tank", "min_xyz": [24, 28, 0], "max_xyz": [44, 48, 26], "model": "hyperbolic_tower"},
       {"id": "cooling_rack", "kind": "pipe_rack", "min_xyz": [-32, -15, 0], "max_xyz": [32, -8, 5]},
-      {"id": "cooling_exhaust_1", "kind": "storage_tank", "min_xyz": [-24.9, 26.1, 0], "max_xyz": [-23.1, 27.9, 25], "model": "exhaust_stack"},
-      {"id": "cooling_exhaust_2", "kind": "storage_tank", "min_xyz": [-8.9, 26.1, 0], "max_xyz": [-7.1, 27.9, 25], "model": "exhaust_stack"},
-      {"id": "cooling_exhaust_3", "kind": "storage_tank", "min_xyz": [7.1, 26.1, 0], "max_xyz": [8.9, 27.9, 25], "model": "exhaust_stack"},
-      {"id": "cooling_exhaust_4", "kind": "storage_tank", "min_xyz": [23.1, 26.1, 0], "max_xyz": [24.9, 27.9, 25], "model": "exhaust_stack"}
+      {"id": "cooling_exhaust_1", "kind": "storage_tank", "min_xyz": [-18.0, 29.0, 0], "max_xyz": [-15.2, 31.8, 24], "model": "exhaust_stack"},
+      {"id": "cooling_exhaust_2", "kind": "storage_tank", "min_xyz": [-6.4, 29.0, 0], "max_xyz": [-3.6, 31.8, 24], "model": "exhaust_stack"},
+      {"id": "cooling_exhaust_3", "kind": "storage_tank", "min_xyz": [3.6, 29.0, 0], "max_xyz": [6.4, 31.8, 24], "model": "exhaust_stack"},
+      {"id": "cooling_exhaust_4", "kind": "storage_tank", "min_xyz": [15.2, 29.0, 0], "max_xyz": [18.0, 31.8, 24], "model": "exhaust_stack"}
     ],
     "assets": [
       {"id": "cooling_feed_valve", "asset_type": "valve", "pos": [-11, -7.8, 6], "age_years": 12},
       {"id": "cooling_riser_flange", "asset_type": "flange", "pos": [22, 2, 13], "age_years": 18},
-      {"id": "cooling_return_valve", "asset_type": "valve", "pos": [-8, 4, 7], "age_years": 9}
+      {"id": "cooling_return_valve", "asset_type": "valve", "pos": [-8, 3.2, 7], "age_years": 9}
     ],
     "pipe_runs": [
-      {"id": "cooling_supply", "name": "East Loop Supply", "service": "Coolant Loop", "pressureBar": 7.8, "radius": 0.65, "material": "steel", "points": [[-32, -7, 6], [21, -7, 6], [21, 2, 6], [21, 2, 13], [21, 10, 13]]},
-      {"id": "cooling_return", "name": "West Loop Return", "service": "Coolant Loop", "pressureBar": 5.6, "radius": 0.54, "material": "steel", "points": [[-32, 4, 7], [-7, 4, 7], [-7, 10, 7]]},
+      {"id": "cooling_supply", "name": "East Loop Supply", "service": "Coolant Loop", "pressureBar": 7.8, "radius": 0.65, "material": "coolant", "points": [[-32, -7, 6], [21, -7, 6], [21, 2, 6], [21, 2, 13], [21, 10, 13]]},
+      {"id": "cooling_return", "name": "West Loop Return", "service": "Coolant Loop", "pressureBar": 5.6, "radius": 0.54, "material": "coolant", "points": [[-32, 4, 7], [-7, 4, 7], [-7, 10, 7]]},
       {"id": "cooling_pump_1", "name": "Pump Bay 1", "service": "Coolant Loop", "pressureBar": 6.5, "radius": 0.48, "material": "steel", "points": [[-26.4, -7, 6], [-26.4, -4, 6], [-26.4, -4, 9], [-21.6, -4, 9], [-21.6, -4, 6], [-21.6, 10, 6]]},
       {"id": "cooling_pump_2", "name": "Pump Bay 2", "service": "Coolant Loop", "pressureBar": 6.5, "radius": 0.48, "material": "steel", "points": [[-10.4, -7, 6], [-10.4, -4, 6], [-10.4, -4, 9], [-5.6, -4, 9], [-5.6, -4, 6], [-5.6, 10, 6]]},
       {"id": "cooling_pump_3", "name": "Pump Bay 3", "service": "Coolant Loop", "pressureBar": 6.5, "radius": 0.48, "material": "steel", "points": [[5.6, -7, 6], [5.6, -4, 6], [5.6, -4, 9], [10.4, -4, 9], [10.4, -4, 6], [10.4, 10, 6]]},
       {"id": "cooling_pump_4", "name": "Pump Bay 4", "service": "Coolant Loop", "pressureBar": 6.5, "radius": 0.48, "material": "steel", "points": [[21.6, -7, 6], [21.6, -4, 6], [21.6, -4, 9], [26.4, -4, 9], [26.4, -4, 6], [26.4, 10, 6]]}
     ],
     "default_leak_asset": "cooling_riser_flange",
-    "presentation": {"camera": [-44, 31, 72], "target": [0, 8, 0]}
+    "presentation": {
+      "theme": "overcast_steam",
+      "surface": "wet_slate",
+      "zone_label": "THERMAL COOLING PLANT",
+      "camera": [-50, 34, 76],
+      "target": [0, 10, 4]
+    }
   }
 }

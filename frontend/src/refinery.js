@@ -3,6 +3,7 @@ import { simToThree } from "./coords.js";
 import {
   createContactAOTexture,
   createDronePadTexture,
+  createOuterTerrainTexture,
   createRefineryConcreteTextures,
 } from "./materials.js";
 
@@ -33,6 +34,7 @@ export class RefineryView {
     obj.traverse((child) => {
       if (child.isMesh) {
         child.userData.inspect = meta;
+        child.userData.inspectRoot = obj;
         this.interactiveObjects.push(child);
       }
     });
@@ -355,18 +357,72 @@ export class RefineryView {
     const width = maxX - minX;
     const depth = maxY - minY;
 
-    const frosted = presentation.surface === "frost";
+    const surface = presentation.surface ?? "concrete";
+
+    // 1. Expansive 1240x1240m surrounding landscape with smooth apron, rolling berms,
+    //    and distant 3D perimeter hills/mountains with non-repeating vertex color shading.
+    const outerGeo = new THREE.PlaneGeometry(1240, 1240, 96, 96);
+    outerGeo.rotateX(-Math.PI / 2);
+    const posAttr = outerGeo.attributes.position;
+    const colors = new Float32Array(posAttr.count * 3);
+    const hillAmp =
+      surface === "asphalt" ? 1.55 :
+      surface === "desert" ? 1.35 :
+      surface === "frost" ? 1.20 :
+      1.05;
+    for (let i = 0; i < posAttr.count; i++) {
+      const vx = posAttr.getX(i);
+      const vz = posAttr.getZ(i);
+      const distOut = Math.max(Math.abs(vx) - 65, Math.abs(vz) - 65, 0);
+      let h = -0.08;
+      if (distOut > 0) {
+        const nearBlend = Math.min(1.0, distOut / 55);
+        const farBlend = Math.min(1.0, Math.max(0, distOut - 95) / 260);
+        const nearBerm =
+          nearBlend *
+          (2.4 * Math.sin(vx * 0.025) * Math.cos(vz * 0.025) +
+            1.4 * Math.sin(vx * 0.055 + vz * 0.04));
+        const farHills =
+          farBlend * farBlend * hillAmp *
+          (24.0 +
+            18.0 * Math.sin(vx * 0.009 + 0.6) * Math.cos(vz * 0.011 - 0.4) +
+            11.0 * Math.sin(vx * 0.019 - vz * 0.015) +
+            5.5 * Math.cos(vx * 0.033 + vz * 0.027));
+        h = Math.max(-0.15, nearBerm + farHills - 0.15);
+      }
+      posAttr.setY(i, h);
+      // Organic macro elevation + low-frequency variation breaks up any texture repeat
+      const macro = 0.90 + 0.10 * Math.sin(vx * 0.008 + vz * 0.006) + Math.min(0.22, Math.max(0, h / 120));
+      colors[i * 3] = macro;
+      colors[i * 3 + 1] = macro;
+      colors[i * 3 + 2] = surface === "frost" ? Math.min(1.18, macro * 1.04) : macro;
+    }
+    outerGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    outerGeo.computeVertexNormals();
+    const outerTex = createOuterTerrainTexture(surface);
+    const outerMat = new THREE.MeshStandardMaterial({
+      map: outerTex,
+      vertexColors: true,
+      roughness: surface === "wet_slate" ? 0.82 : 0.96,
+      metalness: 0.02,
+    });
+    const outerGround = new THREE.Mesh(outerGeo, outerMat);
+    outerGround.receiveShadow = true;
+    this.group.add(outerGround);
+
+    // 2. Main 120x120m facility concrete/gravel pad (raycast target)
     const { map: concreteMap, bumpMap: concreteBump } = createRefineryConcreteTextures({
-      frosted,
+      surface,
       centerLane: presentation.center_lane,
+      zoneLabel: presentation.zone_label ?? "SECTOR A · TANK FARM",
     });
     const groundGeo = new THREE.PlaneGeometry(width, depth);
     const groundMat = new THREE.MeshStandardMaterial({
       map: concreteMap,
       bumpMap: concreteBump,
-      bumpScale: 0.08,
-      roughness: 0.88,
-      metalness: 0.06,
+      bumpScale: surface === "desert" ? 0.12 : 0.08,
+      roughness: surface === "wet_slate" ? 0.68 : surface === "desert" ? 0.94 : 0.88,
+      metalness: surface === "wet_slate" ? 0.14 : 0.06,
     });
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
     this.groundMesh.rotation.x = -Math.PI / 2;
@@ -389,20 +445,22 @@ export class RefineryView {
     launchPad.receiveShadow = true;
     this.group.add(launchPad);
 
-    // 3. Industrial site details (concrete Jersey barriers, safety station, equipment skids)
-    const barrierMat = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      roughness: 0.9,
-      metalness: 0.08,
-    });
-    const barrierGeo = new THREE.BoxGeometry(4.2, 0.95, 0.65);
-    for (let i = 0; i < 6; i++) {
-      const b = new THREE.Mesh(barrierGeo, barrierMat);
-      b.position.set(-42.5, 0.48, -28 + i * 11);
-      b.rotation.y = Math.PI / 2;
-      b.castShadow = true;
-      b.receiveShadow = true;
-      this.group.add(b);
+    // 3. Industrial site details (concrete Jersey barriers only on classic refinery where layout is fixed)
+    if (!worldInit.map_id || worldInit.map_id === "refinery") {
+      const barrierMat = new THREE.MeshStandardMaterial({
+        color: 0x475569,
+        roughness: 0.9,
+        metalness: 0.08,
+      });
+      const barrierGeo = new THREE.BoxGeometry(4.2, 0.95, 0.65);
+      for (let i = 0; i < 6; i++) {
+        const b = new THREE.Mesh(barrierGeo, barrierMat);
+        b.position.set(-42.5, 0.48, -28 + i * 11);
+        b.rotation.y = Math.PI / 2;
+        b.castShadow = true;
+        b.receiveShadow = true;
+        this.group.add(b);
+      }
     }
 
     // Perimeter yellow boundary line
@@ -468,6 +526,19 @@ export class RefineryView {
       if (b.kind === "storage_tank") {
         const diam = Math.min(sx, sy);
         instance.scale.set(diam, sz, diam);
+      } else if (
+        sy > sx * 1.15 &&
+        (modelKey === "pipe_rack" ||
+          modelKey === "transfer_gantry" ||
+          modelKey === "compressor" ||
+          modelKey === "metering_skid" ||
+          modelKey === "receiver_skid" ||
+          modelKey === "compressor_train" ||
+          modelKey === "pump_house")
+      ) {
+        // Rotate elongated directional structures 90 deg when aligned N-S so pipes/barrels never squash
+        instance.rotation.y = Math.PI / 2;
+        instance.scale.set(sy, sz, sx);
       } else {
         instance.scale.set(sx, sz, sy);
       }
@@ -528,37 +599,54 @@ export class RefineryView {
 
     for (let i = 0; i < worldInit.assets.length; i++) {
       const asset = worldInit.assets[i];
+      const assetGroup = new THREE.Group();
+      const valvePos = simToThree(asset.pos);
+
       const valve = valveTemplate.clone(true);
-      simToThree(asset.pos, valve.position);
+      valve.position.copy(valvePos);
       valve.scale.setScalar(1.3);
       valve.rotation.y = (i * Math.PI) / 4;
-      this.group.add(valve);
-      this._tagInteractive(valve, {
+      assetGroup.add(valve);
+
+      if (!worldInit.map_id || ["refinery", "generated"].includes(worldInit.map_id)) {
+        // Grounded vertical steel riser pipe & concrete footing under every valve
+        const h = Math.max(0.2, valvePos.y);
+        const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, h, 10), riserMat);
+        riser.position.set(valvePos.x, h * 0.5, valvePos.z);
+        riser.castShadow = true;
+        riser.receiveShadow = true;
+        assetGroup.add(riser);
+
+        const footing = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 1.1), baseMat);
+        footing.position.set(valvePos.x, 0.11, valvePos.z);
+        footing.receiveShadow = true;
+        assetGroup.add(footing);
+      }
+
+      this.group.add(assetGroup);
+      this._tagInteractive(assetGroup, {
         kind: "asset",
         id: asset.id,
         assetType: asset.asset_type,
         ageYears: asset.age_years,
         posSim: asset.pos,
       });
-
-      if (worldInit.map_id && !["refinery", "generated"].includes(worldInit.map_id)) continue;
-
-      // Grounded vertical steel riser pipe & concrete footing under every valve
-      const h = Math.max(0.2, valve.position.y);
-      const riser = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, h, 10), riserMat);
-      riser.position.set(valve.position.x, h * 0.5, valve.position.z);
-      riser.castShadow = true;
-      riser.receiveShadow = true;
-      this.group.add(riser);
-
-      const footing = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 1.1), baseMat);
-      footing.position.set(valve.position.x, 0.11, valve.position.z);
-      footing.receiveShadow = true;
-      this.group.add(footing);
     }
 
     // 6. Connected 3D industrial piping network linking tanks, buildings, rack, and valves
     this._buildPipingNetwork(worldInit.pipe_runs?.length ? worldInit.pipe_runs : worldInit.pipes);
+
+    // 7. Optional iconic flare stack landmark for refinery/petrochemical worlds
+    if (presentation.flare_pos && this.models.flare_stack) {
+      const flare = this.models.flare_stack.clone(true);
+      simToThree(presentation.flare_pos, flare.position);
+      this.group.add(flare);
+
+      const [fx, fy] = presentation.flare_pos;
+      const flareLight = new THREE.PointLight(0xff8c2b, 38, 48, 1.5);
+      simToThree([fx, fy, 32], flareLight.position);
+      this.group.add(flareLight);
+    }
 
     this._addPerimeterFence(minX, maxX, minY, maxY);
   }

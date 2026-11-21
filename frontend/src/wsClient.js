@@ -123,7 +123,7 @@ export class SimWsClient {
       buildings: [
         { id: "bldg_control", kind: "building", min_xyz: [-38, -28, 0], max_xyz: [-20, -12, 12] },
         { id: "tank_north", kind: "storage_tank", model: "fractionator", min_xyz: [-10, 14, 0], max_xyz: [10, 34, 16] },
-        { id: "tank_east", kind: "storage_tank", min_xyz: [22, -16, 0], max_xyz: [40, 2, 14] },
+        { id: "tank_east", kind: "storage_tank", model: "horton_sphere", min_xyz: [22, -16, 0], max_xyz: [40, 2, 14] },
         { id: "pipe_rack_center", kind: "pipe_rack", min_xyz: [-16, -6, 0], max_xyz: [14, 4, 8] },
         { id: "bldg_compressor", kind: "building", min_xyz: [-35, 16, 0], max_xyz: [-18, 32, 10] },
       ],

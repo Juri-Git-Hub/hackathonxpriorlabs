@@ -575,6 +575,13 @@ class Airflow:
         self.w0[0] = spd * ux
         self.w0[1] = spd * uy
 
+        # Clamp existing gust magnitude when wind speed is lowered so stale gusts
+        # don't overpower a low setpoint speed.
+        max_gust = max(0.05, 0.28 * spd)
+        gust_mag = math.hypot(float(self.w_turb[0]), float(self.w_turb[1]))
+        if gust_mag > max_gust:
+            self.w_turb *= max_gust / gust_mag
+
         # Re-solve 3D Poisson wind field only if wind direction changed meaningfully
         if (
             self._solved_angle_rad is None
@@ -600,8 +607,12 @@ class Airflow:
         self._time += dt
         self._eddy_offset += self.w0 * dt
         if self.sigma_w > 0.0:
+            base_speed = math.hypot(float(self.w0[0]), float(self.w0[1]))
+            # Scale turbulence intensity with mean wind speed (~14% stationary std)
+            # so gusts add natural meandering without overpowering low wind speeds.
+            eff_sigma = min(self.sigma_w, (0.14 * base_speed) / math.sqrt(0.5 * self.tau_w))
             noise = self._rng.normal(0.0, 1.0, size=2)
-            dw = -(1.0 / self.tau_w) * self.w_turb * dt + self.sigma_w * math.sqrt(dt) * noise
+            dw = -(1.0 / self.tau_w) * self.w_turb * dt + eff_sigma * math.sqrt(dt) * noise
             self.w_turb += dw
         else:
             self.w_turb[:] = 0.0
@@ -805,7 +816,7 @@ class Airflow:
             )
             phase = pts @ self._k_vecs_T
             phase += phase_shift
-            eddy_amp = 0.45 * self.sigma_w
+            eddy_amp = min(0.45 * self.sigma_w, 0.12 * base_speed)
             sin_p = np.sin(phase, out=phase)
             eddy_vel = sin_p @ self._e_vecs_weighted
             eddy_vel *= eddy_amp

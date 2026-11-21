@@ -20,6 +20,7 @@ export class HudController {
     onTogglePlaceLeakMode,
     onResetTrails,
     onSelectDrone,
+    onClearSelection,
     onFollowDrone,
     onFocusPosition,
     onPlaceLeakAt,
@@ -37,6 +38,7 @@ export class HudController {
     this.onTogglePlaceLeakMode = onTogglePlaceLeakMode;
     this.onResetTrails = onResetTrails;
     this.onSelectDrone = onSelectDrone;
+    this.onClearSelection = onClearSelection;
     this.onFollowDrone = onFollowDrone;
     this.onFocusPosition = onFocusPosition;
     this.onPlaceLeakAt = onPlaceLeakAt;
@@ -134,12 +136,13 @@ export class HudController {
   }
 
   _bindEvents() {
-    document.getElementById("btn-new-mission").addEventListener("click",()=>{this.onResetTrails();this.onSendCommand({action:"reset_race"});});
-    document.getElementById("prediction-layer").addEventListener("change", e => this.onLayer(e.target.value));
-    document.getElementById("show-route").addEventListener("change", e => this.onRoute(e.target.checked));
-    document.getElementById("btn-step").addEventListener("click", () => this.onSendCommand({action:"step"}));
-    document.getElementById("btn-seed-reset").addEventListener("click", () => {
-      const seed=Number(document.getElementById("episode-seed").value);
+    document.getElementById("btn-new-mission")?.addEventListener("click",()=>{this.onResetTrails();this.onSendCommand({action:"reset_race"});});
+    document.getElementById("prediction-layer")?.addEventListener("change", e => this.onLayer(e.target.value));
+    document.getElementById("show-route")?.addEventListener("change", e => this.onRoute(e.target.checked));
+    document.getElementById("btn-step")?.addEventListener("click", () => this.onSendCommand({action:"step"}));
+    document.getElementById("btn-seed-reset")?.addEventListener("click", () => {
+      const seedEl = document.getElementById("episode-seed");
+      const seed = seedEl ? Number(seedEl.value) : NaN;
       if (Number.isInteger(seed) && seed>=0) this.onSendCommand({action:"reset_race",seed});
     });
 
@@ -206,6 +209,7 @@ export class HudController {
 
     this.btnInspectorClose.addEventListener("click", () => {
       this.clearInspector();
+      this.onClearSelection?.();
     });
 
     this.elScoreBody.addEventListener("click", (evt) => {
@@ -546,18 +550,24 @@ export class HudController {
     const mission=document.getElementById("mission-status");
     const phases={tabpfn_source_prediction:"TabPFN bestimmt das 3D-Messziel",waiting_for_tabpfn:"Messung bereit · warte auf TabPFN",sensor_settling:"Gaskontakt · Sensor beruhigt sich",wind_adapted_acquisition:"Wind geändert · Suchziel angepasst"};
     const states={found:"Leck gefunden — Suche beendet",no_leak:"No active leak — restart mission or place a leak",depleted:"Battery empty — restart mission",paused:"Paused",searching:phases[status.navigation_basis] || (status.search_phase==="track" ? "Gaskontakt · lokale 3D-Quellensuche" : "Suche nach Gaskontakt")};
-    mission.textContent=states[status.mission_state] || (status.mode==="mock" ? "Mock mission" : "Searching");
-    mission.style.color=["no_leak","depleted"].includes(status.mission_state) ? "#fca5a5" : "#cbd5e1";
+    if (mission) {
+      mission.textContent=states[status.mission_state] || (status.mode==="mock" ? "Mock mission" : "Searching");
+      mission.style.color=["no_leak","depleted"].includes(status.mission_state) ? "#fca5a5" : "#cbd5e1";
+    }
     const features=status.source_features ? ` · ${status.source_features} source / ${status.hazard_features} risk inputs` : "";
-    document.getElementById("model-status").textContent = `${status.mode} · ${status.state}${features}${status.error ? ": " + status.error : ""}`;
+    const modelEl = document.getElementById("model-status");
+    if (modelEl) modelEl.textContent = `${status.mode} · ${status.state}${features}${status.error ? ": " + status.error : ""}`;
     const plans={preparing:"Map plan: preparing before flight",coverage_fallback:"Map coverage route · TabPFN map dataset pending",tabpfn_map:"Map route scored by TabPFN",injected_test_model:"Map route · test model",mock:"Mock stream · no map-search model",error:"Map planning failed · holding position"};
-    document.getElementById("map-plan-status").textContent=`${plans[status.plan_state] || "Map plan: unavailable"}${status.search_candidate_count ? ` · ${status.search_candidate_count} cells · revision ${status.plan_revision || 0}` : ""}`;
+    const planEl = document.getElementById("map-plan-status");
+    if (planEl) planEl.textContent=`${plans[status.plan_state] || "Map plan: unavailable"}${status.search_candidate_count ? ` · ${status.search_candidate_count} cells · revision ${status.plan_revision || 0}` : ""}`;
     const wind=status.adaptive_wind ? ` · ${status.wind_replans || 0} Windanpassungen` : "";
-    document.getElementById("model-metrics").textContent = `${(status.inference_seconds || 0).toFixed(2)} s inference · ${status.measurement_count || 0} measurements · ${status.completed_probes || 0} Messstopps · ${status.prediction_decisions || 0} TabPFN-Ziele${wind} · ${(status.exposure_ppm_seconds || 0).toFixed(1)} ppm·s exposure`;
+    const metricsEl = document.getElementById("model-metrics");
+    if (metricsEl) metricsEl.textContent = `${(status.inference_seconds || 0).toFixed(2)} s inference · ${status.measurement_count || 0} measurements · ${status.completed_probes || 0} Messstopps · ${status.prediction_decisions || 0} TabPFN-Ziele${wind} · ${(status.exposure_ppm_seconds || 0).toFixed(1)} ppm·s exposure`;
   }
 
   updateBelief(belief) {
-    document.getElementById("source-estimate").textContent = belief.source_evidence===false ? "Source estimate: awaiting gas measurements" : `Estimated source (x,y,z): ${belief.estimated_source.map(v => v.toFixed(1)).join(", ")} m`;
+    const srcEl = document.getElementById("source-estimate");
+    if (srcEl) srcEl.textContent = belief.source_evidence===false ? "Source estimate: awaiting gas measurements" : `Estimated source (x,y,z): ${belief.estimated_source.map(v => v.toFixed(1)).join(", ")} m`;
     this.hazardForecastTime=belief.hazard_forecast_time;
     this.updateRiskTime(belief.sim_time);
   }

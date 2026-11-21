@@ -10,7 +10,7 @@ import { loadModelAssets } from "./assets.js";
 import { setupEnvironment } from "./environment.js";
 import { SimWsClient } from "./wsClient.js";
 import { RefineryView } from "./refinery.js";
-import { PlumeView } from "./plumeView.js";
+import { PlumeView, VolumetricPlumePass } from "./plumeView.js";
 import { WindView } from "./windView.js";
 import { BeliefView } from "./beliefView.js";
 import { DroneView } from "./droneView.js";
@@ -18,6 +18,7 @@ import industrialMaps from "./industrialMaps.json";
 import { HudController } from "./hud.js";
 import { CameraRig } from "./cameraRig.js";
 import { CanvasRecorder } from "./recorder.js";
+import { SelectionHighlighter } from "./selectionHighlight.js";
 
 async function bootstrap() {
   // 1. Scene, camera, renderer
@@ -28,7 +29,7 @@ async function bootstrap() {
     48,
     window.innerWidth / window.innerHeight,
     0.5,
-    600
+    1400
   );
   camera.position.set(-64, 46, 68);
 
@@ -37,19 +38,28 @@ async function bootstrap() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
 
-  setupEnvironment(scene, renderer);
+  const envController = setupEnvironment(scene, renderer);
+
+  // Create WebGLRenderTarget with a DepthTexture so the 3D volumetric gas cloud raymarcher
+  // occludes pixel-perfectly around every tank, pipe, building, and drone!
+  const pr = renderer.getPixelRatio();
+  const rtWidth = Math.max(1, Math.floor(window.innerWidth * pr));
+  const rtHeight = Math.max(1, Math.floor(window.innerHeight * pr));
+  const composerTarget = new THREE.WebGLRenderTarget(rtWidth, rtHeight, {
+    type: THREE.HalfFloatType,
+    depthBuffer: true,
+    depthTexture: new THREE.DepthTexture(rtWidth, rtHeight, THREE.UnsignedIntType),
+  });
 
   // Subtle cinema bloom (high threshold so only lights, windows, flare, & neon LEDs glow)
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.18, // restrained cinema bloom (never washes out close-ups)
-    0.30,
-    0.90
+  const composer = new EffectComposer(renderer, composerTarget);
+  // Give renderTarget2 its own DepthTexture so ping-pong passes never hit a WebGL2 depth feedback loop!
+  composer.renderTarget2.depthTexture = new THREE.DepthTexture(
+    rtWidth,
+    rtHeight,
+    THREE.UnsignedIntType
   );
-  composer.addPass(bloomPass);
-  composer.addPass(new OutputPass());
+  composer.addPass(new RenderPass(scene, camera));
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -68,6 +78,25 @@ async function bootstrap() {
   const windView = new WindView(scene);
   const beliefView = new BeliefView(scene);
   const droneView = new DroneView(scene, models.quadrotor);
+
+  // Add depth-aware 3D Volumetric Gas Cloud raymarching pass, followed by bloom & output
+  const plumePass = new VolumetricPlumePass(plumeView, camera);
+  composer.addPass(plumePass);
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.18,
+    0.30,
+    0.90
+  );
+  composer.addPass(bloomPass);
+
+  // Whole-object hover & selection silhouette + subtle surface highlight
+  const selectionHighlighter = new SelectionHighlighter(scene, camera, rtWidth, rtHeight);
+  for (const pass of selectionHighlighter.getPasses()) {
+    composer.addPass(pass);
+  }
+
+  composer.addPass(new OutputPass());
 
   // Live 3D placement reticle ring (visible when Place Leak mode is active)
   const reticle = new THREE.Mesh(
@@ -103,22 +132,25 @@ async function bootstrap() {
     pulseRings.push({ mesh: ring, age: 0 });
   }
 
-  // Glowing 3D selection highlight ring (connects Inspector panel to exact 3D object!)
-  const selectionRing = new THREE.Mesh(
-    new THREE.TorusGeometry(2.4, 0.16, 12, 32),
-    new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.92,
-      depthTest: false,
-    })
-  );
-  selectionRing.rotation.x = Math.PI / 2;
-  selectionRing.visible = false;
-  scene.add(selectionRing);
-  let selectedDroneId = null;
-
   let placeLeakMode = false;
+
+  function clearSelection() {
+    selectionHighlighter.clear();
+    hud.clearInspector();
+  }
+
+  function selectDroneById(droneId, focusCamera = false) {
+    const meta = { kind: "drone", id: droneId };
+    hud.showInspector(meta);
+    const highlightObj = droneView.getDroneHighlightObject(droneId);
+    selectionHighlighter.select(highlightObj, meta);
+    if (focusCamera) {
+      const pos = droneView.getDroneWorldPos(droneId);
+      if (pos) {
+        cameraRig.focusPoint(pos);
+      }
+    }
+  }
 
   const cameraRig = new CameraRig(camera, controls, {
     onStateChange: (state) => hud.setCameraRigState(state),
@@ -184,18 +216,19 @@ async function bootstrap() {
 
   const worldButtons = document.getElementById("world-buttons");
   const generateWorld = document.getElementById("btn-new-layout");
+  const worldSep = worldButtons.querySelector(".world-pill-sep") ?? generateWorld;
   const mapButtons = new Map();
   for (const [id, { name }] of Object.entries(industrialMaps)) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "btn";
+    button.className = "world-pill-btn";
     button.textContent = name;
     button.disabled = true;
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => {
       if (id !== currentMap) wsClient.sendCommand({ action: "select_map", map_id: id });
     });
-    worldButtons.insertBefore(button, generateWorld);
+    worldButtons.insertBefore(button, worldSep);
     mapButtons.set(id, button);
   }
   let currentMap = null;
@@ -207,10 +240,24 @@ async function bootstrap() {
       const mapId = worldInit.map_id ?? "refinery";
       const layoutSeed = worldInit.layout_seed ?? null;
       const layoutStatus = document.getElementById("layout-status");
-      const worldName = industrialMaps[mapId]?.name ?? "Generated World";
-      layoutStatus.textContent = layoutSeed === null ? worldName : `${worldName} · Seed ${layoutSeed}`;
+      layoutStatus.textContent = layoutSeed === null ? "" : `Seed ${layoutSeed}`;
       if (mapId !== currentMap || layoutSeed !== currentLayoutSeed) {
-        const presentation = industrialMaps[mapId]?.presentation;
+        const themeSurface = {
+          refinery_dusk: { surface: "concrete", zone_label: "GENERATED · PETROCHEMICAL", flare_pos: [48, 46, 0] },
+          desert_sun: { surface: "desert", zone_label: "GENERATED · DESERT BOOSTER" },
+          arctic_frost: { surface: "frost", zone_label: "GENERATED · CRYOGENIC DEPOT" },
+          alpine_steel: { surface: "asphalt", zone_label: "GENERATED · ALPINE STATION" },
+          overcast_steam: { surface: "wet_slate", zone_label: "GENERATED · THERMAL PLANT" },
+        };
+        const basePresentation = industrialMaps[mapId]?.presentation ?? {};
+        const resolvedTheme = worldInit.theme ?? basePresentation.theme ?? "refinery_dusk";
+        const presentation = {
+          ...(themeSurface[resolvedTheme] ?? {}),
+          ...basePresentation,
+          theme: resolvedTheme,
+        };
+        envController.setTheme(presentation.theme);
+        selectionHighlighter.clearAll();
         refineryView.build(worldInit, presentation);
         hud.clearInspector();
         hud.setPlaceLeakMode(false);
@@ -234,14 +281,18 @@ async function bootstrap() {
         button.setAttribute("aria-pressed", String(selected));
       }
       generateWorld.disabled = wsClient.mockMode;
+      generateWorld.classList.toggle("btn-active", mapId === "generated");
+      generateWorld.setAttribute("aria-pressed", String(mapId === "generated"));
       beliefView.initGrid(worldInit.grid_coords);
       droneView.clearTrails();
-      document.getElementById("source-estimate").textContent="Source estimate: —";
+      const srcEstEl = document.getElementById("source-estimate");
+      if (srcEstEl) srcEstEl.textContent="Source estimate: —";
       hud.hazardForecastTime=null;
       hud.updateRiskTime(0);
     },
     onWindField: (windField) => {
       windView.setWindField(windField);
+      plumeView.setWindField(windField);
     },
     onSimTick: (tick) => {
       plumeView.update(tick.puffs, tick.leaks, tick.wind_vec);
@@ -274,16 +325,15 @@ async function bootstrap() {
     onTogglePlaceLeakMode: (active) => {
       placeLeakMode = active;
       reticle.visible = false;
+      if (active) selectionHighlighter.setHovered(null);
       renderer.domElement.style.cursor = active ? "crosshair" : "default";
     },
     onResetTrails: () => droneView.clearTrails(),
     onSelectDrone: (droneId) => {
-      selectedDroneId = droneId;
-      hud.showInspector({ kind: "drone", id: droneId });
-      const pos = droneView.getDroneWorldPos(droneId);
-      if (pos) {
-        cameraRig.focusPoint(pos);
-      }
+      selectDroneById(droneId, true);
+    },
+    onClearSelection: () => {
+      selectionHighlighter.clear();
     },
     onFollowDrone: (droneId) => {
       cameraRig.setFollowDrone(droneId);
@@ -354,7 +404,14 @@ async function bootstrap() {
     }
 
     const hits = raycastInteractive(evt);
-    renderer.domElement.style.cursor = hits.length > 0 ? "pointer" : "default";
+    if (hits.length > 0) {
+      const hitObj = hits[0].object;
+      selectionHighlighter.setHovered(hitObj.userData.inspectRoot ?? hitObj);
+      renderer.domElement.style.cursor = "pointer";
+    } else {
+      selectionHighlighter.setHovered(null);
+      renderer.domElement.style.cursor = "default";
+    }
   }
 
   renderer.domElement.addEventListener("pointermove", (evt) => {
@@ -364,6 +421,11 @@ async function bootstrap() {
       hoverRafPending = true;
       requestAnimationFrame(processHoverMove);
     }
+  });
+
+  renderer.domElement.addEventListener("pointerleave", () => {
+    pendingMoveEvt = null;
+    selectionHighlighter.setHovered(null);
   });
 
   renderer.domElement.addEventListener("pointerdown", (evt) => {
@@ -389,7 +451,8 @@ async function bootstrap() {
         const simPos = threeToSim(hit.point);
         // If clicked on ground, elevate to realistic pipe height; on pipe/valve use exact 3D height
         if (hit.object === refineryView.groundMesh) {
-          simPos[2] = Math.max(1,Math.min(28,Number(document.getElementById("leak-height").value)||3.5));
+          const lhEl = document.getElementById("leak-height");
+          simPos[2] = Math.max(1,Math.min(28,Number(lhEl?.value)||3.5));
         }
         placeLeakAt(simPos);
         hud.setPlaceLeakMode(false);
@@ -402,21 +465,18 @@ async function bootstrap() {
       const hit = hits[0];
       const meta = hit.object.userData.inspect;
       if (meta) {
-        const hitSimPos = threeToSim(hit.point);
-        hud.showInspector(meta, hitSimPos);
-        if (meta.kind === "drone") {
-          selectedDroneId = meta.id;
+        const rootObj = hit.object.userData.inspectRoot ?? hit.object;
+        if (selectionHighlighter.isSelected(rootObj)) {
+          clearSelection();
+          selectionHighlighter.setHovered(rootObj);
         } else {
-          selectedDroneId = null;
-          selectionRing.position.copy(hit.point);
-          selectionRing.scale.setScalar(meta.kind === "building" ? 3.5 : 1.0);
-          selectionRing.visible = true;
+          const hitSimPos = threeToSim(hit.point);
+          hud.showInspector(meta, hitSimPos);
+          selectionHighlighter.select(rootObj, meta, hit.point);
         }
       }
     } else {
-      selectedDroneId = null;
-      selectionRing.visible = false;
-      hud.clearInspector();
+      clearSelection();
     }
   });
 
@@ -435,9 +495,7 @@ async function bootstrap() {
       } else if (placeLeakMode) {
         hud.setPlaceLeakMode(false);
       } else {
-        selectedDroneId = null;
-        selectionRing.visible = false;
-        hud.clearInspector();
+        clearSelection();
       }
       return;
     }
@@ -503,8 +561,7 @@ async function bootstrap() {
     toggleRecording: () => triggerRecordingToggle(),
     captureScreenshot: () => triggerScreenshot(),
     selectDrone: (id) => {
-      selectedDroneId = id;
-      hud.showInspector({ kind: "drone", id });
+      selectDroneById(id, false);
     },
     focusOnDrone: (id, offset = [-10, 6, 12]) => {
       const p = droneView.getDroneWorldPos(id);
@@ -528,29 +585,25 @@ async function bootstrap() {
     setPresentationMode: (v) => hud.setPresentationMode(v),
     setHudHidden: (v) => hud.setHudHidden(v),
     clearInspector: () => {
-      selectedDroneId = null;
-      selectionRing.visible = false;
-      hud.clearInspector();
+      clearSelection();
     },
     inspectAsset: () => {
       const obj = refineryView.getInteractiveObjects().find((o) => o.userData.inspect?.kind === "asset");
       if (obj) {
-        selectedDroneId = null;
-        hud.showInspector(obj.userData.inspect, obj.userData.inspect.posSim);
-        simToThree(obj.userData.inspect.posSim, selectionRing.position);
-        selectionRing.scale.setScalar(1.0);
-        selectionRing.visible = true;
+        const meta = obj.userData.inspect;
+        const rootObj = obj.userData.inspectRoot ?? obj;
+        hud.showInspector(meta, meta.posSim);
+        selectionHighlighter.select(rootObj, meta, simToThree(meta.posSim));
       }
     },
     inspectPipe: () => {
       const obj = refineryView.getInteractiveObjects().find((o) => o.userData.inspect?.kind === "pipe");
       if (obj) {
-        selectedDroneId = null;
+        const meta = obj.userData.inspect;
+        const rootObj = obj.userData.inspectRoot ?? obj;
         const pt = [-6, -2, 4.4];
-        hud.showInspector(obj.userData.inspect, pt);
-        simToThree(pt, selectionRing.position);
-        selectionRing.scale.setScalar(1.0);
-        selectionRing.visible = true;
+        hud.showInspector(meta, pt);
+        selectionHighlighter.select(rootObj, meta, simToThree(pt));
       }
     },
   };
@@ -585,17 +638,9 @@ async function bootstrap() {
     droneView.animate(dt);
     const tabPos = droneView.getDroneWorldPos("tabpfn", tmpFollow);
     if (tabPos) beliefView.setTabpfnDroneWorldPos(tabPos);
-    if (selectedDroneId) {
-      const sp = droneView.getDroneWorldPos(selectedDroneId, tmpFollow);
-      if (sp) {
-        selectionRing.position.copy(sp);
-        selectionRing.scale.setScalar(1.35 + 0.12 * Math.sin(elapsed * 5.0));
-        selectionRing.visible = true;
-      }
-    } else if (selectionRing.visible) {
-      selectionRing.rotation.z = elapsed * 1.4;
-    }
+    selectionHighlighter.animate(elapsed);
     plumeView.animate(dt);
+    plumePass.enabled = plumeView.visible && plumeView._hasDensity;
     windView.animate(dt);
     beliefView.animate(elapsed);
     composer.render();
