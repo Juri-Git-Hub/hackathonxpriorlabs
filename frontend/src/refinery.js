@@ -71,6 +71,211 @@ export class RefineryView {
     this.groundMesh = null;
   }
 
+  _addPipeRun(pointsSim, radius, mat, flangeMat, supportMat) {
+    const pts = pointsSim.map((p) => simToThree(p));
+    const up = new THREE.Vector3(0, 1, 0);
+
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const len = dir.length();
+      if (len < 0.05) continue;
+
+      const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+      const segGeo = new THREE.CylinderGeometry(radius, radius, len, 12);
+      const seg = new THREE.Mesh(segGeo, mat);
+      seg.position.copy(mid);
+      seg.quaternion.setFromUnitVectors(up, dir.clone().normalize());
+      seg.castShadow = true;
+      seg.receiveShadow = true;
+      this.group.add(seg);
+
+      // Add bolted flange collars every ~7m along long horizontal runs
+      if (len > 4.5) {
+        const steps = Math.max(1, Math.floor(len / 7.5));
+        const flangeGeo = new THREE.CylinderGeometry(radius * 1.42, radius * 1.42, 0.16, 12);
+        for (let k = 1; k <= steps; k++) {
+          const t = k / (steps + 1);
+          const fPos = new THREE.Vector3().lerpVectors(a, b, t);
+          const fl = new THREE.Mesh(flangeGeo, flangeMat);
+          fl.position.copy(fPos);
+          fl.quaternion.copy(seg.quaternion);
+          fl.castShadow = true;
+          this.group.add(fl);
+        }
+      }
+
+      // Add steel H-post pipe support stanchion at midpoint for elevated horizontal segments
+      const isHoriz = Math.abs(dir.y) < 0.35 && len > 3.5;
+      if (isHoriz && mid.y > 0.8) {
+        const stH = mid.y - radius;
+        if (stH > 0.2) {
+          const st = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.11, 0.13, stH, 8),
+            supportMat
+          );
+          st.position.set(mid.x, stH * 0.5, mid.z);
+          st.castShadow = true;
+          this.group.add(st);
+        }
+      }
+    }
+
+    // Smooth elbow joints at every bend
+    const elbowGeo = new THREE.SphereGeometry(radius * 1.12, 12, 10);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const elbow = new THREE.Mesh(elbowGeo, mat);
+      elbow.position.copy(pts[i]);
+      elbow.castShadow = true;
+      this.group.add(elbow);
+    }
+  }
+
+  _buildPipingNetwork() {
+    const matYellowGas = new THREE.MeshStandardMaterial({
+      color: 0xeab308,
+      metalness: 0.32,
+      roughness: 0.34,
+    });
+    const matSteel = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      metalness: 0.84,
+      roughness: 0.26,
+    });
+    const matBlueCoolant = new THREE.MeshStandardMaterial({
+      color: 0x2563eb,
+      metalness: 0.42,
+      roughness: 0.34,
+    });
+    const matFlange = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      metalness: 0.82,
+      roughness: 0.32,
+    });
+    const matSupport = new THREE.MeshStandardMaterial({
+      color: 0x2b3440,
+      metalness: 0.72,
+      roughness: 0.45,
+    });
+
+    // 1. Main yellow gas line: Control Bldg -> valve_01 -> Pipe Rack -> valve_02 -> Tank East -> valve_03
+    this._addPipeRun(
+      [
+        [-20.0, -14.0, 3.5],
+        [-17.5, -14.0, 3.5],
+        [-17.5, -2.0, 3.5],
+        [-14.0, -2.0, 4.4],
+        [14.0, -2.0, 4.4],
+        [15.5, -1.0, 4.5],
+        [20.5, -1.0, 4.5],
+        [20.5, -7.0, 6.0],
+        [23.0, -7.0, 6.0],
+      ],
+      0.34,
+      matYellowGas,
+      matFlange,
+      matSupport
+    );
+
+    // 2. Tank East south discharge line -> valve_03
+    this._addPipeRun(
+      [
+        [31.0, -15.0, 3.0],
+        [31.0, -17.5, 3.0],
+        [14.0, -17.5, 3.0],
+        [4.0, -17.5, 3.0],
+        [4.0, -7.2, 5.0],
+        [4.0, -3.0, 5.0],
+      ],
+      0.28,
+      matSteel,
+      matFlange,
+      matSupport
+    );
+
+    // 3. Central Pipe Rack -> Tank North (dual silver + yellow lines via flange_02 & tank_port_n1)
+    this._addPipeRun(
+      [
+        [-10.0, 3.0, 4.0],
+        [-10.0, 5.5, 4.0],
+        [0.0, 5.5, 4.0],
+        [0.0, 12.5, 5.0],
+        [0.0, 15.0, 5.0],
+      ],
+      0.32,
+      matYellowGas,
+      matFlange,
+      matSupport
+    );
+    this._addPipeRun(
+      [
+        [8.0, 3.0, 6.0],
+        [8.0, 5.5, 6.0],
+        [11.5, 5.5, 6.0],
+        [11.5, 24.0, 8.0],
+        [9.0, 24.0, 8.0],
+      ],
+      0.30,
+      matBlueCoolant,
+      matFlange,
+      matSupport
+    );
+
+    // 4. Compressor Building -> Tank North & Pipe Rack (via flange_04 & pipe_junc_03)
+    this._addPipeRun(
+      [
+        [-19.0, 24.0, 4.5],
+        [-16.5, 24.0, 4.5],
+        [-9.0, 24.0, 4.5],
+      ],
+      0.28,
+      matSteel,
+      matFlange,
+      matSupport
+    );
+    this._addPipeRun(
+      [
+        [-26.0, 17.0, 5.0],
+        [-26.0, 14.5, 5.0],
+        [-26.0, 2.0, 4.0],
+        [-15.0, 2.0, 4.0],
+      ],
+      0.26,
+      matBlueCoolant,
+      matFlange,
+      matSupport
+    );
+
+    // 5. South header: flange_01 -> valve_05 -> Control Building (flange_03 & valve_04)
+    this._addPipeRun(
+      [
+        [-6.0, -3.5, 4.0],
+        [-6.0, -7.2, 4.0],
+        [-6.0, -25.0, 2.5],
+        [0.0, -25.0, 2.5],
+        [0.0, -25.0, 0.2],
+      ],
+      0.30,
+      matYellowGas,
+      matFlange,
+      matSupport
+    );
+    this._addPipeRun(
+      [
+        [-29.0, -13.0, 3.5],
+        [-29.0, -10.5, 3.5],
+        [-18.5, -10.5, 3.5],
+        [-18.5, -20.0, 4.0],
+        [-21.0, -20.0, 4.0],
+      ],
+      0.26,
+      matSteel,
+      matFlange,
+      matSupport
+    );
+  }
+
   _addPerimeterFence(minX, maxX, minY, maxY) {
     const railMat = new THREE.MeshStandardMaterial({
       color: 0x475569,
@@ -287,7 +492,10 @@ export class RefineryView {
       this.group.add(footing);
     }
 
-    // 6. Industrial steel perimeter fence along the pad boundary
+    // 6. Connected 3D industrial piping network linking tanks, buildings, rack, and valves
+    this._buildPipingNetwork();
+
+    // 7. Industrial steel perimeter fence along the pad boundary
     this._addPerimeterFence(minX, maxX, minY, maxY);
   }
 }
