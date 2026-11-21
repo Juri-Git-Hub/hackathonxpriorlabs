@@ -1,0 +1,17 @@
+# Core simulation, schemas, and backend server
+numpy>=1.26.0
+pydantic>=2.7.0
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+
+# Testing
+pytest>=8.0.0
+httpx>=0.27.0
+
+# Optional: TabPFN AI Agent (install in AI branch / GPU environment)
+# tabpfn>=2.0.0
+# pandas>=2.2.0
+
+# Optional: Physical Drone Hardware Bridge
+# pyserial>=3.5
+# websockets>=12.0
