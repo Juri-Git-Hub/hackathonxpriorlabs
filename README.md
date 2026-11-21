@@ -1,8 +1,6 @@
-# PlumeSense
+# PlumeSense · main-Simulation mit unserem TabPFN-Backend
 
-Eine Drohne sucht ein Gasleck in einer 24×24-Simulation. Einziger Gassensor ist auf der Drohne. Gas tritt kontinuierlich aus und wird bei jedem Schritt durch Wind und Diffusion weitertransportiert; Wände blockieren den Transport.
-
-**Aktuell kommen sowohl Quellenbewertung als auch Gefahrenprognose von TabPFN.** Das frühere physikalische Quellenmodell liegt ausschließlich als Vergleich in `source_search_physics.py` und wird von der Live-Demo nicht verwendet.
+Dieser Branch vereint die 3D-Simulation von `main` mit unserer RTX-4090-API, automatischem SSH-Tunnel, zwei TabPFN-Klassifikatoren (Quelle und zukünftige Gefahr) und Streamlit/Plotly-Demo.
 
 ## Start
 
@@ -10,74 +8,41 @@ Eine Drohne sucht ein Gasleck in einer 24×24-Simulation. Einziger Gassensor ist
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python run.py generate
-python source_learning.py
+python -m integration.generate --episodes 24 --seconds 40
 python launch_demo.py
 ```
 
-Demo: http://localhost:8501. Standardbackend `tabpfn-api` verwendet die RTX 4090 auf `my4090`. `launch_demo.py` öffnet den SSH-Tunnel und startet Streamlit. Modellzugriff und passende Lizenz müssen auf dem GPU-Server eingerichtet sein. Der laufende Dienst ist bereits konfiguriert.
+http://localhost:8501 öffnen und „Live laufen“ aktivieren. Die drei Ansichten zeigen Raffinerie, TabPFN-Quellenscores und Gefahr in vier Sekunden. Ground Truth ist standardmäßig verborgen. Jede Drohne hat ausschließlich ihren eigenen mobilen Gassensor; der TabPFN-Agent erhält keine Messwerte der Vergleichsdrohnen.
 
-```bash
-ssh -N -T -o BatchMode=yes -o ExitOnForwardFailure=yes \
-  -o ConnectTimeout=8 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-  -L 127.0.0.1:18000:127.0.0.1:8000 my4090
-```
+SSH-Alias `my4090` muss erreichbar sein; auf dessen Port 8000 läuft unsere vorhandene API aus `api/server.py`. `launch_demo.py` und `tunnel.py` öffnen bei Bedarf den Tunnel zu lokalem Port 18000. Konfiguration: `PLUMESENSE_API_URL`, `PLUMESENSE_SSH_HOST`, `PLUMESENSE_REMOTE_PORT`. Kein erneuter Modellabruf oder Token auf dem Laptop nötig. Die API mit den getrennten Kontexten `source` und `hazard` bleibt unverändert.
 
-`my4090` nutzt die vorhandene SSH-Config samt ProxyJump. Einstellungen: `PLUMESENSE_API_URL`, `PLUMESENSE_SSH_HOST`, `PLUMESENSE_REMOTE_PORT`, `PLUMESENSE_AUTO_TUNNEL=0`. Vorhandene Tunnel werden wiederverwendet; selbst gestartete Tunnel beim normalen Prozessende beendet.
+## Integration
 
-## Was TabPFN erhält
+- `sim/` und `shared/` stammen unverändert von main: 120×120×30 m, Z-up, turbulente Strömung, kontinuierliche Puff-Emission, Gebäude, Sensorträgheit/-rauschen und 20-Hz-Drohnendynamik.
+- `agents/plumesense_agent.py` verbindet unsere beiden Klassifikatoren über den vorhandenen Predictor/API-Client mit `AsyncInferenceAgent`. Nur Features aus `DroneObservation` gehen in die Inferenz. Die Physik wartet nicht auf Netzwerk/GPU. Resets verwerfen alte Ergebnisse.
+- `integration/features.py` verwendet 3D-Kandidaten, mobile Messhistorie, Wind einschließlich Fehlwertindikatoren, jüngste/stärkste Messungen und Distanzen. Fehlende Windwerte werden als 0 plus Indikator codiert. Temperatur wird nicht als Feature verwendet. Kein Zugriff auf tatsächliche Quellen oder Gaskonzentrationen außerhalb der Drohnenmessungen.
+- `integration/generate.py` erzeugt neue Episoden mit mains echten Physik- und Sensormodulen und Gradient-/Raster-Suchflugwegen. Drei Viertel der Episoden bilden den Trainingskontext, ein Viertel bleibt für Evaluation getrennt. Quellenlabels: Kandidat innerhalb 6 m der tatsächlichen Quelle; Gefahrenlabels: ≥10 ppm am Kandidaten vier Sekunden später. Nur Offline-Labels dürfen die Wahrheit lesen. Die generierte CSV wird nicht versioniert.
+- `integration/runtime.py` hält Physik und UI getrennt. `app.py` visualisiert die drei Drohnen und TabPFN-Ergebnisse. `GradientAgent` und `LawnmowerAgent` bleiben die Baselines aus main.
+- `server/app.py` behält mains WebSocket-/Judge-Verträge und verwendet im echten Modus unseren API-Agenten. `--mock-agents` benötigt keine Daten oder GPU. Das ursprünglich vorbereitete lokale Regressionsmodell bleibt unter `agents/tabpfn_agent.py` erhalten.
 
-**Quellenmodell:** Jeder freien Kartenzelle wird eine Tabellenzeile zugeordnet. Features sind Kandidatenposition, Wind, Zeit, Wandabstand, Messanzahl, Mittelwert/Maximum, Konzentrationsschwerpunkt, Besuchszahlen und Messwerte in 4×4 räumlichen Bins sowie die vier stärksten und die vier jüngsten Messungen mit Position/Zeit. Alle bisherigen mobilen Messungen gehen in die Zusammenfassungen ein. Die rohe, beliebig lange Zeitreihe kann nicht als variable Spaltenzahl an TabPFN übergeben werden.
+Die Quellenschätzung stammt direkt aus TabPFN-Klassifikationsscores, nicht aus inverser Simulatorphysik. Messziele verbinden regionale Quellenscores, geometrische Erkundung und Entfernung. Die Drohnendynamik samt Hindernisabstoßung stammt von main; es wird kein 2D-A* auf eine 3D-Welt projiziert. Gerade bei starkem Wind sind erfolgreiche Navigation und zuverlässige Ortung noch nicht nachgewiesen.
 
-Offline erzeugte Simulationen liefern das Label `target_source_near`: liegt die Kandidatenzelle höchstens eine Manhattan-Zelle von der tatsächlichen Quelle entfernt? Die tatsächliche Quelle wird ausschließlich für Trainingslabels und Evaluation gelesen, nicht für Live-Features oder die Suchplanung. `TabPFNClassifier.predict_proba()` bewertet neue Kandidaten. Die Quelle mit dem höchsten Score ist die aktuelle Schätzung.
-
-100 Episoden ergeben 26.871 Kandidatenzeilen. Episoden 0–74 bilden den Trainingspool, 75–99 den Testpool. Maximal 8.000 zufällig ausgewählte Trainingszeilen werden mit festem Seed als Kontext verwendet. Positive Kandidaten sind beim Erzeugen überrepräsentiert. Die Heatmap zeigt deshalb **normierte Rangfolgescores, keine kalibrierten Quellenwahrscheinlichkeiten**.
-
-**Gefahrenmodell:** Separate TabPFN-Klassifikation für `target_hazard_t4`, basierend auf der aktuellen/vorherigen mobilen Messung, Position, Wind, Karte und Messabdeckung. Ohne feste Sensoren sind die einfachen IDW-Felder räumlich konstant. Dieses Modell ist derzeit noch schwach.
-
-**Planner:** Verwendet die TabPFN-Quellenscores, Besuchszähler und A* zum nächsten Messziel. Der Planner hält Routen für mindestens sechs Simulationsschritte und überprüft sie dann erneut. Ohne klares Gassignal priorisiert er ungemessene Flächen; mit Signal regionale TabPFN-Quellenscores. Tatsächliche Wegkosten, Besuchszähler und die Abdeckung eines Messpunkts werden berücksichtigt. Randzellen bleiben möglich, werden aber nicht pauschal bevorzugt. Gefahr erhält nur ein kleines Gewicht, da die Mission Quellenortung ist. Keine inverse Ausbreitungsrechnung und kein Zugriff auf die tatsächliche Quelle. Eine stabile Schätzung mit positiven Messungen vor Ort wird nur als vermuteter Fund gemeldet, nicht als Beweis.
-
-## API auf der RTX 4090
-
-Servercode: `api/server.py`. Remote: `~/projects/countercoach/server.py`, Log `plumesense-api.log`. Der Dienst läuft mit nohup und startet nach einem Server-Reboot nicht automatisch. Frühere Versionen wurden dort gesichert.
-
-POST `/predict` erhält `X_train`, `y_train`, `X_test` und optional `context` (`hazard` oder `source`). Antwort: `probabilities`, `classes`, `predictions`, `fit_reused`, `elapsed_seconds`. Zwei getrennte Fit-Kontexte verhindern ständiges Wechseln zwischen Quellen- und Gefahrenmodell; ein Lock schützt gemeinsame Modelle. TabPFN v3.5-fast, CUDA, ein Ensemblemitglied. `/health` bestätigt CUDA und NVIDIA GeForce RTX 4090.
-
-Daten werden an den konfigurierten API-Dienst übertragen. Jede Anfrage enthält derzeit die vollständigen Kontextdaten. `fit_seconds` im API-Evaluationsbericht bezeichnet nur die lokale Vorbereitung; echtes Fit, Netzwerk und Inferenz sind in der ersten Request-Latenz enthalten. Lokales Backend `tabpfn` benötigt eigene Modellgewichte/Lizenz und nutzt `device=auto`.
-
-## Evaluation und aktueller Stand
+## Evaluation
 
 ```bash
 python -m pytest -q
-python run.py audit
-python run.py evaluate --backend tabpfn-api --navigation-episodes 0
-python evaluate_source_model.py
-python evaluate_search.py --episodes 1 --steps 100 --backend tabpfn-api
+python -m integration.evaluate
+python -m server.app --mock-agents --port 8000
+# Echter WebSocket-Modus mit unserem API-Agenten:
+python -m server.app --port 8000
 ```
 
-`evaluate_source_model.py` bewertet alle freien Zellen in fünf ungesehenen Episoden zu je drei Zeitpunkten. Nicht nur vorselektierte Kandidaten werden geprüft. Ergebnis des ersten echten 4090-Laufs (`reports/tabpfn_source_full_grid_v1.json`): mittlerer Ortungsfehler **9,87 Zellen**, **2/15** Momentaufnahmen innerhalb von zwei Zellen. Auf ungesehenen Episoden ist die Quellenprognose damit **noch nicht zuverlässig**.
+`reports/main3d_evaluation.json` enthält die erste echte 4090-Prüfung: Trainingsepisoden 0–17, Testepisoden 18–23, 896 Testzeilen. Quellen-AUROC ca. 0,582, F1 0; Gefahren-AUROC ca. 0,789, F1 ca. 0,121. Das sind Metriken auf vorselektierten Kandidaten, kein Nachweis einer erfolgreichen 3D-Lecksuche. Es werden keine 2D-Erfolgsquoten auf 3D übertragen. Der kleine Kontext liefert insbesondere noch keine zuverlässige Quellenlokalisierung.
 
-Vollständiger Suchlauf Seed 100 (`reports/tabpfn_source_search_tabpfn-api_v1.json`): vermuteter Fund nach 88 Schritten, tatsächlicher Schätzfehler **3,16 Zellen**; das Erfolgskriterium von höchstens zwei Zellen wurde **nicht erreicht**. Stabile Modellschätzungen plus positive Gaswerte reichen nicht aus, einen Fund sicher zu bestätigen. Das wird in der Oberfläche ausdrücklich als Vermutung bezeichnet.
+Quellenkarten sind normierte Scores, keine kalibrierten Wahrscheinlichkeiten. Der übernommene WebSocket-Feldname `q50` enthält für unseren Adapter diese Quellenscores; `uncertainty` ist lediglich Klassifikationsmehrdeutigkeit, kein Regressionsquantil und keine epistemische Unsicherheit. Die Gefahrenkarte wird in der Streamlit-Demo aus separaten Agentendiagnosen dargestellt; der eingefrorene WebSocket-Vertrag bleibt unverändert.
 
-TabPFN-Gefahrenmodell nur mit mobilem Sensor: AUROC **0,552**, F1 **0** bei Schwelle 0,5, Brier **0,0359** auf 3.888 ungesehenen Rasterabfragen. Wenige Messungen ohne Kontakt mit der Wolke bestimmen die Quelle oft nicht eindeutig. Weitere unabhängige Simulationen, bessere Historienmerkmale, breitere Erkundung und eine validierte Abbruchregel bleiben erforderlich.
+Main bewertet `locked` und Abstände mit der tatsächlichen Quelle ausschließlich im Evaluator. Diese Werte gehen nicht an den Agenten. Eine Statusmeldung ist daher eine Simulator-Auswertung und keine eigenständig kalibrierte Erfolgsgarantie des Modells.
 
-Die früheren **9/9** erfolgreichen Ortungen gehören zum archivierten **physikalischen Quellenmodell**. Sie sind kein Ergebnis der jetzigen TabPFN-Quellensuche. Ältere Berichte bleiben als Vergleich erhalten und dürfen nicht als aktuelle Modellleistung präsentiert werden.
+## Erhaltene Bestandteile
 
-## Originaldaten
-
-Unverändert unter `data/original/`: 6.696 Trainings- und 2.232 Testzeilen, acht feste Messpositionen und ca. 6,3 % positive Gefahrenlabels. Die reduzierte Trainingsdatei stimmt mit den entsprechenden Spalten der vollständigen Datei überein. Vollständige Testmetadaten fehlen im Anhang, daher lässt sich die ursprüngliche Episodentrennung nicht unabhängig bestätigen. `predictions.csv` sagt Quellen-Y voraus und ist keine Gefahrenprognose.
-
-Originaldaten werden nicht für die Live-Drohne verwendet, da sie von festen Sensoren stammen. Die neuen Dateien `synthetic_drone_only.csv` und `source_histories.csv` werden reproduzierbar erzeugt und sind nicht versioniert. Ground Truth wird in der Demo ausschließlich separat angezeigt und zur Auswertung gelesen.
-
-
-### Erkundung und Historienmerkmale überarbeitet
-
-Die Trainingsflugwege starten nun zur Hälfte an zufälligen freien Positionen, zur Hälfte bei (0,0). Besuchskosten verringern wiederholte Korridore. Neue Features: Messdistanzen, Messwerte und Alter der vier nächsten historischen Messungen relativ zum Quellenkandidaten; zeitgewichtete historische IDW, lokale Messanzahl, Mittelwert/Maximum und Windprojektionen zu den stärksten Messorten. Nur reale mobile Beobachtungen gehen ein.
-
-Die Suchplanung verwendet regionale Quellenscores, den Abstand zu bisherigen Messorten und noch ungemessene Nachbarschaften. Ohne deutliches Gas überwiegt Erkundung; nach Gaskontakt überwiegen TabPFN-Quellenregionen. Wegkosten werden über erreichbare freie Zellen berechnet. Zieländerungen erfolgen frühestens nach sechs Schritten oder bei Ankunft. Geometrische Abdeckung ist eine Heuristik für informative Messungen, keine berechnete Informationsentropie.
-
-UI-Test auf der echten API: erste acht Schritte von (0,0) über (0,1), (0,2), (1,2), (1,3), (2,3), (3,3), (4,3) nach (5,3). Kein langes Folgen der äußeren Kante mehr. 19 Tests bestehen.
-
-Neue Modellprüfung: Episoden 80–84, 7/15 Schätzungen innerhalb von zwei Zellen, mittlerer Fehler 5,35 Zellen (`reports/tabpfn_source_grid_v2_80_84.json`). Vergleich auf Episoden 75–79: 0/15, mittlerer Fehler 10,26 Zellen (`reports/tabpfn_source_grid_v2_75_79.json`), gegenüber zuvor 2/15 und 9,87. Die Modellqualität ist also gemischt; eine allgemeine Verbesserung der TabPFN-Ortung ist nicht nachgewiesen. Randverhalten der Planung und Genauigkeit des Modells werden getrennt bewertet.
-
-Aktueller vollständiger 4090-Suchlauf (Seed 100, maximal 100 Schritte): kein bestätigter Fund, abschließender Ortungsfehler 2,0 Zellen, Exposition 1,955, Laufzeit 163,24 s. Bericht: `reports/tabpfn_source_search_tabpfn-api.json`. Der frühere Lauf liegt als `_v1.json` vor. Der Planner erkundet das Innere, aber eine zuverlässige Quellenbestätigung ist weiterhin nicht nachgewiesen. Latenz und Modellqualität sind zusätzliche Einschränkungen dieser Konfiguration.
+[README-main.md](README-main.md) dokumentiert die ursprünglichen main-Verträge und geplante Three.js-Oberfläche (auf main liegt bislang nur deren Anleitung). [README-plumesense-2d.md](README-plumesense-2d.md) beschreibt den bisherigen Stand. Die frühere Demo bleibt als `app_2d.py` mit ihren Datenpipelines und Auswertungen erhalten; diese 2D-Daten dürfen nicht für 3D verwendet werden. Der ursprüngliche API-Server, der SSH-Tunnel und alle alten Backend-Dateien bleiben erhalten.

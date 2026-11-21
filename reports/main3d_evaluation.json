@@ -1,0 +1,59 @@
+{
+  "training_episodes": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+  ],
+  "test_episodes": [
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+  ],
+  "note": "Metrics on sampled candidate rows; source scores not calibrated; not navigation success or full-grid source accuracy.",
+  "source": {
+    "metrics": {
+      "n": 896,
+      "positives": 128,
+      "f1": 0.0,
+      "auroc": 0.5818939208984375,
+      "brier": 0.14026130327535857
+    },
+    "request_seconds": 1.7512093000004825
+  },
+  "hazard": {
+    "metrics": {
+      "n": 896,
+      "positives": 100,
+      "f1": 0.1206896551724138,
+      "auroc": 0.7893655778894471,
+      "brier": 0.09311167511053217
+    },
+    "request_seconds": 0.9653610559998924
+  },
+  "live_smoke": {
+    "sim_time": 2.499999999999999,
+    "wall_seconds": 2.779368584000622,
+    "grid_points": 500,
+    "hazard_points": 500,
+    "inference_seconds": 2.015969579999364,
+    "belief_received": true
+  }
+}

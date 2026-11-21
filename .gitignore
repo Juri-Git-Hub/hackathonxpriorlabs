@@ -5,3 +5,24 @@ data/synthetic.csv
 reports/*_predictions.csv
 data/synthetic_drone_only.csv
 data/source_histories.csv
+data/main3d.csv
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
