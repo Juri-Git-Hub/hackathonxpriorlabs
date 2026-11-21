@@ -24,7 +24,6 @@ from pydantic import ValidationError
 from agents.base import BaseAgent
 from agents.mock_agent import MockTabPFNAgent
 from integration.wind_search import DEFAULT_ADAPTIVE_WIND
-from agents.plumesense_agent import PlumeSenseAgent
 from shared.schemas import JudgeCommand, BackendStatusPayload
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -38,6 +37,7 @@ def build_agents(mock_agents: bool = True,adaptive_wind: bool = DEFAULT_ADAPTIVE
     if mock_agents:
         primary: BaseAgent = MockTabPFNAgent(drone_id="tabpfn")
     else:
+        from agents.plumesense_agent import PlumeSenseAgent
         primary = PlumeSenseAgent(drone_id="tabpfn",adaptive_wind=adaptive_wind)
 
     return {

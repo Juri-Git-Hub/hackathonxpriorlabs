@@ -24,13 +24,16 @@ class BuildingBox(BaseModel):
     model: Optional[Literal[
         "compressor",
         "fractionator",
+        "horton_sphere",
         "metering_skid",
         "receiver_skid",
         "cryogenic_vessel",
         "transfer_gantry",
         "compressor_train",
         "cooling_cell",
+        "hyperbolic_tower",
         "exhaust_stack",
+        "pump_house",
     ]] = None
 
 
@@ -82,6 +85,7 @@ class WorldInitPayload(BaseModel):
     pipes: list[PipeRun] = []
     grid_coords: list[Vec3]  # N candidate 3D points (~400-600) for TabPFN belief cloud
     layout_seed: Optional[int] = None
+    theme: Optional[str] = None
 
 
 class WindFieldPayload(BaseModel):

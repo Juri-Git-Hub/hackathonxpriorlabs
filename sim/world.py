@@ -62,6 +62,7 @@ class World:
             BuildingBox(
                 id="tank_east",
                 kind="storage_tank",
+                model="horton_sphere",
                 min_xyz=(22.0, -16.0, 0.0),
                 max_xyz=(40.0, 2.0, 14.0),
             ),
@@ -224,10 +225,12 @@ class World:
         ]
 
         self.layout_seed = layout_seed if map_id == "refinery" or is_generated else None
+        self.theme: str | None = _MAPS.get(map_id, {}).get("presentation", {}).get("theme")
         self.pipe_runs = self.pipes
         if self.layout_seed is not None:
-            from sim.layout import generate_layout
+            from sim.layout import generate_layout, layout_theme
             self.buildings, self.assets, self.pipe_runs = generate_layout(self.buildings, self.assets, self.layout_seed)
+            self.theme = layout_theme(self.layout_seed)
 
         if map_id in _MAPS and map_id != "refinery":
             layout = _MAPS[map_id]
@@ -721,4 +724,5 @@ class World:
             grid_coords=self.grid_coords,
             pipe_runs=self.pipe_runs,
             layout_seed=self.layout_seed,
+            theme=self.theme,
         )

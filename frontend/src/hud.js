@@ -20,6 +20,7 @@ export class HudController {
     onTogglePlaceLeakMode,
     onResetTrails,
     onSelectDrone,
+    onClearSelection,
     onFollowDrone,
     onFocusPosition,
     onPlaceLeakAt,
@@ -37,6 +38,7 @@ export class HudController {
     this.onTogglePlaceLeakMode = onTogglePlaceLeakMode;
     this.onResetTrails = onResetTrails;
     this.onSelectDrone = onSelectDrone;
+    this.onClearSelection = onClearSelection;
     this.onFollowDrone = onFollowDrone;
     this.onFocusPosition = onFocusPosition;
     this.onPlaceLeakAt = onPlaceLeakAt;
@@ -192,6 +194,7 @@ export class HudController {
 
     this.btnInspectorClose.addEventListener("click", () => {
       this.clearInspector();
+      this.onClearSelection?.();
     });
 
     this.elScoreBody.addEventListener("click", (evt) => {
