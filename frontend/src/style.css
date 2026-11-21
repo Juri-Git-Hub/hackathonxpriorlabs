@@ -853,8 +853,14 @@ body.hud-hidden .hud-panel {
 
 @media (max-width: 1180px) {
   #viewer-toolbar {
-    bottom: auto;
-    top: 14px;
+    bottom: 14px;
+    top: auto;
+    padding: 5px 6px;
+    gap: 3px;
+  }
+  #viewer-toolbar .tool-btn {
+    padding: 3px 7px;
+    font-size: 10.5px;
   }
 }
 
