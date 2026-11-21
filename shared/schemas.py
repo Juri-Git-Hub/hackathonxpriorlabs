@@ -30,6 +30,16 @@ class FacilityAsset(BaseModel):
     age_years: float
 
 
+class PipeRun(BaseModel):
+    id: str
+    name: str
+    service: str
+    pressure_bar: float
+    radius: float
+    material: Literal["gas", "steel", "coolant"]
+    points: list[Vec3]
+
+
 class LeakSource(BaseModel):
     id: str
     pos: Vec3
@@ -52,7 +62,20 @@ class WorldInitPayload(BaseModel):
     bounds_max: Vec3 = (60.0, 60.0, 30.0)
     buildings: list[BuildingBox]
     assets: list[FacilityAsset]
+    pipes: list[PipeRun] = []
     grid_coords: list[Vec3]  # N candidate 3D points (~400-600) for TabPFN belief cloud
+
+
+class WindFieldPayload(BaseModel):
+    """Coarse 3D mass-consistent wind velocity grid for frontend flow visualization."""
+
+    type: Literal["wind_field"] = "wind_field"
+    bounds_min: Vec3
+    bounds_max: Vec3
+    dims: tuple[int, int, int]  # (nx, ny, nz)
+    base_speed: float
+    # Flattened C-order (nx * ny * nz * 3) velocity vectors [vx, vy, vz, ...]
+    vectors: list[float]
 
 
 class DroneObservation(BaseModel):

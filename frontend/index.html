@@ -4,42 +4,39 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Drone Gas Leak Detection — 3D Sim</title>
+    <style>
+      html, body { background: #0b0f17; margin: 0; }
+    </style>
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="canvas-container"></div>
 
-    <!-- Top-left title & connection status -->
+    <!-- Top-left title & live telemetry status -->
     <div id="header-bar" class="hud-panel">
       <div class="header-title">
         <span class="dot" id="conn-dot"></span>
         <h1>Drone Gas Leak Detection</h1>
         <span id="conn-label" class="badge">Connecting...</span>
+        <button id="btn-present" class="mini-btn" title="Toggle Clean Presentation View (P)">Present</button>
       </div>
       <div class="header-meta">
-        <span>Sim Time: <strong id="sim-time">0.0s</strong></span>
-        <span>Wind: <strong id="wind-readout">0.0 m/s</strong></span>
+        <span>Sim: <strong id="sim-time">0.0s</strong></span>
+        <span>Live Wind (w/ Gusts): <strong id="wind-readout">0.0 m/s</strong></span>
         <span>Leaks: <strong id="leak-count">0</strong></span>
-        <span id="dropout-badge" class="badge badge-warn hidden">NaN DROPOUTS ACTIVE</span>
+        <span id="dropout-badge" class="badge badge-warn hidden">30% NaN SENSOR FAULTS</span>
       </div>
     </div>
 
     <!-- Transient feedback toast -->
     <div id="toast" class="toast hidden"></div>
 
-    <!-- Interactive Object Inspector (opens on click: drone / pipe / valve / building) -->
-    <div id="inspector" class="hud-panel hidden">
-      <div class="inspector-header">
-        <span id="inspector-type" class="badge">OBJECT</span>
-        <strong id="inspector-title">Selected</strong>
-        <button id="inspector-close" class="icon-btn" title="Close">✕</button>
-      </div>
-      <div id="inspector-body" class="inspector-body"></div>
-      <div id="inspector-actions" class="inspector-actions"></div>
-    </div>
-
-    <!-- Top-right scoreboard -->
+    <!-- Top-right live race scoreboard + TabPFN advantage strip -->
     <div id="scoreboard" class="hud-panel">
-      <div class="panel-title">Live Race Scoreboard</div>
+      <div class="panel-header-row">
+        <span class="panel-title">Live Race Benchmark</span>
+        <span id="tabpfn-metric" class="metric-pill">TabPFN Est: —</span>
+      </div>
       <table>
         <thead>
           <tr>
@@ -53,55 +50,155 @@
         </thead>
         <tbody id="scoreboard-body"></tbody>
       </table>
+      <div id="tabpfn-callout" class="callout-strip">
+        <span class="callout-dot"></span>
+        <span id="tabpfn-callout-text">TabPFN active spatial search — quantile UCB over 3D facility priors</span>
+      </div>
     </div>
 
-    <!-- Bottom-left judge controls -->
+    <!-- Interactive Object Inspector (opens on click: drone / pipe / valve / building) -->
+    <div id="inspector" class="hud-panel hidden">
+      <div class="inspector-header">
+        <span id="inspector-type" class="badge">OBJECT</span>
+        <strong id="inspector-title">Selected</strong>
+        <button id="inspector-close" class="icon-btn" title="Close">✕</button>
+      </div>
+      <div id="inspector-body" class="inspector-body"></div>
+      <div id="inspector-actions" class="inspector-actions"></div>
+    </div>
+
+    <!-- Bottom-left judge controls (collapsible in Presentation Mode) -->
     <div id="controls" class="hud-panel">
-      <div class="panel-title">Judge Controls</div>
+      <div class="panel-header-row">
+        <span class="panel-title">Judge Controls — Base Wind Setpoint</span>
+      </div>
 
       <div class="control-row">
         <label>
-          <div>Wind Dir (<span id="wind-angle-val">15</span>°)</div>
+          <div>Setpoint Dir (<span id="wind-angle-val">15</span>°)</div>
           <input type="range" id="wind-angle" min="0" max="360" step="5" value="15" />
         </label>
         <label>
-          <div>Wind Speed (<span id="wind-speed-val">3.5</span> m/s)</div>
+          <div>Setpoint Speed (<span id="wind-speed-val">3.5</span> m/s)</div>
           <input type="range" id="wind-speed" min="0.5" max="8.0" step="0.5" value="3.5" />
         </label>
       </div>
 
       <div class="button-grid">
         <button id="btn-reveal-plume" class="btn">Reveal True Plume</button>
-        <button id="btn-toggle-belief" class="btn btn-active">TabPFN Belief Cloud</button>
-        <button id="btn-dropout" class="btn">Inject Sensor Dropouts (NaN)</button>
-        <button id="btn-place-leak" class="btn">Click Ground: Place Leak</button>
+        <button id="btn-toggle-belief" class="btn btn-active">TabPFN Belief Field</button>
+        <button id="btn-toggle-wind" class="btn btn-active">3D Wind Field</button>
+        <button id="btn-dropout" class="btn">NaN Sensor Faults</button>
+        <button id="btn-place-leak" class="btn">Place Leak</button>
         <button id="btn-clear-leaks" class="btn">Clear Leaks</button>
         <button id="btn-pause" class="btn">Pause</button>
         <button id="btn-reset" class="btn btn-accent">Reset Race</button>
       </div>
 
       <div id="hint-text" class="hint">
-        Drag to orbit · Scroll to zoom · Right-drag to pan
+        WASD/QE fly (+Shift fast) · Drag orbit · R record · F snap · ? shortcuts
       </div>
     </div>
 
-    <!-- Bottom-right wind compass & legend -->
+    <!-- Bottom-center Viewer Tools Dock (Recording, Snapshot, Camera Presets, Auto-Orbit, Shortcuts) -->
+    <div id="viewer-toolbar" class="hud-panel" role="toolbar" aria-label="Viewer Tools">
+      <button id="btn-record" class="tool-btn" title="Start / Stop 3D Video Recording (R)">
+        <span class="rec-dot" id="rec-dot"></span>
+        <span id="btn-record-label">Rec</span>
+      </button>
+      <button id="btn-snapshot" class="tool-btn" title="Capture PNG Screenshot (F)">
+        <svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 6.5h2.5l1.3-2h6.4l1.3 2H17a1.5 1.5 0 0 1 1.5 1.5v7.5A1.5 1.5 0 0 1 17 17H3a1.5 1.5 0 0 1-1.5-1.5V8A1.5 1.5 0 0 1 3 6.5Z"/>
+          <circle cx="10" cy="11.5" r="2.8"/>
+        </svg>
+        <span>Snap</span>
+      </button>
+
+      <span class="toolbar-sep" aria-hidden="true"></span>
+
+      <button id="btn-cam-overview" class="tool-btn tool-btn-active" data-cam-preset="overview" title="Overview Camera (1)">1 · View</button>
+      <button id="btn-cam-top" class="tool-btn" data-cam-preset="top" title="Top-Down Tactical View (2)">2 · Top</button>
+      <button id="btn-cam-low" class="tool-btn" data-cam-preset="low" title="Low-Angle Pipe Rack View (3)">3 · Low</button>
+      <button id="btn-follow-cycle" class="tool-btn" title="Cycle Follow Drone (Tab)">Follow</button>
+      <button id="btn-auto-orbit" class="tool-btn" title="Toggle Cinematic Auto-Orbit (O)">Orbit</button>
+
+      <span class="toolbar-sep" aria-hidden="true"></span>
+
+      <button id="btn-hide-hud" class="tool-btn" title="Hide / Show All HUD (H)">HUD</button>
+      <button id="btn-shortcuts" class="tool-btn tool-btn-icon" title="Keyboard Shortcuts (?)">?</button>
+    </div>
+
+    <!-- Minimal floating REC badge (remains visible if HUD is hidden while recording) -->
+    <button id="rec-floating-badge" class="rec-floating-badge hidden" title="Click or press R to stop recording">
+      <span class="rec-dot active"></span>
+      <span id="rec-floating-time">REC 00:00</span>
+    </button>
+
+    <!-- Tactile camera shutter flash -->
+    <div id="shutter-flash" class="shutter-flash" aria-hidden="true"></div>
+
+    <!-- Keyboard Shortcuts & Viewer Tools Help Modal -->
+    <div id="shortcuts-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+      <div class="modal-card">
+        <div class="modal-header">
+          <strong id="shortcuts-title">Sim Viewer Controls &amp; Shortcuts</strong>
+          <button id="shortcuts-close" class="icon-btn" title="Close (Esc)">✕</button>
+        </div>
+        <div class="shortcuts-grid">
+          <div class="shortcut-section">
+            <div class="shortcut-section-title">Camera &amp; Flight</div>
+            <div class="shortcut-row"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Fly horizontally (or Arrow keys)</span></div>
+            <div class="shortcut-row"><kbd>Q</kbd> / <kbd>E</kbd><span>Move camera down / up</span></div>
+            <div class="shortcut-row"><kbd>Shift</kbd> / <kbd>Alt</kbd><span>Hold for fast (2.4×) or slow (0.35×) fly</span></div>
+            <div class="shortcut-row"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd><span>Overview / Top-Down / Low Pipe Rack</span></div>
+            <div class="shortcut-row"><kbd>Tab</kbd><span>Cycle Follow Drone (TabPFN → Gradient → Lawnmower)</span></div>
+            <div class="shortcut-row"><kbd>O</kbd><span>Toggle cinematic Auto-Orbit turntable</span></div>
+            <div class="shortcut-row"><kbd>0</kbd> / <kbd>Home</kbd><span>Reset camera to Overview</span></div>
+          </div>
+          <div class="shortcut-section">
+            <div class="shortcut-section-title">Capture &amp; Simulation</div>
+            <div class="shortcut-row"><kbd>R</kbd><span>Start / Stop WebM video recording</span></div>
+            <div class="shortcut-row"><kbd>F</kbd><span>Capture instant PNG screenshot</span></div>
+            <div class="shortcut-row"><kbd>Space</kbd><span>Pause / Resume simulation</span></div>
+            <div class="shortcut-row"><kbd>V</kbd><span>Toggle True Gas Plume visibility</span></div>
+            <div class="shortcut-row"><kbd>B</kbd><span>Toggle TabPFN Belief Field</span></div>
+            <div class="shortcut-row"><kbd>P</kbd><span>Toggle Presentation Mode (hide controls)</span></div>
+            <div class="shortcut-row"><kbd>H</kbd><span>Hide / Restore entire HUD</span></div>
+            <div class="shortcut-row"><kbd>?</kbd> / <kbd>Esc</kbd><span>Toggle this help / cancel selection</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom-right wind compass & scientific legend -->
     <div id="legend" class="hud-panel">
       <div class="compass-wrap">
-        <svg id="wind-compass" viewBox="0 0 80 80" width="68" height="68">
-          <circle cx="40" cy="40" r="34" fill="none" stroke="#2a3548" stroke-width="2" />
-          <text x="40" y="13" text-anchor="middle" fill="#64748b" font-size="9">N (+Y)</text>
-          <text x="69" y="43" text-anchor="middle" fill="#64748b" font-size="9">E</text>
+        <svg id="wind-compass" viewBox="0 0 80 80" width="64" height="64">
+          <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(148,163,184,0.28)" stroke-width="1.8" />
+          <text x="40" y="13" text-anchor="middle" fill="#94a3b8" font-size="8.5" font-weight="600">N</text>
+          <text x="69" y="43" text-anchor="middle" fill="#94a3b8" font-size="8.5" font-weight="600">E</text>
           <g id="wind-arrow-group" transform="rotate(0 40 40)">
             <line x1="40" y1="58" x2="40" y2="20" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
-            <polygon points="40,14 34,26 46,26" fill="#38bdf8" />
+            <polygon points="40,13 34,25 46,25" fill="#38bdf8" />
           </g>
         </svg>
         <div class="legend-items">
-          <div><span class="swatch" style="background:#22d3ee"></span> TabPFN Drone</div>
-          <div><span class="swatch" style="background:#fb923c"></span> Gradient (Surge-Cast)</div>
-          <div><span class="swatch" style="background:#94a3b8"></span> Lawnmower</div>
-          <div><span class="swatch" style="background:#e879f9"></span> Belief Cloud (q50 / unc)</div>
+          <div class="legend-row">
+            <span><span class="swatch" style="background:#22d3ee"></span>TabPFN</span>
+            <span><span class="swatch" style="background:#fb923c"></span>Gradient</span>
+            <span><span class="swatch" style="background:#e2e8f0"></span>Lawnmower</span>
+          </div>
+          <div class="colorbar-block">
+            <div class="colorbar-labels">
+              <span>TabPFN Belief (q50)</span>
+              <span>Low → High</span>
+            </div>
+            <div class="colorbar-grad"></div>
+          </div>
+          <div class="legend-sub">
+            <span class="swatch" style="background:#f59e0b; border-radius:50%"></span>
+            True Gas Plume (Thermal Vapor)
+          </div>
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ from shared.schemas import (
     BuildingBox,
     FacilityAsset,
     GridPointMeta,
+    PipeRun,
     Vec2,
     Vec3,
     WorldInitPayload,
@@ -84,6 +85,150 @@ class World:
             FacilityAsset(id="valve_05", asset_type="valve", pos=(0.0, -25.0, 2.5), age_years=12.5),
         ]
 
+        # Single source of truth for elevated industrial piping network (shared with frontend)
+        self.pipes: list[PipeRun] = [
+            PipeRun(
+                id="line_gas_main",
+                name="Main Methane Header",
+                service="High-Pressure Gas",
+                pressure_bar=18.4,
+                radius=0.34,
+                material="gas",
+                points=[
+                    (-20.0, -14.0, 3.5),
+                    (-17.5, -14.0, 3.5),
+                    (-17.5, -2.0, 3.5),
+                    (-14.0, -2.0, 4.4),
+                    (14.0, -2.0, 4.4),
+                    (15.5, -1.0, 4.5),
+                    (20.5, -1.0, 4.5),
+                    (20.5, -7.0, 6.0),
+                    (23.0, -7.0, 6.0),
+                ],
+            ),
+            PipeRun(
+                id="line_east_transfer",
+                name="East Tank Transfer Line",
+                service="Process Feed",
+                pressure_bar=11.2,
+                radius=0.28,
+                material="steel",
+                points=[
+                    (31.0, -15.0, 3.0),
+                    (31.0, -17.5, 3.0),
+                    (14.0, -17.5, 3.0),
+                    (4.0, -17.5, 3.0),
+                    (4.0, -7.2, 5.0),
+                    (4.0, -3.0, 5.0),
+                ],
+            ),
+            PipeRun(
+                id="line_north_gas",
+                name="North Tank Gas Feed",
+                service="High-Pressure Gas",
+                pressure_bar=16.0,
+                radius=0.32,
+                material="gas",
+                points=[
+                    (-10.0, 3.0, 4.0),
+                    (-10.0, 5.5, 4.0),
+                    (0.0, 5.5, 4.0),
+                    (0.0, 12.5, 5.0),
+                    (0.0, 15.0, 5.0),
+                ],
+            ),
+            PipeRun(
+                id="line_north_coolant",
+                name="North Cooling Return",
+                service="Coolant Loop",
+                pressure_bar=6.5,
+                radius=0.30,
+                material="coolant",
+                points=[
+                    (8.0, 3.0, 6.0),
+                    (8.0, 5.5, 6.0),
+                    (11.5, 5.5, 6.0),
+                    (11.5, 24.0, 8.0),
+                    (9.0, 24.0, 8.0),
+                ],
+            ),
+            PipeRun(
+                id="line_comp_discharge",
+                name="Compressor Discharge",
+                service="Compressed Vapor",
+                pressure_bar=22.0,
+                radius=0.28,
+                material="steel",
+                points=[
+                    (-19.0, 24.0, 4.5),
+                    (-16.5, 24.0, 4.5),
+                    (-9.0, 24.0, 4.5),
+                ],
+            ),
+            PipeRun(
+                id="line_comp_coolant",
+                name="Compressor Coolant",
+                service="Coolant Loop",
+                pressure_bar=5.8,
+                radius=0.26,
+                material="coolant",
+                points=[
+                    (-26.0, 17.0, 5.0),
+                    (-26.0, 14.5, 5.0),
+                    (-26.0, 2.0, 4.0),
+                    (-15.0, 2.0, 4.0),
+                ],
+            ),
+            PipeRun(
+                id="line_south_header",
+                name="South Manifold Gas Line",
+                service="High-Pressure Gas",
+                pressure_bar=17.5,
+                radius=0.30,
+                material="gas",
+                points=[
+                    (-6.0, -3.5, 4.0),
+                    (-6.0, -7.2, 4.0),
+                    (-6.0, -25.0, 2.5),
+                    (0.0, -25.0, 2.5),
+                    (0.0, -25.0, 0.2),
+                ],
+            ),
+            PipeRun(
+                id="line_control_bypass",
+                name="Control Unit Bypass",
+                service="Instrument Line",
+                pressure_bar=9.0,
+                radius=0.26,
+                material="steel",
+                points=[
+                    (-29.0, -13.0, 3.5),
+                    (-29.0, -10.5, 3.5),
+                    (-18.5, -10.5, 3.5),
+                    (-18.5, -20.0, 4.0),
+                    (-21.0, -20.0, 4.0),
+                ],
+            ),
+        ]
+
+        # Precompute flattened pipe segments for fast vectorized distance & drag queries
+        seg_a: list[Vec3] = []
+        seg_b: list[Vec3] = []
+        seg_r: list[float] = []
+        for pipe in self.pipes:
+            for j in range(len(pipe.points) - 1):
+                a = pipe.points[j]
+                b = pipe.points[j + 1]
+                if math.dist(a, b) > 0.05:
+                    seg_a.append(a)
+                    seg_b.append(b)
+                    seg_r.append(pipe.radius)
+        self._pipe_seg_a = np.array(seg_a, dtype=np.float64) if seg_a else np.zeros((0, 3), dtype=np.float64)
+        self._pipe_seg_b = np.array(seg_b, dtype=np.float64) if seg_b else np.zeros((0, 3), dtype=np.float64)
+        self._pipe_seg_ab = self._pipe_seg_b - self._pipe_seg_a
+        self._pipe_seg_len2 = np.maximum(np.sum(self._pipe_seg_ab ** 2, axis=1), 1e-9)
+        self._pipe_seg_r = np.array(seg_r, dtype=np.float64) if seg_r else np.zeros(0, dtype=np.float64)
+
         # Precomputed NumPy arrays for fast vectorized geometry & physics queries
         self._bldg_min = np.array([b.min_xyz for b in self.buildings], dtype=np.float64)
         self._bldg_max = np.array([b.max_xyz for b in self.buildings], dtype=np.float64)
@@ -143,40 +288,101 @@ class World:
                         coords.append(pt)
         return coords
 
-    def is_inside_building(self, pos: Vec3, margin: float = 0.0) -> bool:
-        """Return True if pos lies inside any BuildingBox expanded by margin."""
+    def is_inside_building(
+        self, pos: Vec3, margin: float = 0.0, skip_porous: bool = False
+    ) -> bool:
+        """Return True if pos lies inside any solid obstacle (exact cylinder for tanks)."""
         px, py, pz = pos
-        for x0, y0, z0, x1, y1, z1, _, _, _ in self._bldg_bounds_scalar:
-            if (
-                px >= x0 - margin
-                and px <= x1 + margin
-                and py >= y0 - margin
-                and py <= y1 + margin
-                and pz >= z0
-                and pz <= z1 + margin
-            ):
-                return True
+        for i, (x0, y0, z0, x1, y1, z1, cx, cy, _) in enumerate(self._bldg_bounds_scalar):
+            if skip_porous and self._bldg_is_porous[i]:
+                continue
+            if pz < z0 or pz > z1 + margin:
+                continue
+            if self._bldg_is_cylinder[i]:
+                r = float(self._bldg_cyl_radius[i]) + margin
+                dx = px - cx
+                dy = py - cy
+                if dx * dx + dy * dy <= r * r:
+                    return True
+            else:
+                if (
+                    px >= x0 - margin
+                    and px <= x1 + margin
+                    and py >= y0 - margin
+                    and py <= y1 + margin
+                ):
+                    return True
         return False
 
     def height_above_surface(self, px: float, py: float, pz: float) -> float:
         """Vertical clearance above ground (z=0) or any building/tank roof directly below."""
         h_agl = pz
-        for x0, y0, _, x1, y1, z1, _, _, _ in self._bldg_bounds_scalar:
-            if x0 <= px <= x1 and y0 <= py <= y1 and pz >= z1:
+        for i, (x0, y0, _, x1, y1, z1, cx, cy, _) in enumerate(self._bldg_bounds_scalar):
+            if pz < z1:
+                continue
+            if self._bldg_is_cylinder[i]:
+                r = float(self._bldg_cyl_radius[i])
+                if (px - cx) ** 2 + (py - cy) ** 2 <= r * r:
+                    h_roof = pz - z1
+                    if h_roof < h_agl:
+                        h_agl = h_roof
+            elif x0 <= px <= x1 and y0 <= py <= y1:
                 h_roof = pz - z1
                 if h_roof < h_agl:
                     h_agl = h_roof
         return max(0.05, h_agl)
 
     def push_outside_buildings(
-        self, points_nx3: np.ndarray, margin: float = 0.0
+        self, points_nx3: np.ndarray, margin: float = 0.0, skip_porous: bool = False
     ) -> np.ndarray:
-        """Vectorized push-out: moves any point inside a building to its nearest face."""
+        """Vectorized push-out: moves points inside buildings/tanks to nearest surface.
+
+        Uses exact cylinder geometry for storage tanks and skips open-truss pipe racks
+        when skip_porous=True (so gas puffs flow through pipe racks instead of teleporting).
+        """
         pts = points_nx3.copy()
         if pts.shape[0] == 0:
             return pts
 
         for i in range(len(self.buildings)):
+            if skip_porous and self._bldg_is_porous[i]:
+                continue
+
+            if self._bldg_is_cylinder[i]:
+                cx = float(self._bldg_center[i, 0])
+                cy = float(self._bldg_center[i, 1])
+                r_eff = float(self._bldg_cyl_radius[i]) + margin
+                z_lo = float(self._bldg_min[i, 2])
+                z_hi = float(self._bldg_max[i, 2]) + margin
+
+                dx = pts[:, 0] - cx
+                dy = pts[:, 1] - cy
+                r_dist = np.hypot(dx, dy)
+                inside = (r_dist <= r_eff) & (pts[:, 2] >= z_lo) & (pts[:, 2] <= z_hi)
+                if not np.any(inside):
+                    continue
+
+                sub = pts[inside]
+                d_rad = r_eff - r_dist[inside]
+                d_top = z_hi - sub[:, 2]
+                push_top = d_top < d_rad
+
+                if np.any(push_top):
+                    sub[push_top, 2] = z_hi + 0.05
+                push_side = ~push_top
+                if np.any(push_side):
+                    sdx = dx[inside][push_side]
+                    sdy = dy[inside][push_side]
+                    sr = r_dist[inside][push_side]
+                    safe_r = np.where(sr > 1e-6, sr, 1.0)
+                    ux = np.where(sr > 1e-6, sdx / safe_r, 1.0)
+                    uy = np.where(sr > 1e-6, sdy / safe_r, 0.0)
+                    sub[push_side, 0] = cx + ux * (r_eff + 0.05)
+                    sub[push_side, 1] = cy + uy * (r_eff + 0.05)
+
+                pts[inside] = sub
+                continue
+
             lo = self._bldg_min[i] - np.array([margin, margin, 0.0])
             hi = self._bldg_max[i] + margin
 
@@ -218,12 +424,53 @@ class World:
 
         return pts
 
+    def push_outside_pipes(
+        self, points_nx3: np.ndarray, margin: float = 0.05
+    ) -> np.ndarray:
+        """Vectorized continuous capsule push-out so puffs deflect cleanly around pipe runs."""
+        if points_nx3.shape[0] == 0 or self._pipe_seg_a.shape[0] == 0:
+            return points_nx3
+
+        pts = points_nx3.copy()
+        # Broad-phase Z filter: all pipes lie below z = 9.0 m
+        low_mask = pts[:, 2] <= 9.2
+        if not np.any(low_mask):
+            return pts
+
+        sub = pts[low_mask]  # (K, 3)
+        # Compute closest point on every segment: (K, S, 3)
+        ap = sub[:, None, :] - self._pipe_seg_a[None, :, :]
+        t = np.sum(ap * self._pipe_seg_ab[None, :, :], axis=2) / self._pipe_seg_len2[None, :]
+        t = np.clip(t, 0.0, 1.0)
+        closest = self._pipe_seg_a[None, :, :] + t[:, :, None] * self._pipe_seg_ab[None, :, :]
+        diff = sub[:, None, :] - closest
+        dist2 = np.sum(diff * diff, axis=2)
+        min_r = self._pipe_seg_r[None, :] + margin
+        hit_mask = dist2 < (min_r * min_r)
+
+        if np.any(hit_mask):
+            # Resolve against the deepest penetrating segment per point
+            pen = min_r - np.sqrt(np.maximum(dist2, 1e-12))
+            pen = np.where(hit_mask, pen, -1.0)
+            best_seg = np.argmax(pen, axis=1)
+            best_pen = pen[np.arange(sub.shape[0]), best_seg]
+            fix = best_pen > 0.0
+            if np.any(fix):
+                idx = np.nonzero(fix)[0]
+                s_idx = best_seg[idx]
+                v = diff[idx, s_idx]
+                v_norm = np.linalg.norm(v, axis=1, keepdims=True)
+                n_hat = np.where(v_norm > 1e-6, v / np.maximum(v_norm, 1e-6), np.array([[0.0, 0.0, 1.0]]))
+                sub[idx] = closest[idx, s_idx] + n_hat * (self._pipe_seg_r[s_idx, None] + margin + 0.02)
+            pts[low_mask] = sub
+
+        return pts
+
     def segment_transmission(self, p_from_nx3: np.ndarray, p_to: Vec3) -> np.ndarray:
         """Vectorized gas-transmission factor in (0, 1] from N puff centers to p_to.
 
-        Uses a vectorized slab ray-AABB intersection test so solid buildings and
-        storage tanks physically block gas from teleporting straight through walls,
-        while open-truss pipe racks partially attenuate it.
+        Uses exact ray-cylinder intersection for storage tanks and ray-AABB for
+        rectangular buildings and open-truss pipe racks.
         """
         n = p_from_nx3.shape[0]
         trans = np.ones(n, dtype=np.float64)
@@ -240,6 +487,53 @@ class World:
         inv_d = np.where(parallel, 0.0, 1.0 / np.where(parallel, 1.0, d))
 
         for i in range(len(self.buildings)):
+            if self._bldg_is_cylinder[i]:
+                cx = float(self._bldg_center[i, 0])
+                cy = float(self._bldg_center[i, 1])
+                r = float(self._bldg_cyl_radius[i])
+                z0 = float(self._bldg_min[i, 2])
+                z1 = float(self._bldg_max[i, 2])
+
+                # Z-slab interval [tz_enter, tz_exit]
+                par_z = parallel[:, 2]
+                tz1 = (z0 - p_from_nx3[:, 2]) * inv_d[:, 2]
+                tz2 = (z1 - p_from_nx3[:, 2]) * inv_d[:, 2]
+                in_z = (p_from_nx3[:, 2] >= z0) & (p_from_nx3[:, 2] <= z1)
+                tz_enter = np.where(par_z, np.where(in_z, -1e9, 1e9), np.minimum(tz1, tz2))
+                tz_exit = np.where(par_z, np.where(in_z, 1e9, -1e9), np.maximum(tz1, tz2))
+
+                # 2D ray-circle intersection in XY
+                ox = p_from_nx3[:, 0] - cx
+                oy = p_from_nx3[:, 1] - cy
+                dx = d[:, 0]
+                dy = d[:, 1]
+                a = dx * dx + dy * dy
+                b = 2.0 * (ox * dx + oy * dy)
+                c = ox * ox + oy * oy - r * r
+                disc = b * b - 4.0 * a * c
+
+                vert_ray = a < 1e-9
+                inside_cyl_xy = c <= 0.0
+                safe_a = np.where(vert_ray, 1.0, a)
+                sqrt_disc = np.sqrt(np.maximum(disc, 0.0))
+                tc_enter = np.where(
+                    vert_ray,
+                    np.where(inside_cyl_xy, -1e9, 1e9),
+                    np.where(disc >= 0.0, (-b - sqrt_disc) / (2.0 * safe_a), 1e9),
+                )
+                tc_exit = np.where(
+                    vert_ray,
+                    np.where(inside_cyl_xy, 1e9, -1e9),
+                    np.where(disc >= 0.0, (-b + sqrt_disc) / (2.0 * safe_a), -1e9),
+                )
+
+                t_enter = np.maximum(tc_enter, tz_enter)
+                t_exit = np.minimum(tc_exit, tz_exit)
+                hit = (t_exit >= t_enter) & (t_exit > 0.04) & (t_enter < 0.96)
+                if np.any(hit):
+                    trans[hit] *= self._bldg_transmission[i]
+                continue
+
             bmin = self._bldg_min[i]
             bmax = self._bldg_max[i]
 
@@ -286,9 +580,13 @@ class World:
             along = dx * ux + dy * uy
             cross = abs(-dx * uy + dy * ux)
 
-            # Projected building half-extents along and perpendicular to wind
-            half_along = hx * abs(ux) + hy * abs(uy)
-            half_cross = hx * abs(uy) + hy * abs(ux)
+            if self._bldg_is_cylinder[i]:
+                r = float(self._bldg_cyl_radius[i])
+                half_along = r
+                half_cross = r
+            else:
+                half_along = hx * abs(ux) + hy * abs(uy)
+                half_cross = hx * abs(uy) + hy * abs(ux)
 
             if half_along < along <= half_along + 2.5 * height and cross <= half_cross * 1.1:
                 return True
@@ -371,5 +669,6 @@ class World:
             bounds_max=self.bounds_max,
             buildings=self.buildings,
             assets=self.assets,
+            pipes=self.pipes,
             grid_coords=self.grid_coords,
         )

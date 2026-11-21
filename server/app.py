@@ -123,9 +123,10 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
         await websocket.accept()
         clients.add(websocket)
         try:
-            # Immediately send static world geometry on connect
+            # Immediately send static world geometry on connect, then the solved 3D wind field
             world_init = engine.get_world_init()
             await websocket.send_text(world_init.model_dump_json())
+            await websocket.send_text(engine.get_wind_field().model_dump_json())
 
             while True:
                 raw_text = await websocket.receive_text()
@@ -137,6 +138,8 @@ def create_app(mock_agents: bool = True, seed: int = 42) -> FastAPI:
                     )
                     continue
                 engine.apply_command(cmd)
+                if cmd.action in ("set_wind", "reset_race"):
+                    await broadcast_json(engine.get_wind_field().model_dump_json())
         except WebSocketDisconnect:
             pass
         finally:
