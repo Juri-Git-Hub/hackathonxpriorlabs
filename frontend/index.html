@@ -28,13 +28,28 @@
       </div>
     </div>
 
+    <!-- Top-center World Selector Pill (5 preset worlds + Randomize button) -->
+    <nav id="world-switcher-pill" class="hud-panel" aria-label="World Selector">
+      <div id="world-buttons" class="world-pill-group" role="group" aria-label="Worlds">
+        <span class="world-pill-sep" aria-hidden="true"></span>
+        <button id="btn-new-layout" type="button" class="world-pill-btn world-pill-random" disabled title="Generate a randomized industrial world">
+          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 3h1.5v1.5M16 15.5h1.5V17"/>
+            <path d="M2.5 5.5h3.2c1.6 0 2.6.8 3.6 2.5l1.4 2.5c1 1.7 2 2.5 3.6 2.5h3.2"/>
+            <path d="M15 11l2.5 2-2.5 2"/>
+            <path d="M2.5 14.5h3.2c1.2 0 2.1-.5 2.9-1.5"/>
+            <path d="M10.8 7.6c.8-1.4 1.8-2.1 3.5-2.1h3.2"/>
+            <path d="M15 3.5l2.5 2-2.5 2"/>
+          </svg>
+          <span>Randomize</span>
+        </button>
+      </div>
+      <span id="layout-status" class="world-seed-badge" role="status"></span>
+    </nav>
+
     <!-- Backend integration controls; scene and existing main HUD remain intact. -->
     <div id="backend-controls" class="hud-panel">
       <div class="panel-title">PlumeSense · Live TabPFN</div>
-      <div id="world-buttons" class="world-buttons" role="group" aria-label="Worlds">
-        <button id="btn-new-layout" type="button" class="btn btn-accent" disabled>Generate World</button>
-      </div>
-      <p id="layout-status" class="hint" role="status"></p>
       <div id="mission-status" role="status">Waiting for mission…</div>
       <div id="model-status" role="status">Waiting for backend…</div>
       <div id="map-plan-status" role="status">Map plan: preparing before flight</div>

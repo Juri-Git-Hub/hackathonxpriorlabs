@@ -227,18 +227,19 @@ async function bootstrap() {
 
   const worldButtons = document.getElementById("world-buttons");
   const generateWorld = document.getElementById("btn-new-layout");
+  const worldSep = worldButtons.querySelector(".world-pill-sep") ?? generateWorld;
   const mapButtons = new Map();
   for (const [id, { name }] of Object.entries(industrialMaps)) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "btn";
+    button.className = "world-pill-btn";
     button.textContent = name;
     button.disabled = true;
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => {
       if (id !== currentMap) wsClient.sendCommand({ action: "select_map", map_id: id });
     });
-    worldButtons.insertBefore(button, generateWorld);
+    worldButtons.insertBefore(button, worldSep);
     mapButtons.set(id, button);
   }
   let currentMap = null;
@@ -250,8 +251,7 @@ async function bootstrap() {
       const mapId = worldInit.map_id ?? "refinery";
       const layoutSeed = worldInit.layout_seed ?? null;
       const layoutStatus = document.getElementById("layout-status");
-      const worldName = industrialMaps[mapId]?.name ?? "Generated World";
-      layoutStatus.textContent = layoutSeed === null ? worldName : `${worldName} · Seed ${layoutSeed}`;
+      layoutStatus.textContent = layoutSeed === null ? "" : `Seed ${layoutSeed}`;
       if (mapId !== currentMap || layoutSeed !== currentLayoutSeed) {
         const themeSurface = {
           refinery_dusk: { surface: "concrete", zone_label: "GENERATED · PETROCHEMICAL", flare_pos: [48, 46, 0] },
@@ -292,6 +292,8 @@ async function bootstrap() {
         button.setAttribute("aria-pressed", String(selected));
       }
       generateWorld.disabled = wsClient.mockMode;
+      generateWorld.classList.toggle("btn-active", mapId === "generated");
+      generateWorld.setAttribute("aria-pressed", String(mapId === "generated"));
       beliefView.initGrid(worldInit.grid_coords);
       droneView.clearTrails();
       document.getElementById("source-estimate").textContent="Source estimate: —";

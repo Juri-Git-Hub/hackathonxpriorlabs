@@ -478,31 +478,40 @@ export function createOuterTerrainTexture(surface = "concrete") {
   ctx.fillStyle = pal.base;
   ctx.fillRect(0, 0, size, size);
 
-  for (let i = 0; i < 65; i++) {
+  // Tile-seamless soft radial variation (wraps across all 4 borders so zero grid seams appear)
+  for (let i = 0; i < 42; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const r = 24 + Math.random() * 75;
-    const g = ctx.createRadialGradient(x, y, 2, x, y, r);
+    const r = 36 + Math.random() * 68;
     const warm = Math.random() > 0.5;
-    g.addColorStop(0, warm ? pal.patchA : pal.patchB);
-    g.addColorStop(1, "rgba(0, 0, 0, 0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+    const col = warm ? pal.patchA : pal.patchB;
+    for (const ox of (-size, 0, size)) {
+      for (const oy of (-size, 0, size)) {
+        const cx = x + ox;
+        const cy = y + oy;
+        if (cx + r < 0 || cx - r > size || cy + r < 0 || cy - r > size) continue;
+        const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, r);
+        g.addColorStop(0, col);
+        g.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
-  for (let i = 0; i < 14000; i++) {
+  for (let i = 0; i < 16000; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const d = Math.floor(Math.random() * 28);
-    ctx.fillStyle = `rgba(${pal.grain[0] + d}, ${pal.grain[1] + d}, ${pal.grain[2] + d}, 0.32)`;
+    const d = Math.floor(Math.random() * 20) - 10;
+    ctx.fillStyle = `rgba(${Math.max(0, Math.min(255, pal.grain[0] + d))}, ${Math.max(0, Math.min(255, pal.grain[1] + d))}, ${Math.max(0, Math.min(255, pal.grain[2] + d))}, 0.24)`;
     ctx.fillRect(x, y, 2, 2);
   }
 
   const map = new THREE.CanvasTexture(c);
   map.wrapS = THREE.RepeatWrapping;
   map.wrapT = THREE.RepeatWrapping;
-  map.repeat.set(10, 10);
+  map.repeat.set(16, 16);
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 8;
   return map;
