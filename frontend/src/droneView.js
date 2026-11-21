@@ -283,6 +283,15 @@ export class DroneView {
   }
 
   update(droneStates) {
+    const active=new Set(droneStates.map(d=>d.id));
+    for (const [id,entry] of this.drones) {
+      if (!active.has(id)) {
+        this.scene.remove(entry.root,entry.trailLine);
+        entry.root.traverse(obj=>{obj.geometry?.dispose();if(obj.material) obj.material.dispose();});
+        entry.trailLine.geometry.dispose();entry.trailLine.material.dispose();
+        this.drones.delete(id);
+      }
+    }
     for (const d of droneStates) {
       let entry = this.drones.get(d.id);
       if (!entry) {

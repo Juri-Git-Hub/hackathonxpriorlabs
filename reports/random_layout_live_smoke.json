@@ -1,0 +1,28 @@
+{
+  "kind": "random_layout_live_integration_smoke_not_localization_benchmark",
+  "layout_seed": 43,
+  "buildings": 5,
+  "assets": 15,
+  "connected_pipes": 19,
+  "grid_points": 469,
+  "plan_revision": 2,
+  "plan_state": "coverage_fallback",
+  "source_prediction_calls": 2,
+  "hazard_prediction_calls": 2,
+  "source_backend": "tabpfn-api",
+  "hazard_backend": "tabpfn-api",
+  "inference_seconds": 0.9155864090025716,
+  "dataset_generation_performed": false,
+  "map_model_available": false,
+  "python_checks": "118 passed, 1 inherited speed test deselected",
+  "frontend_checks": "4 tests passed; Vite build passed",
+  "generator_stress_seeds": 100,
+  "browser_new_layout_check": {
+    "layout_seed": 44,
+    "connected_pipes": 19,
+    "grid_points": 479,
+    "plan_state": "coverage_fallback",
+    "state": "ready",
+    "error": null
+  }
+}

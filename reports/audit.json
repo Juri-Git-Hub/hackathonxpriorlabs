@@ -1,0 +1,13 @@
+{
+  "train_rows": 6696,
+  "test_rows": 2232,
+  "fixed_positions": 8,
+  "constants": [
+    "nearest_sensor_distance",
+    "local_measurement_count",
+    "horizon"
+  ],
+  "train_positive_rate": 0.06332138590203107,
+  "full_test_metadata_available": false,
+  "note": "Test episode membership cannot be independently verified without full test metadata."
+}

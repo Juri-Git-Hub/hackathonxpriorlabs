@@ -36,8 +36,11 @@ export class BeliefView {
   constructor(scene) {
     this.scene = scene;
     this.visible = true;
+    this.layer="source";this.routeVisible=true;this.lastBelief=null;
+    this.routeLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x22d3ee}));
     this.group = new THREE.Group();
     this.scene.add(this.group);
+    this.group.add(this.routeLine);
 
     this.gridCoords = [];
     this.gridCount = 0;
@@ -146,6 +149,14 @@ export class BeliefView {
     this._hasDronePos = false;
   }
 
+  setLayer(layer) { this.layer=layer;if(this.lastBelief)this.update(this.lastBelief); }
+  setRouteVisible(flag) { this.routeVisible=flag;this.routeLine.visible=flag; }
+  setRoute(route) {
+    this.routeLine.geometry.dispose();
+    this.routeLine.geometry=new THREE.BufferGeometry().setFromPoints((route || []).map(p => simToThree(p,new THREE.Vector3())));
+    this.routeLine.visible=this.routeVisible;
+  }
+
   setVisible(flag) {
     this.visible = Boolean(flag);
     this.group.visible = this.visible;
@@ -167,6 +178,9 @@ export class BeliefView {
 
   initGrid(gridCoords) {
     this.gridCoords = gridCoords;
+    this.lastBelief = null;
+    this.routeLine.geometry.dispose();
+    this.routeLine.geometry = new THREE.BufferGeometry();
     this.gridCount = gridCoords.length;
     this.heatCtx.clearRect(0, 0, this.res, this.res);
     this.heatTex.needsUpdate = true;
@@ -178,13 +192,17 @@ export class BeliefView {
   update(belief) {
     if (belief.q50.length !== this.gridCount || this.gridCount === 0) return;
 
-    const q50 = belief.q50;
+    this.lastBelief = belief;
+    const hazard = this.layer === "hazard";
+    const q50 = hazard
+      ? (belief.hazard_probabilities?.length === this.gridCount ? belief.hazard_probabilities : new Array(this.gridCount).fill(0))
+      : (belief.source_scores?.length === this.gridCount ? belief.source_scores : belief.q50);
     const unc = belief.uncertainty;
 
     // 1. Reduce 3D candidate grid to 2D max-over-Z points for fast crisp contour interpolation
     const byXY = new Map();
-    let minQ = Infinity;
-    let maxQ = 0.0;
+    let minQ = hazard ? 0 : Infinity;
+    let maxQ = hazard ? 1 : 0;
     let sumUnc = 0.0;
     for (let i = 0; i < this.gridCount; i++) {
       const val = q50[i];
@@ -285,6 +303,7 @@ export class BeliefView {
 
     this.heatCtx.putImageData(this.heatImg, 0, 0);
 
+    this.setRoute(belief.route);
     // Draw crisp dashed uncertainty radius around estimated source
     const ctx = this.heatCtx;
     const [ex, ey] = belief.estimated_source;
@@ -312,7 +331,7 @@ export class BeliefView {
     simToThree(belief.estimated_source, this._tmpVec);
     this.estGroup.position.set(this._tmpVec.x, 0.08, this._tmpVec.z);
     this.estDiamond.position.y = Math.max(1.8, this._tmpVec.y);
-    this.estGroup.visible = true;
+    this.estGroup.visible = belief.source_evidence !== false;
 
     simToThree(belief.next_waypoint, this.wpBeacon.position);
     this.wpBeacon.visible = true;

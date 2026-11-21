@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -27,10 +29,19 @@ _ASSET_TYPE_MAP: dict[str, NearestAssetLiteral] = {
 }
 
 
+_MAPS = json.loads(
+    (Path(__file__).resolve().parents[1] / "frontend" / "src" / "industrialMaps.json").read_text()
+)
+
+
 class World:
     """120 x 120 x 30 m refinery layout (Right-handed Z-up, ground at z = 0)."""
 
-    def __init__(self) -> None:
+    def __init__(self, layout_seed: int | None = None, *, map_id: str = "refinery") -> None:
+        is_generated = map_id == "generated" and layout_seed is not None
+        if map_id not in _MAPS and not is_generated:
+            raise ValueError("Choose a valid facility map.")
+        self.map_id = map_id
         self.bounds_min: Vec3 = (-60.0, -60.0, 0.0)
         self.bounds_max: Vec3 = (60.0, 60.0, 30.0)
 
@@ -44,12 +55,14 @@ class World:
             BuildingBox(
                 id="tank_north",
                 kind="storage_tank",
+                model="fractionator",
                 min_xyz=(-10.0, 14.0, 0.0),
                 max_xyz=(10.0, 34.0, 16.0),
             ),
             BuildingBox(
                 id="tank_east",
                 kind="storage_tank",
+                model="horton_sphere",
                 min_xyz=(22.0, -16.0, 0.0),
                 max_xyz=(40.0, 2.0, 14.0),
             ),
@@ -211,6 +224,39 @@ class World:
             ),
         ]
 
+        self.layout_seed = layout_seed if map_id == "refinery" or is_generated else None
+        self.theme: str | None = _MAPS.get(map_id, {}).get("presentation", {}).get("theme")
+        self.pipe_runs = self.pipes
+        if self.layout_seed is not None:
+            from sim.layout import generate_layout, layout_theme
+            self.buildings, self.assets, self.pipe_runs = generate_layout(self.buildings, self.assets, self.layout_seed)
+            self.theme = layout_theme(self.layout_seed)
+
+        if map_id in _MAPS and map_id != "refinery":
+            layout = _MAPS[map_id]
+            self.buildings = [BuildingBox.model_validate(box) for box in layout["buildings"]]
+            self.assets = [FacilityAsset.model_validate(asset) for asset in layout["assets"]]
+            self.pipe_runs = [PipeRun.model_validate(run) for run in layout["pipe_runs"]]
+            self.default_leak_pos = next(
+                asset.pos for asset in self.assets if asset.id == layout["default_leak_asset"]
+            )
+            for run in self.pipe_runs:
+                for index, (start, end) in enumerate(zip(run.points, run.points[1:])):
+                    # Use an inscribed box for each straight pipe segment so
+                    # the rendered cylindrical surface remains placeable.
+                    half_width = run.radius / math.sqrt(2)
+                    pad = tuple(half_width if a == b else 0.0 for a, b in zip(start, end))
+                    self.buildings.append(BuildingBox(
+                        id=f"{run.id}_{index}",
+                        kind="pipe_segment",
+                        min_xyz=tuple(min(a, b) - p for a, b, p in zip(start, end, pad)),
+                        max_xyz=tuple(max(a, b) + p for a, b, p in zip(start, end, pad)),
+                    ))
+
+        else:
+            self.default_leak_pos = next(asset.pos for asset in self.assets if asset.id == "flange_01")
+        self.pipes = self.pipe_runs
+
         # Precompute flattened pipe segments for fast vectorized distance & drag queries
         seg_a: list[Vec3] = []
         seg_b: list[Vec3] = []
@@ -228,6 +274,11 @@ class World:
         self._pipe_seg_ab = self._pipe_seg_b - self._pipe_seg_a
         self._pipe_seg_len2 = np.maximum(np.sum(self._pipe_seg_ab ** 2, axis=1), 1e-9)
         self._pipe_seg_r = np.array(seg_r, dtype=np.float64) if seg_r else np.zeros(0, dtype=np.float64)
+
+        self._pipe_top = float(np.max(
+            np.maximum(self._pipe_seg_a[:, 2], self._pipe_seg_b[:, 2]) + self._pipe_seg_r,
+            initial=0.0,
+        ))
 
         # Precomputed NumPy arrays for fast vectorized geometry & physics queries
         self._bldg_min = np.array([b.min_xyz for b in self.buildings], dtype=np.float64)
@@ -274,10 +325,10 @@ class World:
         self.grid_coords_np = np.array(self.grid_coords, dtype=np.float64)
 
     def _generate_candidate_grid(self, safety_margin: float = 2.0) -> list[Vec3]:
-        """Generate ~450-600 navigable 3D candidate points outside buildings + margin."""
+        """Generate ~800 navigable 3D candidate points outside buildings + margin."""
         xs = np.linspace(-52.0, 52.0, 12)
         ys = np.linspace(-52.0, 52.0, 12)
-        zs = np.linspace(3.0, 18.0, 4)
+        zs = np.array([3., 8., 13., 18., 23., 28.])
 
         coords: list[Vec3] = []
         for z in zs:
@@ -432,8 +483,7 @@ class World:
             return points_nx3
 
         pts = points_nx3.copy()
-        # Broad-phase Z filter: all pipes lie below z = 9.0 m
-        low_mask = pts[:, 2] <= 9.2
+        low_mask = pts[:, 2] <= self._pipe_top + margin
         if not np.any(low_mask):
             return pts
 
@@ -665,10 +715,14 @@ class World:
     def to_world_init(self) -> WorldInitPayload:
         """Serialize static world geometry for WebSocket init and agent reset."""
         return WorldInitPayload(
+            map_id=self.map_id,
             bounds_min=self.bounds_min,
             bounds_max=self.bounds_max,
             buildings=self.buildings,
             assets=self.assets,
             pipes=self.pipes,
             grid_coords=self.grid_coords,
+            pipe_runs=self.pipe_runs,
+            layout_seed=self.layout_seed,
+            theme=self.theme,
         )

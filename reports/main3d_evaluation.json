@@ -1,0 +1,61 @@
+{
+  "training_episodes": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+  ],
+  "test_episodes": [
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+  ],
+  "note": "Metrics on sampled candidate rows; source scores not calibrated; not navigation success or full-grid source accuracy.",
+  "source": {
+    "metrics": {
+      "n": 896,
+      "positives": 128,
+      "f1": 0.043478260869565216,
+      "auroc": 0.615875244140625,
+      "brier": 0.13908393989265863
+    },
+    "request_seconds": 3.8797114369990595
+  },
+  "hazard": {
+    "metrics": {
+      "n": 896,
+      "positives": 86,
+      "f1": 0.0,
+      "auroc": 0.72977318403675,
+      "brier": 0.08374197474278033
+    },
+    "request_seconds": 1.042831295999349
+  },
+  "live_smoke": {
+    "sim_time": 5.799999999999987,
+    "wall_seconds": 6.307748848001211,
+    "grid_points": 788,
+    "hazard_points": 788,
+    "inference_seconds": 1.5155995240020275,
+    "belief_received": true,
+    "drone_height_m": 12.09777336917219,
+    "target_height_m": 13.0
+  }
+}

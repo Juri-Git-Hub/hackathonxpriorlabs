@@ -130,7 +130,7 @@ def test_sim_ctl_live_commands_against_running_server(capsys) -> None:
 
         assert sim_ctl.main(["live", "status", "--ws-url", ws_url]) == 0
         status = json.loads(capsys.readouterr().out)
-        assert len(status["drones"]) == 3
+        assert [drone["id"] for drone in status["drones"]] == ["tabpfn"]
 
         assert (
             sim_ctl.main(

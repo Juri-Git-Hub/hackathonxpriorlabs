@@ -25,6 +25,7 @@ class GradientAgent(BaseAgent):
         self._bounds_min: Vec3 = (-54.0, -54.0, 2.5)
         self._bounds_max: Vec3 = (54.0, 54.0, 20.0)
         self._prev_ppm: float = 0.0
+        self._prev_z=5.;self._vertical_dir=1.
         self._last_wind: tuple[float, float] = (3.0, 0.0)
         self._cast_dir: float = 1.0
         self._cast_steps: int = 0
@@ -41,22 +42,27 @@ class GradientAgent(BaseAgent):
         self._bounds_max = (
             world_init.bounds_max[0] - 6.0,
             world_init.bounds_max[1] - 6.0,
-            min(20.0, world_init.bounds_max[2] - 4.0),
+            world_init.bounds_max[2] - 2.0,
         )
         self._prev_ppm = 0.0
+        self._prev_z=5.;self._vertical_dir=1.
         self._last_wind = (3.0, 0.0)
         self._cast_dir = 1.0
         self._cast_steps = 0
         self._mode = "search"
         self._search_waypoints = [
-            (-30.0, -35.0, 5.0),
-            (30.0, -30.0, 5.0),
-            (35.0, 15.0, 6.0),
-            (-25.0, 20.0, 6.0),
-            (0.0, -10.0, 5.0),
-            (15.0, 35.0, 8.0),
+            (-30.0, -35.0, 13.0),
+            (30.0, -30.0, 23.0),
+            (35.0, 15.0, 8.0),
+            (-25.0, 20.0, 18.0),
+            (0.0, -10.0, 3.0),
+            (15.0, 35.0, 28.0),
             (-40.0, 0.0, 5.0),
         ]
+        import numpy as np
+        from agents.lawnmower import _point_in_buildings
+        grid=np.array(world_init.grid_coords)
+        self._search_waypoints=[tuple(map(float,grid[np.argmin(np.linalg.norm(grid-np.array(wp),axis=1))])) if _point_in_buildings(wp,world_init.buildings,margin=2) else wp for wp in self._search_waypoints]
         self._search_idx = 0
 
     def _clamp(self, x: float, y: float, z: float) -> Vec3:
@@ -85,6 +91,12 @@ class GradientAgent(BaseAgent):
         ppm = obs.ppm_measured
         px, py, pz = obs.pos
 
+        dz=pz-self._prev_z
+        if abs(dz)>.3 and ppm>=self.PPM_THRESHOLD:
+            self._vertical_dir=(1 if dz>0 else -1)*(1 if ppm>=self._prev_ppm else -1)
+        if pz>=self._bounds_max[2]-1:self._vertical_dir=-1
+        if pz<=self._bounds_min[2]+1:self._vertical_dir=1
+        probe_z=pz+3*self._vertical_dir
         if ppm >= self.PPM_THRESHOLD:
             if ppm >= self._prev_ppm * 0.92:
                 # Surge upwind
@@ -93,7 +105,7 @@ class GradientAgent(BaseAgent):
                 target = self._clamp(
                     px + ux * self.SURGE_STEP,
                     py + uy * self.SURGE_STEP,
-                    max(3.0, min(12.0, pz)),
+                    probe_z,
                 )
             else:
                 # Concentration dropped: cast crosswind
@@ -104,7 +116,7 @@ class GradientAgent(BaseAgent):
                 target = self._clamp(
                     px + cx * self._cast_dir * cast_amp + ux * 2.0,
                     py + cy * self._cast_dir * cast_amp + uy * 2.0,
-                    max(3.0, min(12.0, pz)),
+                    probe_z,
                 )
         else:
             if self._mode in ("surge", "cast") and self._cast_steps < 4:
@@ -116,7 +128,7 @@ class GradientAgent(BaseAgent):
                 target = self._clamp(
                     px + cx * self._cast_dir * cast_amp,
                     py + cy * self._cast_dir * cast_amp,
-                    5.0,
+                    probe_z,
                 )
             else:
                 self._mode = "search"
@@ -127,5 +139,6 @@ class GradientAgent(BaseAgent):
                     wp = self._search_waypoints[self._search_idx]
                 target = wp
 
+        self._prev_z=pz
         self._prev_ppm = ppm
         return target

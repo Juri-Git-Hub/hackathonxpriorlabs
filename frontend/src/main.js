@@ -14,6 +14,7 @@ import { PlumeView, VolumetricPlumePass } from "./plumeView.js";
 import { WindView } from "./windView.js";
 import { BeliefView } from "./beliefView.js";
 import { DroneView } from "./droneView.js";
+import industrialMaps from "./industrialMaps.json";
 import { HudController } from "./hud.js";
 import { CameraRig } from "./cameraRig.js";
 import { CanvasRecorder } from "./recorder.js";
@@ -37,7 +38,18 @@ async function bootstrap() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
 
-  setupEnvironment(scene, renderer);
+  const envController = setupEnvironment(scene, renderer);
+
+  // Create WebGLRenderTarget with a DepthTexture so the 3D volumetric gas cloud raymarcher
+  // occludes pixel-perfectly around every tank, pipe, building, and drone!
+  const pr = renderer.getPixelRatio();
+  const rtWidth = Math.max(1, Math.floor(window.innerWidth * pr));
+  const rtHeight = Math.max(1, Math.floor(window.innerHeight * pr));
+  const composerTarget = new THREE.WebGLRenderTarget(rtWidth, rtHeight, {
+    type: THREE.HalfFloatType,
+    depthBuffer: true,
+    depthTexture: new THREE.DepthTexture(rtWidth, rtHeight, THREE.UnsignedIntType),
+  });
 
   // Create WebGLRenderTarget with a DepthTexture so the 3D volumetric gas cloud raymarcher
   // occludes pixel-perfectly around every tank, pipe, building, and drone!
@@ -201,6 +213,7 @@ async function bootstrap() {
     wsClient.sendCommand({
       action: "place_leak",
       leak_pos: pos,
+      replace_existing: true,
     });
     spawnLeakPulse(pos);
     // Automatically reveal plume if hidden so the user immediately sees the new leak
@@ -208,17 +221,82 @@ async function bootstrap() {
       hud.setPlumeVisible(true);
     }
     hud.showToast(
-      `Gas leak placed at (${pos[0].toFixed(1)}, ${pos[1].toFixed(1)}, ${pos[2].toFixed(1)}m)`
+      `Starting a new leak search at (${pos[0].toFixed(1)}, ${pos[1].toFixed(1)}, ${pos[2].toFixed(1)}m)`
     );
   }
+
+  const worldButtons = document.getElementById("world-buttons");
+  const generateWorld = document.getElementById("btn-new-layout");
+  const mapButtons = new Map();
+  for (const [id, { name }] of Object.entries(industrialMaps)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn";
+    button.textContent = name;
+    button.disabled = true;
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => {
+      if (id !== currentMap) wsClient.sendCommand({ action: "select_map", map_id: id });
+    });
+    worldButtons.insertBefore(button, generateWorld);
+    mapButtons.set(id, button);
+  }
+  let currentMap = null;
+  let currentLayoutSeed = null;
 
   // 4. WebSocket client & HUD
   const wsClient = new SimWsClient({
     onWorldInit: (worldInit) => {
-      selectionHighlighter.clearAll();
-      refineryView.build(worldInit);
+      const mapId = worldInit.map_id ?? "refinery";
+      const layoutSeed = worldInit.layout_seed ?? null;
+      const layoutStatus = document.getElementById("layout-status");
+      const worldName = industrialMaps[mapId]?.name ?? "Generated World";
+      layoutStatus.textContent = layoutSeed === null ? worldName : `${worldName} · Seed ${layoutSeed}`;
+      if (mapId !== currentMap || layoutSeed !== currentLayoutSeed) {
+        const themeSurface = {
+          refinery_dusk: { surface: "concrete", zone_label: "GENERATED · PETROCHEMICAL", flare_pos: [48, 46, 0] },
+          desert_sun: { surface: "desert", zone_label: "GENERATED · DESERT BOOSTER" },
+          arctic_frost: { surface: "frost", zone_label: "GENERATED · CRYOGENIC DEPOT" },
+          alpine_steel: { surface: "asphalt", zone_label: "GENERATED · ALPINE STATION" },
+          overcast_steam: { surface: "wet_slate", zone_label: "GENERATED · THERMAL PLANT" },
+        };
+        const basePresentation = industrialMaps[mapId]?.presentation ?? {};
+        const resolvedTheme = worldInit.theme ?? basePresentation.theme ?? "refinery_dusk";
+        const presentation = {
+          ...(themeSurface[resolvedTheme] ?? {}),
+          ...basePresentation,
+          theme: resolvedTheme,
+        };
+        envController.setTheme(presentation.theme);
+        selectionHighlighter.clearAll();
+        refineryView.build(worldInit, presentation);
+        hud.clearInspector();
+        hud.setPlaceLeakMode(false);
+        cameraRig.setImmediate(
+          presentation?.camera ?? [-64, 46, 68],
+          presentation?.target ?? [0, 6, 0],
+        );
+        for (const { mesh } of pulseRings.splice(0)) {
+          scene.remove(mesh);
+          mesh.geometry.dispose();
+          mesh.material.dispose();
+        }
+        plumeView.update([], [], [0, 0]);
+        currentMap = mapId;
+        currentLayoutSeed = layoutSeed;
+      }
+      for (const [id, button] of mapButtons) {
+        const selected = id === mapId;
+        button.disabled = false;
+        button.classList.toggle("btn-active", selected);
+        button.setAttribute("aria-pressed", String(selected));
+      }
+      generateWorld.disabled = wsClient.mockMode;
       beliefView.initGrid(worldInit.grid_coords);
       droneView.clearTrails();
+      document.getElementById("source-estimate").textContent="Source estimate: —";
+      hud.hazardForecastTime=null;
+      hud.updateRiskTime(0);
     },
     onWindField: (windField) => {
       windView.setWindField(windField);
@@ -234,13 +312,21 @@ async function bootstrap() {
       beliefView.update(belief);
       hud.updateBelief(belief);
     },
+    onBackendStatus: status => { hud.updateBackendStatus(status);if(status.planned_route)beliefView.setRoute(status.planned_route); },
+    onError: (error) => hud.showToast(error.detail),
     onStatus: (state, label) => {
       hud.setConnectionStatus(state, label);
+      if (state !== "mock" && state !== "connected") {
+        for (const button of mapButtons.values()) button.disabled = true;
+        generateWorld.disabled = true;
+      }
     },
   });
 
   const hud = new HudController({
-    onSendCommand: (cmd) => wsClient.sendCommand(cmd),
+    onSendCommand: (cmd) => wsClient.sendCommand(cmd.action==="reset_race" ? {...cmd,keep_leaks:true} : cmd),
+    onLayer: layer => beliefView.setLayer(layer),
+    onRoute: visible => beliefView.setRouteVisible(visible),
     onTogglePlume: (visible) => plumeView.setVisible(visible),
     onToggleBelief: (visible) => beliefView.setVisible(visible),
     onToggleWind: (visible) => windView.setVisible(visible),
@@ -352,7 +438,7 @@ async function bootstrap() {
         const simPos = threeToSim(hit.point);
         // If clicked on ground, elevate to realistic pipe height; on pipe/valve use exact 3D height
         if (hit.object === refineryView.groundMesh) {
-          simPos[2] = 3.5;
+          simPos[2] = Math.max(1,Math.min(28,Number(document.getElementById("leak-height").value)||3.5));
         }
         placeLeakAt(simPos);
         hud.setPlaceLeakMode(false);
@@ -444,6 +530,10 @@ async function bootstrap() {
     composer.setSize(window.innerWidth, window.innerHeight);
   });
 
+  generateWorld.addEventListener("click", () => {
+    wsClient.sendCommand({ action: "randomize_layout", map_id: "generated" });
+  });
+  if (wsClient.mockMode) generateWorld.title = "World generation requires the simulation server.";
   wsClient.start();
 
   // Lightweight debug/camera helper for deterministic multi-angle inspection

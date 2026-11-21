@@ -455,6 +455,27 @@ tr.row-tabpfn td:first-child {
   vertical-align: middle;
 }
 
+/* Small integration block; retain main's scene and other HUD panels. */
+#backend-controls { top: 100px; left: 14px; width: 350px; max-height: 38vh; overflow: auto; }
+.world-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 6px;
+}
+.world-buttons .btn { min-height: 34px; padding: 5px 4px; }
+.world-buttons .btn:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
+#layout-status { margin: 0 0 10px; }
+#layout-status:empty { display: none; }
+#backend-controls select, #backend-controls input[type=number] { background: #111827; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px; max-width: 130px; }
+#backend-controls .control-row { margin-top: 10px; align-items: center; }
+#model-status { overflow-wrap: anywhere; }
+@media (max-width: 760px) { #backend-controls { top: 95px; width: 290px; max-height: 28vh; } }
+
+#mission-report { top: 110px; left: 50%; transform: translateX(-50%); width: min(410px, 90vw); z-index: 30; border-color: #34d399; }
+#mission-report p { margin: 9px 0; line-height: 1.45; }
+#mission-report .panel-title { color: #6ee7b7; }
+button:disabled { opacity: .45; cursor: default; }
 .toast {
   position: fixed;
   top: 16px;

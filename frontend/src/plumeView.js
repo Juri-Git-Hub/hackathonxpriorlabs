@@ -51,7 +51,7 @@ export class PlumeView {
     this.ny = 16;
     this.nz = 48;
     this.boxMin = new THREE.Vector3(-60, 0, -60);
-    this.boxMax = new THREE.Vector3(60, 26, 60);
+    this.boxMax = new THREE.Vector3(60, 30, 60);
 
     const total = this.nx * this.ny * this.nz;
     this._densityTarget = new Float32Array(total);

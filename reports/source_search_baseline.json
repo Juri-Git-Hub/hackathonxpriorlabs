@@ -1,0 +1,98 @@
+{
+  "backend": "baseline",
+  "episodes": 9,
+  "max_steps": 120,
+  "success_rate": 1.0,
+  "results": [
+    {
+      "seed": 100,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 51,
+      "confidence": 0.9999963672584091,
+      "exposure": 6.77777977578287,
+      "seconds": 1.6615341510005237
+    },
+    {
+      "seed": 101,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 49,
+      "confidence": 1.0,
+      "exposure": 5.164351914651972,
+      "seconds": 2.656515869000941
+    },
+    {
+      "seed": 102,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 25,
+      "confidence": 0.9999999999999999,
+      "exposure": 1.5346503463244132,
+      "seconds": 0.8415491170017049
+    },
+    {
+      "seed": 103,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 27,
+      "confidence": 1.0,
+      "exposure": 4.037368631636376,
+      "seconds": 0.8277561049999349
+    },
+    {
+      "seed": 104,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 72,
+      "confidence": 0.9999999564509342,
+      "exposure": 3.220240715478259,
+      "seconds": 2.2995863819996885
+    },
+    {
+      "seed": 105,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 26,
+      "confidence": 1.0,
+      "exposure": 1.4943016569185503,
+      "seconds": 0.8499627519995556
+    },
+    {
+      "seed": 106,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 21,
+      "confidence": 1.0,
+      "exposure": 1.9718589260420578,
+      "seconds": 0.6477552600008494
+    },
+    {
+      "seed": 107,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 21,
+      "confidence": 1.0,
+      "exposure": 6.313563391648234,
+      "seconds": 0.6619754220009781
+    },
+    {
+      "seed": 108,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 5,
+      "confidence": 1.0,
+      "exposure": 3.0538193299532077,
+      "seconds": 0.1558092180002859
+    }
+  ]
+}

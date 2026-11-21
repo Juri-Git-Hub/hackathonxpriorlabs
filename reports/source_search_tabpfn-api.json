@@ -1,0 +1,18 @@
+{
+  "backend": "tabpfn-api",
+  "episodes": 1,
+  "max_steps": 120,
+  "success_rate": 1.0,
+  "results": [
+    {
+      "seed": 100,
+      "declared_found": true,
+      "success": true,
+      "source_error": 0.0,
+      "steps": 51,
+      "confidence": 0.9999963595986328,
+      "exposure": 6.775816325881148,
+      "seconds": 17.487196697999025
+    }
+  ]
+}

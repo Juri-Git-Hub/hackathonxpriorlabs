@@ -154,8 +154,9 @@ class Airflow:
 
         # 2) Sub-grid fractional porous drag & localized turbulence for standalone pipe runs
         if self.world._pipe_seg_a.shape[0] > 0:
-            # Restrict distance check to z <= 10.5 m where pipes exist
-            kz_max = int(min(nz, math.ceil(10.5 * self._inv_dz)))
+            # Only visit cells close enough in height to intersect a pipe's influence.
+            pipe_influence_top = self.world._pipe_top + 0.5 * dx
+            kz_max = int(min(nz, math.ceil((pipe_influence_top - self._z_min) * self._inv_dz)))
             pts_low = np.stack(
                 [X[:, :, :kz_max], Y[:, :, :kz_max], Z[:, :, :kz_max]], axis=-1
             ).reshape(-1, 3)

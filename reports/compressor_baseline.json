@@ -1,0 +1,82 @@
+{
+  "policy": "prediction",
+  "cases": [
+    {
+      "name": "north_back",
+      "seed": 141,
+      "source": [
+        -26,
+        38,
+        3.5
+      ]
+    },
+    {
+      "name": "west_back",
+      "seed": 142,
+      "source": [
+        -41,
+        24,
+        3.5
+      ]
+    },
+    {
+      "name": "north_east",
+      "seed": 143,
+      "source": [
+        -16,
+        40,
+        3.5
+      ]
+    },
+    {
+      "name": "west_strong_wind",
+      "seed": 144,
+      "source": [
+        -41,
+        24,
+        3.5
+      ],
+      "wind": [
+        15,
+        7
+      ]
+    }
+  ],
+  "results": [
+    {
+      "policy": "prediction",
+      "seed": 141,
+      "wind": null,
+      "wind_schedule": [],
+      "source": [
+        -26.0,
+        38.0,
+        3.5
+      ],
+      "success": false,
+      "sim_seconds": 180.00000000000668,
+      "wall_seconds": 23.12877051399846,
+      "closest_distance_m": 8.75295838026597,
+      "max_ppm": 392.05,
+      "exposure": 7265.5085000000045,
+      "report": null,
+      "model_calls": 56,
+      "mean_latency": 0.2564978373747441,
+      "latency_applied": true,
+      "fine_source_queries": true,
+      "probes": 22,
+      "prediction_decisions": 13,
+      "wind_replans": 0,
+      "transitions": [
+        {
+          "time": 91.99999999999692,
+          "phase": "track",
+          "ppm": 3.31
+        }
+      ],
+      "name": "north_back"
+    }
+  ],
+  "complete": false,
+  "note": "Historical partial run of the earlier prediction controller; one of four cases completed. Not an evaluation of map search or randomized layouts."
+}

@@ -13,10 +13,21 @@ const MODEL_PATHS = {
   valve: "/models/valve_assembly.glb",
   quadrotor: "/models/quadrotor.glb",
   flare_stack: "/models/flare_stack.glb",
+  fractionator: "/models/fractionator.glb",
+  horton_sphere: "/models/horton_sphere.glb",
+  metering_skid: "/models/metering_skid.glb",
+  receiver_skid: "/models/receiver_skid.glb",
+  cryogenic_vessel: "/models/cryogenic_vessel.glb",
+  transfer_gantry: "/models/transfer_gantry.glb",
+  compressor_train: "/models/compressor_train.glb",
+  cooling_cell: "/models/cooling_cell.glb",
+  hyperbolic_tower: "/models/hyperbolic_tower.glb",
+  exhaust_stack: "/models/exhaust_stack.glb",
+  pump_house: "/models/pump_house.glb",
 };
 
 /**
- * Loads all Blender-generated PBR GLB assets in parallel, enables shadows,
+ * Loads all 18 Blender-generated PBR GLB assets in parallel, enables shadows,
  * and enhances materials with procedural weathered steel / corrugated cladding maps.
  */
 export async function loadModelAssets() {
@@ -36,23 +47,30 @@ export async function loadModelAssets() {
         const mat = obj.material;
         if (!mat || !mat.isMeshStandardMaterial) return;
 
-        // Apply weathered painted steel seam texture to storage tank shell & dome
-        if (key === "storage_tank" && (obj.name.startsWith("TankBody") || obj.name.startsWith("TankDome"))) {
+        // Apply weathered painted steel seam texture to storage tanks & spherical shells
+        if (
+          (key === "storage_tank" && (obj.name.startsWith("TankBody") || obj.name.startsWith("TankDome"))) ||
+          (key === "horton_sphere" && obj.name.startsWith("HortonSphereBody"))
+        ) {
           mat.map = tankTex.map;
           mat.bumpMap = tankTex.bumpMap;
           mat.bumpScale = 0.04;
-          mat.roughness = 0.52;
+          mat.roughness = 0.50;
           mat.metalness = 0.42;
           mat.needsUpdate = true;
         }
 
-        // Apply corrugated steel siding bump + texture to industrial building walls
-        if ((key === "building" && obj.name.startsWith("MainShell")) || (key === "compressor" && obj.name.startsWith("CompHall"))) {
+        // Apply corrugated steel siding bump + texture to industrial building & pump house walls
+        if (
+          (key === "building" && obj.name.startsWith("MainShell")) ||
+          (key === "compressor" && obj.name.startsWith("CompHall")) ||
+          (key === "pump_house" && obj.name.startsWith("PumpWalls"))
+        ) {
           mat.map = bldgTex.map;
           mat.bumpMap = bldgTex.bumpMap;
           mat.bumpScale = 0.06;
-          mat.roughness = 0.58;
-          mat.metalness = 0.45;
+          mat.roughness = 0.56;
+          mat.metalness = 0.44;
           mat.needsUpdate = true;
         }
 

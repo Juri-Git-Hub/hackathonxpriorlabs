@@ -1,0 +1,269 @@
+{
+  "profile": {
+    "name": "windframe12-local-probes-v1",
+    "context_rows": 4096,
+    "source_features": 12,
+    "hazard_features": 20,
+    "source_interval_s": 3,
+    "hazard_interval_s": 10,
+    "sensor_dwell_s": 2.5,
+    "initial_probe_m": 6,
+    "volumetric_expansion_after_s": 60,
+    "min_probe_m": 1.5,
+    "physical_dt_s": 0.05,
+    "success": "unchanged simulator judge: estimate <=5m, drone <=5m, ppm>15 for 2s",
+    "selection_split": "validation",
+    "validation_seeds": [
+      41,
+      42,
+      43
+    ],
+    "test_seeds": [
+      101,
+      102,
+      103
+    ]
+  },
+  "dataset_signature": "ec4577c19dc22290fba6dd84e4acfd15efed59decab71de763daeeb98b4297d7",
+  "validation_episodes": [
+    308,
+    310,
+    312,
+    314,
+    316,
+    318,
+    320,
+    322,
+    324,
+    326,
+    328,
+    330,
+    332,
+    334,
+    336,
+    338
+  ],
+  "test_episodes": [
+    410,
+    412,
+    414,
+    416,
+    418,
+    420,
+    422,
+    424,
+    426,
+    428,
+    430,
+    432,
+    434,
+    436,
+    438,
+    440
+  ],
+  "models": {
+    "source_tabpfn": {
+      "feature_count": 12,
+      "threshold_from_validation": 0.74,
+      "validation": {
+        "rows": 37824,
+        "positives": 84,
+        "f1": 0.19642857142857142,
+        "auroc": 0.725853900118606,
+        "brier": 0.023106893794026397
+      },
+      "test": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.03636363636363636,
+        "auroc": 0.7492874915590937,
+        "brier": 0.027728717079040212
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.058577405857740586,
+        "auroc": 0.7492874915590937,
+        "brier": 0.027728717079040212
+      },
+      "latency": {
+        "validation": {
+          "total_seconds": 2.4138493230020686,
+          "mean_request_seconds": 0.24138493230020686,
+          "requests": 10,
+          "rows_per_request": 4096
+        },
+        "test": {
+          "total_seconds": 2.1621340780002356,
+          "mean_request_seconds": 0.21621340780002357,
+          "requests": 10,
+          "rows_per_request": 4096
+        }
+      },
+      "source_ranking": {
+        "episode_bootstrap": {
+          "mean_error_m_95": [
+            36.850726821293556,
+            59.73874038458113
+          ],
+          "within_6m_95": [
+            0.0,
+            0.16666666666666666
+          ],
+          "resampling_unit": "episode",
+          "episodes": 16
+        },
+        "all": {
+          "snapshots": 48,
+          "mean_error_m": 47.414247857766505,
+          "median_error_m": 43.48902759544751,
+          "within_6m": 0.0625,
+          "within_5m": 0.0625
+        },
+        "signal_seen": {
+          "snapshots": 20,
+          "mean_error_m": 35.12701564074696,
+          "median_error_m": 24.29201241867701,
+          "within_6m": 0.05,
+          "within_5m": 0.05
+        },
+        "no_signal": {
+          "snapshots": 28,
+          "mean_error_m": 56.19084229849473,
+          "median_error_m": 48.579377463397456,
+          "within_6m": 0.07142857142857142,
+          "within_5m": 0.07142857142857142
+        },
+        "top5_within_6m": 0.14583333333333334
+      }
+    },
+    "source_observation_baseline": {
+      "feature_count": null,
+      "threshold_from_validation": 0.5800000000000001,
+      "validation": {
+        "rows": 37824,
+        "positives": 84,
+        "f1": 0.19672131147540983,
+        "auroc": 0.6317230045171222,
+        "brier": 0.0026756306306034068
+      },
+      "test": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.030303030303030304,
+        "auroc": 0.644166263848493,
+        "brier": 0.0034280444702301763
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 87,
+        "f1": 0.02631578947368421,
+        "auroc": 0.644166263848493,
+        "brier": 0.0034280444702301763
+      },
+      "latency": {},
+      "source_ranking": {
+        "episode_bootstrap": {
+          "mean_error_m_95": [
+            48.076553498448106,
+            76.86478980236711
+          ],
+          "within_6m_95": [
+            0.0,
+            0.0625
+          ],
+          "resampling_unit": "episode",
+          "episodes": 16
+        },
+        "all": {
+          "snapshots": 48,
+          "mean_error_m": 61.615812756339416,
+          "median_error_m": 61.00673032264562,
+          "within_6m": 0.020833333333333332,
+          "within_5m": 0.020833333333333332
+        },
+        "signal_seen": {
+          "snapshots": 20,
+          "mean_error_m": 33.08399892446613,
+          "median_error_m": 24.554898753333827,
+          "within_6m": 0.05,
+          "within_5m": 0.05
+        },
+        "no_signal": {
+          "snapshots": 28,
+          "mean_error_m": 81.99567977910603,
+          "median_error_m": 88.3376432861678,
+          "within_6m": 0.0,
+          "within_5m": 0.0
+        },
+        "top5_within_6m": 0.020833333333333332
+      }
+    },
+    "hazard_tabpfn": {
+      "feature_count": 20,
+      "threshold_from_validation": 0.36000000000000004,
+      "validation": {
+        "rows": 37824,
+        "positives": 1587,
+        "f1": 0.2608695652173913,
+        "auroc": 0.7528465763242925,
+        "brier": 0.054314012459407514
+      },
+      "test": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.3172477487878088,
+        "auroc": 0.745483012253187,
+        "brier": 0.06003950682309723
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.26898047722342733,
+        "auroc": 0.745483012253187,
+        "brier": 0.06003950682309723
+      },
+      "latency": {
+        "validation": {
+          "total_seconds": 3.6016105050002807,
+          "mean_request_seconds": 0.36016105050002806,
+          "requests": 10,
+          "rows_per_request": 4096
+        },
+        "test": {
+          "total_seconds": 3.116679740996915,
+          "mean_request_seconds": 0.3116679740996915,
+          "requests": 10,
+          "rows_per_request": 4096
+        }
+      }
+    },
+    "hazard_observation_baseline": {
+      "feature_count": null,
+      "threshold_from_validation": 0.12,
+      "validation": {
+        "rows": 37824,
+        "positives": 1587,
+        "f1": 0.1710432931156849,
+        "auroc": 0.7132425249380875,
+        "brier": 0.05656618493790913
+      },
+      "test": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.27961508682667846,
+        "auroc": 0.7791452119013026,
+        "brier": 0.09163106659887854
+      },
+      "test_at_point5": {
+        "rows": 37824,
+        "positives": 1851,
+        "f1": 0.23332237923102203,
+        "auroc": 0.7791452119013026,
+        "brier": 0.09163106659887854
+      },
+      "latency": {}
+    }
+  },
+  "note": "Complete coarse XYZ grids; not a navigation success rate. Fine adaptive source hypotheses are tested in closed-loop flights. F1 threshold uses validation only. Scores are uncalibrated."
+}

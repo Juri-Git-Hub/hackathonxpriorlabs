@@ -1,3 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+data/synthetic.csv
+reports/*_predictions.csv
+data/synthetic_drone_only.csv
+data/source_histories.csv
+data/main3d.csv
 # Python
 __pycache__/
 *.py[cod]
@@ -18,3 +26,4 @@ frontend/dist/
 .vscode/
 .idea/
 *.log
+data/datasets/

@@ -10,7 +10,7 @@ Do not modify field names without updating all consumers.
 """
 
 from typing import Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 Vec3 = tuple[float, float, float]
 Vec2 = tuple[float, float]
@@ -18,9 +18,23 @@ Vec2 = tuple[float, float]
 
 class BuildingBox(BaseModel):
     id: str
-    kind: Literal["building", "storage_tank", "pipe_rack"]
+    kind: Literal["building", "storage_tank", "pipe_rack", "pipe_segment"]
     min_xyz: Vec3
     max_xyz: Vec3
+    model: Optional[Literal[
+        "compressor",
+        "fractionator",
+        "horton_sphere",
+        "metering_skid",
+        "receiver_skid",
+        "cryogenic_vessel",
+        "transfer_gantry",
+        "compressor_train",
+        "cooling_cell",
+        "hyperbolic_tower",
+        "exhaust_stack",
+        "pump_house",
+    ]] = None
 
 
 class FacilityAsset(BaseModel):
@@ -32,12 +46,16 @@ class FacilityAsset(BaseModel):
 
 class PipeRun(BaseModel):
     id: str
-    name: str
-    service: str
-    pressure_bar: float
-    radius: float
-    material: Literal["gas", "steel", "coolant"]
+    from_id: Optional[str] = None
+    to_id: Optional[str] = None
     points: list[Vec3]
+    radius: float = 0.28
+    name: Optional[str] = None
+    service: Optional[str] = None
+    pressureBar: Optional[float] = None
+    color: Optional[int] = None
+    pressure_bar: Optional[float] = None
+    material: Optional[Literal["gas", "steel", "coolant"]] = None
 
 
 class LeakSource(BaseModel):
@@ -58,12 +76,16 @@ class GridPointMeta(BaseModel):
 
 class WorldInitPayload(BaseModel):
     type: Literal["world_init"] = "world_init"
+    map_id: str = "refinery"
+    pipe_runs: list[PipeRun] = Field(default_factory=list)
     bounds_min: Vec3 = (-60.0, -60.0, 0.0)
     bounds_max: Vec3 = (60.0, 60.0, 30.0)
     buildings: list[BuildingBox]
     assets: list[FacilityAsset]
     pipes: list[PipeRun] = []
     grid_coords: list[Vec3]  # N candidate 3D points (~400-600) for TabPFN belief cloud
+    layout_seed: Optional[int] = None
+    theme: Optional[str] = None
 
 
 class WindFieldPayload(BaseModel):
@@ -112,6 +134,20 @@ class PuffState(BaseModel):
     opacity: float
 
 
+class MissionReport(BaseModel):
+    elapsed_sim_seconds: float
+    elapsed_wall_seconds: float
+    estimated_source: Vec3
+    model_score: Optional[float] = None
+    regional_score_mass: Optional[float] = None
+    confidence_note: str = "Uncalibrated model score; not a probability that the location is correct."
+    simulator_confirmed: bool = True
+    estimated_error_m: float
+    measurement_count: int
+    ppm_at_detection: float
+    estimate_age_seconds: float
+
+
 class SimTickPayload(BaseModel):
     type: Literal["sim_tick"] = "sim_tick"
     sim_time: float
@@ -120,6 +156,8 @@ class SimTickPayload(BaseModel):
     drones: list[DroneTickState]
     puffs: list[PuffState]  # Capped at <= 400 active puffs for 60 FPS rendering
     sensor_dropout_active: bool
+    paused: bool = False
+    mission_report: Optional[MissionReport] = None
 
 
 class BeliefUpdatePayload(BaseModel):
@@ -130,6 +168,52 @@ class BeliefUpdatePayload(BaseModel):
     uncertainty: list[float]  # (q90 - q10), length N
     estimated_source: Vec3
     next_waypoint: Vec3
+    source_scores: list[float] = []
+    hazard_probabilities: list[float] = []
+    hazard_observed_at: Optional[float] = None
+    hazard_forecast_time: Optional[float] = None
+    source_prediction_backend: Optional[str] = None
+    hazard_prediction_backend: Optional[str] = None
+    navigation_basis: str = "unspecified"
+    prediction_decisions: int = 0
+    route: list[Vec3] = []
+    inference_seconds: float = 0.0
+    measurement_count: int = 0
+    exposure_ppm_seconds: float = 0.0
+    score_kind: str = "legacy_quantile"
+    source_model_score: Optional[float] = None
+    source_evidence: Optional[bool] = None
+    regional_score_mass: Optional[float] = None
+
+
+class BackendStatusPayload(BaseModel):
+    type: Literal["backend_status"] = "backend_status"
+    sim_time: float
+    mode: str
+    mission_state: Literal["searching", "paused", "depleted", "no_leak", "found"] = "searching"
+    mission_report: Optional[MissionReport] = None
+    active_leaks: int = 0
+    battery_pct: float = 100.0
+    state: Literal["pending", "ready", "error", "mock"]
+    error: Optional[str] = None
+    inference_seconds: float = 0.0
+    measurement_count: int = 0
+    exposure_ppm_seconds: float = 0.0
+    paused: bool = False
+    search_phase: str = "search"
+    completed_probes: int = 0
+    source_features: int = 0
+    hazard_features: int = 0
+    navigation_basis: str = "unspecified"
+    prediction_decisions: int = 0
+    source_prediction_calls: int = 0
+    hazard_prediction_calls: int = 0
+    adaptive_wind: bool = False
+    wind_replans: int = 0
+    plan_state: str = 'preparing'
+    plan_revision: int = 0
+    search_candidate_count: int = 0
+    planned_route: list[Vec3] = []
 
 
 class JudgeCommand(BaseModel):
@@ -140,9 +224,16 @@ class JudgeCommand(BaseModel):
         "clear_leaks",
         "toggle_dropout",
         "reset_race",
+        "select_map",
+        "randomize_layout",
         "pause",
+        "step",
     ]
+    map_id: Optional[str] = None
     wind_angle_deg: Optional[float] = None
     wind_speed: Optional[float] = None
     leak_pos: Optional[Vec3] = None
+    replace_existing: bool = False
+    keep_leaks: bool = False
     dropout_enabled: Optional[bool] = None
+    seed: Optional[int] = Field(default=None, ge=0)
