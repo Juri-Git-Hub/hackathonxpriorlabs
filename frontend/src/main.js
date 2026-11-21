@@ -51,17 +51,6 @@ async function bootstrap() {
     depthTexture: new THREE.DepthTexture(rtWidth, rtHeight, THREE.UnsignedIntType),
   });
 
-  // Create WebGLRenderTarget with a DepthTexture so the 3D volumetric gas cloud raymarcher
-  // occludes pixel-perfectly around every tank, pipe, building, and drone!
-  const pr = renderer.getPixelRatio();
-  const rtWidth = Math.max(1, Math.floor(window.innerWidth * pr));
-  const rtHeight = Math.max(1, Math.floor(window.innerHeight * pr));
-  const composerTarget = new THREE.WebGLRenderTarget(rtWidth, rtHeight, {
-    type: THREE.HalfFloatType,
-    depthBuffer: true,
-    depthTexture: new THREE.DepthTexture(rtWidth, rtHeight, THREE.UnsignedIntType),
-  });
-
   // Subtle cinema bloom (high threshold so only lights, windows, flare, & neon LEDs glow)
   const composer = new EffectComposer(renderer, composerTarget);
   // Give renderTarget2 its own DepthTexture so ping-pong passes never hit a WebGL2 depth feedback loop!
