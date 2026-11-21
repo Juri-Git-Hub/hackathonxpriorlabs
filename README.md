@@ -46,9 +46,15 @@ Active 3D spatial gas-leak search simulation powered by **TabPFN**. Three autono
 ├── frontend/               # OWNER: Three.js UI (Vite + Three.js, see frontend/README.md)
 ├── hardware/               # OWNER: Physical Drone Bridge (optional, isolated WS client)
 │   └── drone_bridge.py
+├── tools/                  # OWNER: Physics Audit, Headless Evals & CLI Control (see tools/README.md)
+│   ├── physics_audit.py    # 10 quantitative physics realism checks (--json supported)
+│   ├── scenarios.py        # Standardized scenarios (wake_trap, wind_shift_90, multi_leak, ...)
+│   ├── eval_runner.py      # Headless multi-scenario benchmark & JSONL debug trace exporter
+│   └── sim_ctl.py          # Unified CLI to control & inspect BOTH headless and live simulations
 ├── tests/
-│   ├── test_physics.py     # Plume bending, wake trapping, drone stability, >500 steps/s check
-│   ├── test_agents.py      # Agent contracts, async non-blocking test, headless 3-drone race
+│   ├── test_physics.py     # Plume bending, wake trapping, 6-DOF drone, >500 steps/s check
+│   ├── test_agents.py      # Contract compliance, async non-blocking test, headless 3-drone race
+│   ├── test_tools.py       # Physics audit, eval runner, and headless/live CLI tests
 │   └── test_ws_contract.py # Schema serialization + FastAPI WebSocket end-to-end tests
 └── requirements.txt
 ```
@@ -88,6 +94,28 @@ npm run dev
 ```
 - Open `http://localhost:5173` (connects live to `ws://localhost:8000/ws`)
 - Standalone UI mock mode (no Python required): `http://localhost:5173/?mock=true`
+
+### 5. Physics Audit, Headless Evals & CLI Control (For AI Agents & Humans)
+See [tools/README.md](tools/README.md) for full CLI docs and JSON schemas:
+```bash
+# 10-check quantitative physics realism audit (returns JSON & exit code 0/1)
+python -m tools.physics_audit
+python -m tools.sim_ctl audit --json
+
+# Headless multi-scenario benchmark + JSONL debug trace (>500 steps/s)
+python -m tools.eval_runner --scenarios open_corridor,wake_trap,wind_shift_90 --duration 60
+python -m tools.sim_ctl headless run --scenario wake_trap --duration 45 --trace-out /tmp/trace.jsonl
+
+# Instant 3D spatial physics probe (wind, wake turbulence, roof AGL, context, ppm)
+python -m tools.sim_ctl headless probe --pos 18,24,5 --wind-angle 0 --wind-speed 4.0 --leak 12,24,4
+
+# Inspect & control a LIVE running server (with or without 3D frontend open)
+python -m tools.sim_ctl live health
+python -m tools.sim_ctl live status
+python -m tools.sim_ctl live scenario wake_trap
+python -m tools.sim_ctl live cmd set-wind --angle 90 --speed 5.5
+python -m tools.sim_ctl live watch --ticks 10
+```
 
 ---
 
