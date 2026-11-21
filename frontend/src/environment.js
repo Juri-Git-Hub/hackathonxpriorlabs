@@ -112,8 +112,8 @@ export function setupEnvironment(scene, renderer) {
   const fog = new THREE.FogExp2(0x2a3648, 0.0024);
   scene.fog = fog;
 
-  // Switchable procedural sky dome
-  const skyGeo = new THREE.SphereGeometry(320, 40, 24);
+  // Switchable procedural sky dome (wide enough to enclose 1200m terrain & hills)
+  const skyGeo = new THREE.SphereGeometry(680, 48, 28);
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
@@ -122,6 +122,7 @@ export function setupEnvironment(scene, renderer) {
       uMid: { value: new THREE.Color(0x243a59) },
       uHorizon: { value: new THREE.Color(0x5d6e82) },
       uWarmGlow: { value: new THREE.Color(0xe69856) },
+      uRidgeColor: { value: new THREE.Color(0x1b2636) },
       uSunDir: { value: new THREE.Vector3(0.68, 0.24, 0.69).normalize() },
     },
     vertexShader: `
@@ -137,6 +138,7 @@ export function setupEnvironment(scene, renderer) {
       uniform vec3 uMid;
       uniform vec3 uHorizon;
       uniform vec3 uWarmGlow;
+      uniform vec3 uRidgeColor;
       uniform vec3 uSunDir;
       varying vec3 vWorldPos;
 
@@ -183,8 +185,14 @@ export function setupEnvironment(scene, renderer) {
         vec3 cloudCol = mix(uMid * 1.15, uWarmGlow * 1.1, pow(sunAmt, 2.0));
         col = mix(col, cloudCol, cloudMask * 0.38);
 
-        // Fade below the horizon for a neutral backdrop behind the site boundary.
-        col = mix(uZenith * 0.55, col, smoothstep(-0.18, 0.0, dir.y));
+        // Soft distant mountain / coastal horizon ridge silhouette
+        float az = atan(dir.z, dir.x);
+        float ridge = 0.022 + 0.016 * sin(az * 5.0 + 1.2) + 0.009 * sin(az * 13.0) + 0.005 * sin(az * 27.0);
+        float inRidge = 1.0 - smoothstep(ridge - 0.006, ridge + 0.006, h);
+        col = mix(col, uRidgeColor, inRidge * 0.85);
+
+        // Seamless blend below the horizon matching terrain & fog
+        col = mix(uRidgeColor * 0.85, col, smoothstep(-0.12, 0.01, dir.y));
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -220,6 +228,7 @@ export function setupEnvironment(scene, renderer) {
     skyMat.uniforms.uMid.value.setHex(cfg.mid);
     skyMat.uniforms.uHorizon.value.setHex(cfg.horizon);
     skyMat.uniforms.uWarmGlow.value.setHex(cfg.warmGlow);
+    skyMat.uniforms.uRidgeColor.value.setHex(cfg.fogColor).multiplyScalar(0.62);
     skyMat.uniforms.uSunDir.value.set(...cfg.sunPos).normalize();
 
     scene.background.setHex(cfg.fogColor);
