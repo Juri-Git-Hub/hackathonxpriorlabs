@@ -141,7 +141,7 @@ export function createCorrugatedCladdingTextures() {
   return { map, bumpMap };
 }
 
-export function createRefineryConcreteTextures() {
+export function createRefineryConcreteTextures({ frosted = false, centerLane = false } = {}) {
   const size = 1024;
   const c = document.createElement("canvas");
   c.width = size;
@@ -154,19 +154,25 @@ export function createRefineryConcreteTextures() {
   const bctx = bc.getContext("2d");
 
   // Non-repeating industrial site base with varied concrete & gravel aprons
-  ctx.fillStyle = "#293039";
+  ctx.fillStyle = frosted ? "#a1aab0" : "#293039";
   ctx.fillRect(0, 0, size, size);
   bctx.fillStyle = "#808080";
   bctx.fillRect(0, 0, size, size);
 
   // Subtle concrete pad zones (tank farm concrete vs central pipe yard)
-  ctx.fillStyle = "#313945";
+  ctx.fillStyle = frosted ? "#929ca4" : "#313945";
   ctx.fillRect(140, 120, 740, 660);
 
   // Darker asphalt service perimeter roads (west N-S road & south E-W road)
-  ctx.fillStyle = "#1e232a";
+  ctx.fillStyle = frosted ? "#49525b" : "#1e232a";
   ctx.fillRect(58, 42, 86, 940);
   ctx.fillRect(42, 830, 940, 88);
+  if (centerLane) {
+    ctx.fillRect(466, 42, 92, 940);
+    ctx.fillStyle = "#667078";
+    ctx.fillRect(488, 42, 5, 940);
+    ctx.fillRect(531, 42, 5, 940);
+  }
 
   // Dashed yellow road centerlines
   ctx.strokeStyle = "rgba(234, 179, 8, 0.62)";
@@ -179,6 +185,10 @@ export function createRefineryConcreteTextures() {
   ctx.beginPath();
   ctx.moveTo(101, 874);
   ctx.lineTo(960, 874);
+  if (centerLane) {
+    ctx.moveTo(512, 60);
+    ctx.lineTo(512, 964);
+  }
   ctx.stroke();
   ctx.setLineDash([]);
 
@@ -207,7 +217,7 @@ export function createRefineryConcreteTextures() {
   for (let i = 0; i < 24000; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const v = 28 + Math.floor(Math.random() * 38);
+    const v = (frosted ? 150 : 28) + Math.floor(Math.random() * 38);
     ctx.fillStyle = `rgba(${v}, ${v + 4}, ${v + 8}, 0.26)`;
     ctx.fillRect(x, y, 2, 2);
 
@@ -368,47 +378,6 @@ export function createRoofGravelTexture() {
   map.wrapS = THREE.RepeatWrapping;
   map.wrapT = THREE.RepeatWrapping;
   map.repeat.set(2, 2);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  return map;
-}
-
-export function createOuterTerrainTexture() {
-  const size = 512;
-  const c = document.createElement("canvas");
-  c.width = size;
-  c.height = size;
-  const ctx = c.getContext("2d");
-
-  ctx.fillStyle = "#1c2229";
-  ctx.fillRect(0, 0, size, size);
-
-  // Subtle industrial gravel / dry earth variation
-  for (let i = 0; i < 60; i++) {
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    const r = 24 + Math.random() * 75;
-    const g = ctx.createRadialGradient(x, y, 2, x, y, r);
-    const warm = Math.random() > 0.5;
-    g.addColorStop(0, warm ? "rgba(44, 42, 38, 0.28)" : "rgba(22, 30, 38, 0.30)");
-    g.addColorStop(1, "rgba(22, 28, 34, 0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  for (let i = 0; i < 14000; i++) {
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    const v = 22 + Math.floor(Math.random() * 28);
-    ctx.fillStyle = `rgba(${v + 2}, ${v + 4}, ${v + 5}, 0.32)`;
-    ctx.fillRect(x, y, 2, 2);
-  }
-
-  const map = new THREE.CanvasTexture(c);
-  map.wrapS = THREE.RepeatWrapping;
-  map.wrapT = THREE.RepeatWrapping;
-  map.repeat.set(10, 10);
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 8;
   return map;

@@ -1,3 +1,4 @@
+import { createEquipmentModels } from "./equipment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import {
   createCorrugatedCladdingTextures,
@@ -12,7 +13,6 @@ const MODEL_PATHS = {
   pipe_rack: "/models/pipe_rack.glb",
   valve: "/models/valve_assembly.glb",
   quadrotor: "/models/quadrotor.glb",
-  flare_stack: "/models/flare_stack.glb",
 };
 
 /**
@@ -69,5 +69,5 @@ export async function loadModelAssets() {
       return [key, gltf.scene];
     })
   );
-  return Object.fromEntries(entries);
+  return { ...Object.fromEntries(entries), ...createEquipmentModels() };
 }

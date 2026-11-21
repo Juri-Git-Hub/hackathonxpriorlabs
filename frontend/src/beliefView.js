@@ -151,6 +151,11 @@ export class BeliefView {
 
   setLayer(layer) { this.layer=layer;if(this.lastBelief)this.update(this.lastBelief); }
   setRouteVisible(flag) { this.routeVisible=flag;this.routeLine.visible=flag; }
+  setRoute(route) {
+    this.routeLine.geometry.dispose();
+    this.routeLine.geometry=new THREE.BufferGeometry().setFromPoints((route || []).map(p => simToThree(p,new THREE.Vector3())));
+    this.routeLine.visible=this.routeVisible;
+  }
 
   setVisible(flag) {
     this.visible = Boolean(flag);
@@ -298,9 +303,7 @@ export class BeliefView {
 
     this.heatCtx.putImageData(this.heatImg, 0, 0);
 
-    this.routeLine.geometry.dispose();
-    this.routeLine.geometry=new THREE.BufferGeometry().setFromPoints((belief.route || []).map(p => simToThree(p,new THREE.Vector3())));
-    this.routeLine.visible=this.routeVisible;
+    this.setRoute(belief.route);
     // Draw crisp dashed uncertainty radius around estimated source
     const ctx = this.heatCtx;
     const [ex, ey] = belief.estimated_source;
@@ -328,7 +331,7 @@ export class BeliefView {
     simToThree(belief.estimated_source, this._tmpVec);
     this.estGroup.position.set(this._tmpVec.x, 0.08, this._tmpVec.z);
     this.estDiamond.position.y = Math.max(1.8, this._tmpVec.y);
-    this.estGroup.visible = true;
+    this.estGroup.visible = belief.source_evidence !== false;
 
     simToThree(belief.next_waypoint, this.wpBeacon.position);
     this.wpBeacon.visible = true;

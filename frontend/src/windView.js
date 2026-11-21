@@ -55,7 +55,8 @@ export class WindView {
     this.scene.add(this.group);
 
     this._field = null;
-    this._fallbackWind = [3.5, 0.9];
+    this._fallbackWind = [0, 0];
+    this._renderedAmbientDirection = null;
     this._time = 0;
     this._animSpeed = 1.0;
 
@@ -129,7 +130,7 @@ export class WindView {
           float crossFade = pow(radial, 0.85);
 
           // Smooth fade at streamline start and end (zero blunt cut-offs)
-          float endFade = smoothstep(0.0, 0.12, vArcFrac) * smoothstep(1.0, 0.84, vArcFrac);
+          float endFade = smoothstep(0.0, 0.12, vArcFrac) * (1.0 - smoothstep(0.84, 1.0, vArcFrac));
 
           // Smooth strictly-downwind comet pulses (speed visibly reflects wind speed via uTime & glow)
           float flowFreq = 0.048;
@@ -141,7 +142,7 @@ export class WindView {
           vec3 baseCol = speedColor(vSpeedRatio);
           vec3 col = mix(baseCol * 0.85, baseCol * 1.15 + vec3(0.20, 0.28, 0.34), tail * 0.55 + headGlow * 0.65);
 
-          float alpha = crossFade * endFade * (0.06 + 0.34 * tail + 0.28 * headGlow) * energy;
+          float alpha = crossFade * endFade * (0.14 + 0.40 * tail + 0.28 * headGlow) * energy;
           if (alpha < 0.012) discard;
           gl_FragColor = vec4(col, min(alpha, 0.92));
         }
@@ -194,11 +195,27 @@ export class WindView {
   }
 
   setAmbientWind(windVec) {
-    if (windVec) {
+    if (!windVec) return;
+    const [wx, wy] = windVec;
+    const speed = Math.hypot(wx, wy);
+    this._animSpeed = Math.max(0.15, speed / 3.5);
+    this._ribbonUniforms.uSpeedScale.value = this._animSpeed;
+    if (this._field) return;
+
+    if (speed < 0.15) {
+      this._fallbackWind = [0, 0];
+      this._renderedAmbientDirection = null;
+      if (this._ribbonMesh) this._ribbonMesh.visible = false;
+      return;
+    }
+
+    const direction = [wx / speed, wy / speed];
+    const previous = this._renderedAmbientDirection;
+    // Small gusts affect animation speed without regenerating the geometry every tick.
+    if (!previous || direction[0] * previous[0] + direction[1] * previous[1] < Math.cos(Math.PI / 12)) {
       this._fallbackWind = windVec;
-      const spd = Math.hypot(windVec[0], windVec[1]);
-      this._animSpeed = Math.max(0.15, spd / 3.5);
-      this._ribbonUniforms.uSpeedScale.value = this._animSpeed;
+      this._renderedAmbientDirection = direction;
+      this._rebuildStreamlineRibbons();
     }
   }
 
@@ -302,15 +319,14 @@ export class WindView {
   }
 
   _rebuildStreamlineRibbons() {
-    if (!this._field) return;
     if (this._ribbonMesh) {
       this.group.remove(this._ribbonMesh);
       this._ribbonMesh.geometry.dispose();
       this._ribbonMesh = null;
     }
 
-    const f = this._field;
-    const baseSpd = f.baseSpeed;
+    const maxZ = this._field?.maxZ ?? 30;
+    const baseSpd = this._field?.baseSpeed ?? Math.hypot(...this._fallbackWind);
 
     // Dominant wind unit vector
     const vRef = [0, 0, 0];
@@ -323,8 +339,6 @@ export class WindView {
     }
     const ux = vRef[0] / refSpd;
     const uy = vRef[1] / refSpd;
-    const px = -uy;
-    const py = ux;
 
     // Uniform full-area inflow seeding along all upwind domain edges for ANY wind angle (0..360 deg).
     // Spacing along each inflow edge is scaled by 1/|u_normal| so perpendicular spacing stays uniform
@@ -373,7 +387,7 @@ export class WindView {
     const v2 = [0, 0, 0];
     const maxSteps = 210; // 210 * 0.85m = 178.5m (> 170m diagonal of 120x120m pad)
     const ds = 0.85; // Fine spatial step for razor-smooth curves around round tanks & roofs
-    const baseWidth = 0.105;
+    const baseWidth = 0.17;
 
     let vertOffset = 0;
 
@@ -395,7 +409,7 @@ export class WindView {
         const inv1 = 1.0 / spd1;
         const mx = x + 0.5 * v1[0] * inv1 * ds;
         const my = y + 0.5 * v1[1] * inv1 * ds;
-        const mz = Math.max(0.8, Math.min(f.maxZ - 0.6, z + 0.5 * v1[2] * inv1 * ds));
+        const mz = Math.max(0.8, Math.min(maxZ - 0.6, z + 0.5 * v1[2] * inv1 * ds));
 
         this._sampleField(mx, my, mz, v2);
         const spd2 = Math.hypot(v2[0], v2[1], v2[2]);
@@ -404,7 +418,7 @@ export class WindView {
         const inv2 = 1.0 / spd2;
         x += v2[0] * inv2 * ds;
         y += v2[1] * inv2 * ds;
-        z = Math.max(0.8, Math.min(f.maxZ - 0.6, z + v2[2] * inv2 * ds));
+        z = Math.max(0.8, Math.min(maxZ - 0.6, z + v2[2] * inv2 * ds));
         arcLen += ds;
 
         if (Math.abs(x) > 59.0 || Math.abs(y) > 59.0) break;

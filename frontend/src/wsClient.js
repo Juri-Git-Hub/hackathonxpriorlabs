@@ -1,15 +1,18 @@
+import industrialMaps from "./industrialMaps.json";
+
 /**
  * WebSocket client connecting to FastAPI backend (`/ws`), with `?mock=true`
  * standalone synthetic stream generator so UI never blocks on Python.
  */
 export class SimWsClient {
-  constructor({ onWorldInit, onWindField, onSimTick, onBeliefUpdate, onStatus, onBackendStatus }) {
+  constructor({ onWorldInit, onWindField, onSimTick, onBeliefUpdate, onStatus, onBackendStatus, onError }) {
     this.onWorldInit = onWorldInit;
     this.onWindField = onWindField;
     this.onSimTick = onSimTick;
     this.onBeliefUpdate = onBeliefUpdate;
     this.onStatus = onStatus;
     this.onBackendStatus = onBackendStatus;
+    this.onError = onError;
     this.ws = null;
     this._reconnectTimer = null;
     this._mockTimer = null;
@@ -55,6 +58,8 @@ export class SimWsClient {
           this.onBackendStatus?.(msg);
         } else if (msg.type === "belief_update") {
           this.onBeliefUpdate?.(msg);
+        } else if (msg.type === "error") {
+          this.onError?.(msg);
         }
       } catch (err) {
         console.warn("Malformed WS payload", err);
@@ -108,16 +113,16 @@ export class SimWsClient {
       windSpeed: 3.5,
       dropout: false,
       paused: false,
-      leaks: [{ id: "leak_01", pos: [-6, -7.2, 4], emission_rate: 1, buoyancy_vz: 0.25 }],
+      leaks: [],
     };
 
-    const worldInit = {
+    this._mockRefinery = {
       type: "world_init",
       bounds_min: [-60, -60, 0],
       bounds_max: [60, 60, 30],
       buildings: [
         { id: "bldg_control", kind: "building", min_xyz: [-38, -28, 0], max_xyz: [-20, -12, 12] },
-        { id: "tank_north", kind: "storage_tank", min_xyz: [-10, 14, 0], max_xyz: [10, 34, 16] },
+        { id: "tank_north", kind: "storage_tank", model: "fractionator", min_xyz: [-10, 14, 0], max_xyz: [10, 34, 16] },
         { id: "tank_east", kind: "storage_tank", min_xyz: [22, -16, 0], max_xyz: [40, 2, 14] },
         { id: "pipe_rack_center", kind: "pipe_rack", min_xyz: [-16, -6, 0], max_xyz: [14, 4, 8] },
         { id: "bldg_compressor", kind: "building", min_xyz: [-35, 16, 0], max_xyz: [-18, 32, 10] },
@@ -130,7 +135,7 @@ export class SimWsClient {
       grid_coords: gridCoords,
     };
 
-    this.onWorldInit?.(worldInit);
+    this._selectMockMap("refinery");
     this.onBackendStatus?.({ state: "mock", mode: "mock", inference_seconds: 0, measurement_count: 0, exposure_ppm_seconds: 0 });
 
     let tickCount = 0;
@@ -144,6 +149,8 @@ export class SimWsClient {
       const wx = s.windSpeed * Math.cos(rad);
       const wy = s.windSpeed * Math.sin(rad);
       const t = s.simTime;
+      const source = s.leaks[0]?.pos;
+      const [sourceX, sourceY, sourceZ] = source ?? this._mockDefaultLeak;
 
       const puffs = [];
       for (const lk of s.leaks) {
@@ -173,9 +180,9 @@ export class SimWsClient {
         drones: [
           {
             id: "tabpfn",
-            pos: [Math.cos(t * 0.35) * 20 - 6, Math.sin(t * 0.35) * 18 - 7, 6 + Math.sin(t) * 1.5],
+            pos: [Math.cos(t * 0.35) * 20 + sourceX, Math.sin(t * 0.35) * 18 + sourceY, Math.max(3, sourceZ + 2) + Math.sin(t) * 1.5],
             rot_rpy: [0.08, 0.12, t * 0.35 + Math.PI / 2],
-            target_pos: [-6, -7, 5],
+            target_pos: [sourceX, sourceY, sourceZ + 1],
             ppm: 18 + Math.sin(t) * 8,
             battery_pct: Math.max(5, 100 - t * 0.4),
             samples_taken: Math.floor(t * 2),
@@ -186,31 +193,64 @@ export class SimWsClient {
       });
 
       if (tickCount % 20 === 0) {
-        const q50 = gridCoords.map(([x, y, z]) => {
-          const d = Math.hypot(x + 6, y + 7.2, z - 4);
-          return Math.max(0.05, 3.8 * Math.exp(-d / 20));
+        const grid = this._mockWorld.grid_coords;
+        const q50 = grid.map(([x, y, z]) => {
+          const d = Math.hypot(x - sourceX, y - sourceY, z - sourceZ);
+          return source ? Math.max(0.05, 3.8 * Math.exp(-d / 20)) : 0;
         });
-        const uncertainty = gridCoords.map((_, i) => 0.4 + 0.6 * Math.abs(Math.sin(t + i * 0.1)));
+        const uncertainty = grid.map((_, i) => 0.4 + 0.6 * Math.abs(Math.sin(t + i * 0.1)));
         this.onBeliefUpdate?.({
           type: "belief_update",
           sim_time: t,
           drone_id: "tabpfn",
           q50,
           uncertainty,
-          estimated_source: [-6, -7.2, 4],
-          next_waypoint: [-4, -5, 5],
+          estimated_source: [sourceX, sourceY, sourceZ],
+          next_waypoint: [sourceX + 2, sourceY + 2, sourceZ + 1],
         });
       }
     }, 50);
   }
 
+  _selectMockMap(mapId) {
+    if (!Object.hasOwn(industrialMaps, mapId)) {
+      this.onError?.({ detail: "Choose a valid facility map." });
+      return;
+    }
+
+    const layout = mapId === "refinery" ? this._mockRefinery : industrialMaps[mapId];
+    this._mockWorld = {
+      ...this._mockRefinery,
+      map_id: mapId,
+      buildings: layout.buildings,
+      assets: layout.assets,
+      pipe_runs: layout.pipe_runs ?? [],
+      grid_coords: this._mockRefinery.grid_coords.filter((point) =>
+        !layout.buildings.some((box) => point.every((value, axis) =>
+          value >= box.min_xyz[axis] && value <= box.max_xyz[axis]
+        ))
+      ),
+    };
+    this._mockDefaultLeak = layout.assets.find(({ id }) =>
+      id === (layout.default_leak_asset ?? "flange_01")
+    ).pos;
+    this._handleMockCommand({ action: "reset_race" });
+    this._mockState.dropout = false;
+    this.onWorldInit?.(this._mockWorld);
+  }
+
   _handleMockCommand(cmd) {
     const s = this._mockState;
     if (!s) return;
-    if (cmd.action === "set_wind") {
+    if (cmd.action === "select_map") {
+      this._selectMockMap(cmd.map_id);
+    } else if (cmd.action === "randomize_layout") {
+      this.onError?.({ detail: "Random layouts need the Python backend. Start launch_demo.py (or launch_demo.py --mock-agents)." });
+    } else if (cmd.action === "set_wind") {
       if (cmd.wind_angle_deg != null) s.windAngle = cmd.wind_angle_deg;
       if (cmd.wind_speed != null) s.windSpeed = cmd.wind_speed;
     } else if (cmd.action === "place_leak" && cmd.leak_pos) {
+      if (cmd.replace_existing) { s.leaks=[];s.simTime=0;s.paused=false; }
       s.leaks.push({
         id: `leak_${s.leaks.length + 1}`,
         pos: cmd.leak_pos,
@@ -228,6 +268,9 @@ export class SimWsClient {
     } else if (cmd.action === "reset_race") {
       s.simTime = 0;
       s.paused = false;
+      if (!cmd.keep_leaks || s.leaks.length === 0) {
+        s.leaks = [{ id: "leak_01", pos: this._mockDefaultLeak, emission_rate: 1, buoyancy_vz: 0.25 }];
+      }
     }
   }
 }

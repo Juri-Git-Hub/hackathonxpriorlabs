@@ -351,6 +351,7 @@ export class HudController {
   setWindVisible(visible) {
     this.windVisible = Boolean(visible);
     this.btnWind?.classList.toggle("btn-active", this.windVisible);
+    this.btnWind?.setAttribute("aria-pressed", String(this.windVisible));
     this.onToggleWind?.(this.windVisible);
   }
 
@@ -535,12 +536,14 @@ export class HudController {
     mission.style.color=["no_leak","depleted"].includes(status.mission_state) ? "#fca5a5" : "#cbd5e1";
     const features=status.source_features ? ` · ${status.source_features} source / ${status.hazard_features} risk inputs` : "";
     document.getElementById("model-status").textContent = `${status.mode} · ${status.state}${features}${status.error ? ": " + status.error : ""}`;
+    const plans={preparing:"Map plan: preparing before flight",coverage_fallback:"Map coverage route · TabPFN map dataset pending",tabpfn_map:"Map route scored by TabPFN",injected_test_model:"Map route · test model",mock:"Mock stream · no map-search model",error:"Map planning failed · holding position"};
+    document.getElementById("map-plan-status").textContent=`${plans[status.plan_state] || "Map plan: unavailable"}${status.search_candidate_count ? ` · ${status.search_candidate_count} cells · revision ${status.plan_revision || 0}` : ""}`;
     const wind=status.adaptive_wind ? ` · ${status.wind_replans || 0} Windanpassungen` : "";
     document.getElementById("model-metrics").textContent = `${(status.inference_seconds || 0).toFixed(2)} s inference · ${status.measurement_count || 0} measurements · ${status.completed_probes || 0} Messstopps · ${status.prediction_decisions || 0} TabPFN-Ziele${wind} · ${(status.exposure_ppm_seconds || 0).toFixed(1)} ppm·s exposure`;
   }
 
   updateBelief(belief) {
-    document.getElementById("source-estimate").textContent = `Estimated source (x,y,z): ${belief.estimated_source.map(v => v.toFixed(1)).join(", ")} m`;
+    document.getElementById("source-estimate").textContent = belief.source_evidence===false ? "Source estimate: awaiting gas measurements" : `Estimated source (x,y,z): ${belief.estimated_source.map(v => v.toFixed(1)).join(", ")} m`;
     this.hazardForecastTime=belief.hazard_forecast_time;
     this.updateRiskTime(belief.sim_time);
   }
@@ -554,7 +557,7 @@ export class HudController {
   updateReport(report) {
     this.completed=Boolean(report);
     document.getElementById("mission-report").classList.toggle("hidden",!report);
-    for (const id of ["btn-pause","btn-step","btn-clear-leaks","btn-place-leak","btn-dropout","wind-angle","wind-speed"]) document.getElementById(id).disabled=this.completed;
+    for (const id of ["btn-pause","btn-step","btn-clear-leaks","btn-dropout","wind-angle","wind-speed"]) document.getElementById(id).disabled=this.completed;
     if (!report)return;
     document.getElementById("report-duration").textContent=`Suchdauer: ${report.elapsed_sim_seconds.toFixed(1)} s Simulationszeit · ${report.measurement_count} Messungen`;
     document.getElementById("report-position").textContent=`Geschätzte Quelle (x,y,z): ${report.estimated_source.map(x=>x.toFixed(1)).join(", ")} m`;

@@ -60,11 +60,14 @@ class SimEngine:
         self,
         agents: dict[str, AgentProtocol],
         seed: int = 42,
+        layout_seed: int | None = None,
     ) -> None:
         self._lock = threading.RLock()
         self._seed = seed
+        self._refinery_layout_seed = layout_seed
+        self._generated_layout_seed: int | None = None
 
-        self.world = World()
+        self.world = World(layout_seed=layout_seed)
         self.airflow = Airflow(self.world, seed=seed)
         self.plume = Plume(self.world, self.airflow, seed=seed + 100)
 
@@ -92,7 +95,10 @@ class SimEngine:
             self.sensors[drone_id] = GasSensor(seed=self._seed + 200 + i)
 
     def get_world_init(self) -> WorldInitPayload:
-        return self.world.to_world_init()
+        payload=self.world.to_world_init()
+        grid=getattr(self.agents.get('tabpfn'),'prediction_grid',None)
+        if grid is not None:payload=payload.model_copy(update={'grid_coords':[tuple(map(float,p)) for p in grid]})
+        return payload
 
     def get_wind_field(self) -> WindFieldPayload:
         with self._lock:
@@ -102,7 +108,7 @@ class SimEngine:
         return [
             LeakSource(
                 id="leak_01",
-                pos=(-6.0, -7.2, 4.0),  # Near aged flange_01 on central pipe rack
+                pos=self.world.default_leak_pos,
                 emission_rate=1.0,
                 buoyancy_vz=0.25,
             )
@@ -136,10 +142,35 @@ class SimEngine:
                 self._best_estimate[drone_id] = (0.0, drone.pos_tuple)
                 self.agents[drone_id].reset(world_init)
 
+    def _replace_world(self, world: World) -> None:
+        wind = self.airflow.w0.copy()
+        self.world = world
+        self.airflow = Airflow(
+            world,
+            base_wind_angle_deg=math.degrees(math.atan2(wind[1], wind[0])),
+            base_wind_speed=float(np.linalg.norm(wind)),
+            seed=self._seed,
+        )
+        self.plume = Plume(world, self.airflow, seed=self._seed + 100)
+        self.reset_race()
+
     def apply_command(self, cmd: JudgeCommand) -> None:
         """Apply a JudgeCommand thread-safely."""
         with self._lock:
-            if self.mission_report is not None and cmd.action!='reset_race':return
+            if cmd.action == "select_map":
+                if cmd.map_id is None:
+                    raise ValueError("Choose a valid facility map.")
+                if cmd.map_id != self.world.map_id:
+                    layout_seed = {
+                        "refinery": self._refinery_layout_seed,
+                        "generated": self._generated_layout_seed,
+                    }.get(cmd.map_id)
+                    self._replace_world(World(layout_seed=layout_seed, map_id=cmd.map_id))
+                    self.sensor_dropout_active = False
+                return
+
+            replacement=cmd.action=='place_leak' and cmd.replace_existing
+            if self.mission_report is not None and cmd.action not in ('reset_race','randomize_layout') and not replacement:return
             if cmd.action == "set_wind":
                 if cmd.wind_angle_deg is not None and cmd.wind_speed is not None:
                     self.airflow.set_wind(cmd.wind_angle_deg, cmd.wind_speed)
@@ -152,11 +183,21 @@ class SimEngine:
             elif cmd.action == "place_leak":
                 if cmd.leak_pos is not None:
                     lx, ly, lz = cmd.leak_pos
+                    if not np.isfinite([lx,ly,lz]).all():raise ValueError('Leak coordinates must be finite.')
+                    pos=(float(lx),float(ly),max(1.0,float(lz)))
+                    bounds=self.world.to_world_init()
+                    if not np.isfinite(pos).all() or np.any(np.array(pos)<bounds.bounds_min) or np.any(np.array(pos)>bounds.bounds_max):
+                        raise ValueError('Choose a leak position inside the facility bounds.')
+                    if replacement and self.world.is_inside_building(pos,margin=-.05):
+                        raise ValueError('The leak is inside equipment. Choose an exposed surface or free space beside it.')
+                    if replacement:
+                        self.reset_race([LeakSource(id='leak_01',pos=pos)])
+                        return
                     new_id = f"leak_{len(self.leaks) + 1:02d}"
                     self.leaks.append(
                         LeakSource(
                             id=new_id,
-                            pos=(float(lx), float(ly), max(1.0, float(lz))),
+                            pos=pos,
                         )
                     )
             elif cmd.action == "clear_leaks":
@@ -168,7 +209,17 @@ class SimEngine:
                     self.sensor_dropout_active = not self.sensor_dropout_active
             elif cmd.action == "reset_race":
                 if cmd.seed is not None:self._seed=cmd.seed
-                self.reset_race()
+                self.reset_race(list(self.leaks) if cmd.keep_leaks and self.leaks else None)
+            elif cmd.action == "randomize_layout":
+                if cmd.map_id == "generated":
+                    last_seed = max(self._generated_layout_seed or 0, self._refinery_layout_seed or 0)
+                    layout_seed = cmd.seed if cmd.seed is not None else last_seed + 1
+                    self._replace_world(World(layout_seed=layout_seed, map_id="generated"))
+                    self._generated_layout_seed = layout_seed
+                else:
+                    layout_seed = cmd.seed if cmd.seed is not None else (self._refinery_layout_seed or 0) + 1
+                    self._replace_world(World(layout_seed=layout_seed))
+                    self._refinery_layout_seed = layout_seed
             elif cmd.action == "step":
                 if self.paused:
                     self.paused=False

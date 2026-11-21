@@ -159,3 +159,43 @@ def test_completed_report_is_sent_on_reconnect_and_cleared_by_reset():
                 if msg['type']=='backend_status' and msg['mission_state']!='found':
                     assert msg['mission_report'] is None;break
             else:raise AssertionError('Reset did not clear completion report')
+
+
+def test_select_map_broadcasts_new_geometry_before_the_next_mission_tick():
+    app = create_app(mock_agents=True, layout_seed=42)
+    with TestClient(app) as client, client.websocket_connect("/ws") as ws:
+        refinery = WorldInitPayload.model_validate(ws.receive_json())
+        for map_id, leak_height in (
+            ("pipe_loop", 21), ("tank_terminal", 4), ("compressor_yard", 5),
+            ("cooling_works", 13), ("refinery", 4),
+        ):
+            ws.send_json(JudgeCommand(action="select_map", map_id=map_id).model_dump())
+            for _ in range(30):
+                message = ws.receive_json()
+                if message["type"] == "world_init":
+                    break
+            else:
+                raise AssertionError(f"No geometry broadcast for {map_id}")
+
+            layout = WorldInitPayload.model_validate(message)
+            assert layout.map_id == map_id
+            if map_id == "refinery":
+                assert layout == refinery
+            else:
+                assert layout.layout_seed is None
+                assert layout.grid_coords != refinery.grid_coords
+                assert any(box.kind == "pipe_segment" for box in layout.buildings)
+                assert layout.pipe_runs
+
+            for _ in range(30):
+                message = ws.receive_json()
+                if message["type"] == "sim_tick":
+                    tick = SimTickPayload.model_validate(message)
+                    assert tick.sim_time < 1
+                    assert len(tick.leaks) == 1
+                    assert tick.leaks[0].pos == app.state.engine.world.default_leak_pos
+                    if map_id != "refinery":
+                        assert tick.leaks[0].pos[2] == leak_height
+                    break
+            else:
+                raise AssertionError(f"No mission tick for {map_id}")

@@ -31,8 +31,13 @@
     <!-- Backend integration controls; scene and existing main HUD remain intact. -->
     <div id="backend-controls" class="hud-panel">
       <div class="panel-title">PlumeSense · Live TabPFN</div>
+      <div id="world-buttons" class="world-buttons" role="group" aria-label="Worlds">
+        <button id="btn-new-layout" type="button" class="btn btn-accent" disabled>Generate World</button>
+      </div>
+      <p id="layout-status" class="hint" role="status"></p>
       <div id="mission-status" role="status">Waiting for mission…</div>
       <div id="model-status" role="status">Waiting for backend…</div>
+      <div id="map-plan-status" role="status">Map plan: preparing before flight</div>
       <div id="model-metrics" class="hint">No inference yet</div>
       <div id="source-estimate" class="hint">Source estimate: —</div>
       <div id="risk-forecast-time" class="hint">Gefahrenprognose: —</div>
@@ -121,7 +126,7 @@
       <div class="button-grid">
         <button id="btn-reveal-plume" class="btn">Reveal True Plume</button>
         <button id="btn-toggle-belief" class="btn btn-active">TabPFN Belief Field</button>
-        <button id="btn-toggle-wind" class="btn btn-active">3D Wind Field</button>
+        <button id="btn-toggle-wind" class="btn btn-active" aria-pressed="true">Wind Flow</button>
         <button id="btn-dropout" class="btn">NaN Sensor Faults</button>
         <button id="btn-place-leak" class="btn">Place Leak</button>
         <button id="btn-clear-leaks" class="btn">Clear Leaks</button>

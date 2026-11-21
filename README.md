@@ -84,11 +84,33 @@ python launch_demo.py --port 8502 --seed 99
 
 Unser bestehender API-Server `api/server.py` auf `my4090:8000` bleibt unverändert. `tunnel.py` verbindet localhost:18000 mit diesem Remote-Port. Konfiguration: `PLUMESENSE_API_URL`, `PLUMESENSE_SSH_HOST`, `PLUMESENSE_REMOTE_PORT`, `PLUMESENSE_AUTO_TUNNEL=0`. Der SSH-Alias benötigt den vorhandenen Schlüssel/Agenten und ProxyJump.
 
+## Zufällige, verbundene Anlagenlayouts
+
+Der normale Launcher erzeugt jetzt ein reproduzierbares Layout mit Layout-Seed 42. Gebäude, Tanks, Rohrgestell und Anlagenpositionen werden einzeln versetzt; Gebäude halten Abstand und die Startplätze bleiben frei. Ein zusammenhängender Rohrgraph verbindet alle fünf Strukturen und 15 Anlagen. Orthogonales A* führt die Rohre um Gebäude herum. Dieselbe Python-Geometrie wird für Wind/Wolke, Kollisionsprüfung, Flugplanung und Three.js verwendet.
+
+```bash
+python launch_demo.py --layout-seed 73
+# Ursprüngliche Karte für historische Vergleiche:
+python launch_demo.py --classic-layout
+```
+
+Im linken Kontrollblock stehen fünf Karten zur Auswahl: Refinery, Pipe Loop, Tank Terminal, Compressor Yard und Cooling Works. „Generate World“ erzeugt ein zusätzliches Anlagenlayout mit dem nächsten Layout-Seed und beginnt eine frische Mission. Die fünf Karten bleiben auswählbar. Normaler Neustart behält das aktuelle Layout; Layout-Seed und Simulations-/Sensor-Seed sind unabhängig. `judge_cmd` mit `action="randomize_layout"`, `map_id="generated"` und optionalem `seed` erzeugt das zusätzliche Layout ebenfalls. `world_init` enthält `layout_seed` und die tatsächlichen `pipe_runs` einschließlich Anschluss-IDs. Die Standardquelle wird mit ihrem Anlagenanschluss versetzt und dem Agenten nicht als solche übergeben. Eine ausgewählte freie Leckposition kann weiterhin separat getestet werden.
+
+## Kartenbasierte Suche vor dem Start
+
+`integration/map_features.py` erzeugt freie XYZ-Kandidaten und 41 tabellarische Merkmale aus Kartengrenzen, Hindernissen, erreichbaren Positionen, Anlagenabständen, gemessenem Wind und vergangenen eigenen Messungen. Vor dem Flug sind Gassensordaten ausdrücklich als fehlend markiert. `integration/acquisition_control.py` wartet auf den ersten fertigen Plan, erstellt mit 3D-A* eine Route und plant an erreichten Messzielen neu. Bei Gaskontakt übernimmt die bestehende TabPFN-Quellensuche. Die Startsuche verwendet keine gespeicherte Liste von Anlagen-Wegpunkten.
+
+**Der passende Karten-TabPFN-Datensatz wird wie vereinbart erst im nächsten Schritt erstellt.** Bis dahin meldet das HUD `coverage_fallback` / „dataset pending“ und verwendet geometrische Abdeckung. Die vorhandenen Quellen- und Gefahrenprognosen laufen weiterhin über echtes TabPFN auf der 4090. Das ist noch keine gelernte Kartenpriorisierung und kein Nachweis erfolgreicher Ortung auf neuen Layouts. Alle unten genannten bisherigen Fund- und Modellmetriken beziehen sich auf die frühere feste Karte und den damaligen Suchcontroller.
+
+Die vorbereitete Schnittstelle liegt in `reports/map_search_schema.json`: `map-search-v1`, Ziel `target_gas_contact_t4` (≥3 ppm nach vier Sekunden), `train.parquet` und `manifest.json` mit Feature-Reihenfolge, Ziel, Horizont, Schwelle und getrennten Validierungs-/Testepisoden. `PLUMESENSE_SEARCH_DATASET` wählt einen passenden Ordner; standardmäßig wird `data/datasets/map-search-v1` gesucht. Der Loader lehnt falsche Schemas und Trainingszeilen aus angegebenen Holdout-Episoden ab. Ohne Ordner wird kein Kartenmodell vorgetäuscht. Der nächste Datensatz muss unterschiedliche Layouts, kalte Starts ohne Gasdaten und vergangene mobile Messhistorien abdecken; neue Layouts müssen separat evaluiert werden.
+
+Beim Platzieren über das Frontend ersetzt die neue Quelle die bisherige und setzt Wolke, Drohne, Historie und Bericht zurück. „Restart Mission“ behält die gewählte Quelle. Ungültige Positionen im Gebäude werden mit einer sichtbaren Meldung abgelehnt. `replace_existing` und `keep_leaks` steuern dieses Verhalten im WebSocket-Vertrag; ältere Clients können weiterhin mehrere Quellen ergänzen.
+
 ## Frontend-Vertrag
 
 `shared/schemas.py` bleibt die Quelle der Pydantic-Verträge. Vorhandene main-Felder bleiben erhalten; neue Felder besitzen Defaults, damit ältere Frontends weiter lesen können.
 
-- `world_init`: Gebäude, Anlagen und 788 XYZ-Kandidaten auf Höhen 3, 8, 13, 18, 23, 28 m.
+- `world_init`: Gebäude, Anlagen, Rohrnetz und XYZ-Kandidaten passend zur aktuellen Karte; die Größe des Prognoserasters ist variabel.
 - `sim_tick`: 20-Hz-Telemetrie, Drohnen, Wolke, Wind und neu `paused`.
 - `belief_update`: Quellen-/Messzielposition sowie bisherige `q50`/`uncertainty`. Erweiterungen: `source_scores`, `hazard_probabilities`, `route`, `inference_seconds`, `measurement_count`, `exposure_ppm_seconds`, `score_kind`.
 - `backend_status`: Modellmodus, `pending`/`ready`/`error`/`mock`, Fehlermeldung, Latenz, Messanzahl, Exposition und Pausenstatus; außerdem Suchphase, abgeschlossene Messstopps und aktive Featureanzahl. Etwa einmal pro Sekunde sowie bei Verbindung/Kommandos.

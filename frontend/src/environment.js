@@ -4,7 +4,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 /**
  * Sets up cinematic golden-hour industrial twilight lighting, soft PCF shadows,
  * PMREM metallic reflections, atmospheric haze, and a rich sky dome with subtle
- * distant horizon mountain/industrial band so the scene never floats in a dark void.
+ * warm horizon glow.
  */
 export function setupEnvironment(scene, renderer) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -95,11 +95,8 @@ export function setupEnvironment(scene, renderer) {
         vec3 cloudCol = mix(vec3(0.32, 0.40, 0.52), vec3(0.88, 0.62, 0.42), pow(sunAmt, 2.0));
         col = mix(col, cloudCol, cloudMask * 0.42);
 
-        // Soft distant coastal/industrial horizon ridge silhouette
-        float az = atan(dir.z, dir.x);
-        float ridge = 0.016 + 0.012 * sin(az * 5.0 + 1.2) + 0.007 * sin(az * 13.0) + 0.004 * sin(az * 27.0);
-        float inRidge = 1.0 - smoothstep(ridge - 0.005, ridge + 0.005, h);
-        col = mix(col, vec3(0.11, 0.15, 0.21), inRidge * 0.82);
+        // Fade below the horizon for a neutral backdrop behind the site boundary.
+        col = mix(vec3(0.08, 0.11, 0.15), col, smoothstep(-0.18, 0.0, dir.y));
 
         gl_FragColor = vec4(col, 1.0);
       }

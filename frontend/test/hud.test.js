@@ -39,6 +39,10 @@ test('live status exposes compact inputs and measured local search phase',()=>{
   hud.updateBackendStatus({mode:'tabpfn-api',state:'ready',mission_state:'searching',navigation_basis:'wind_adapted_acquisition',adaptive_wind:true,wind_replans:2});
   assert.match(nodes.get('mission-status').textContent,/Wind geändert/);
   assert.match(nodes.get('model-metrics').textContent,/2 Windanpassungen/);
+  hud.updateBackendStatus({mode:'tabpfn-api',state:'ready',plan_state:'coverage_fallback',search_candidate_count:578,plan_revision:1});
+  assert.match(nodes.get('map-plan-status').textContent,/dataset pending.*578 cells/);
+  hud.updateBackendStatus({mode:'tabpfn-api',state:'ready',plan_state:'tabpfn_map'});
+  assert.match(nodes.get('map-plan-status').textContent,/scored by TabPFN/);
 });
 
 test('cached hazard shows its actual forecast time and expiry',()=>{
