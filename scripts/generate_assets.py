@@ -58,18 +58,34 @@ def assign_mat(obj: bpy.types.Object, mat: bpy.types.Material) -> None:
         obj.data.materials.append(mat)
 
 
+def set_smooth(obj: bpy.types.Object) -> None:
+    if obj.type == "MESH" and obj.data:
+        for poly in obj.data.polygons:
+            poly.use_smooth = True
+
+
+def add_bevel(obj: bpy.types.Object, width: float = 0.015, segments: int = 2) -> None:
+    mod = obj.modifiers.new(name="Bevel", type="BEVEL")
+    mod.width = width
+    mod.segments = segments
+    mod.limit_method = "ANGLE"
+
+
 def add_box(
     name: str,
     loc: tuple[float, float, float],
     scale: tuple[float, float, float],
     mat: bpy.types.Material,
     rot: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    bevel: float = 0.0,
 ) -> bpy.types.Object:
     bpy.ops.mesh.primitive_cube_add(size=1.0, location=loc, rotation=rot)
     obj = bpy.context.active_object
     obj.name = name
     obj.scale = scale
     assign_mat(obj, mat)
+    if bevel > 0.0:
+        add_bevel(obj, width=bevel, segments=2)
     return obj
 
 
@@ -79,8 +95,9 @@ def add_cyl(
     radius: float,
     depth: float,
     mat: bpy.types.Material,
-    vertices: int = 24,
+    vertices: int = 32,
     rot: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    smooth: bool = True,
 ) -> bpy.types.Object:
     bpy.ops.mesh.primitive_cylinder_add(
         vertices=vertices, radius=radius, depth=depth, location=loc, rotation=rot
@@ -88,6 +105,8 @@ def add_cyl(
     obj = bpy.context.active_object
     obj.name = name
     assign_mat(obj, mat)
+    if smooth:
+        set_smooth(obj)
     return obj
 
 
@@ -117,25 +136,30 @@ def build_storage_tank() -> None:
     mat_yellow = make_mat("SafetyYellow", (0.90, 0.68, 0.08), metallic=0.15, roughness=0.40)
     mat_dark_steel = make_mat("DarkSteel", (0.18, 0.21, 0.25), metallic=0.75, roughness=0.35)
 
-    # Concrete plinth base
-    add_cyl("Plinth", (0, 0, 0.03), radius=0.49, depth=0.06, mat=mat_concrete, vertices=32)
+    # Concrete plinth base (smooth 64-seg cylinder -> zero blocky facets!)
+    add_cyl("Plinth", (0, 0, 0.03), radius=0.49, depth=0.06, mat=mat_concrete, vertices=64)
 
     # Main cylindrical tank shell
-    add_cyl("TankBody", (0, 0, 0.46), radius=0.44, depth=0.80, mat=mat_tank, vertices=36)
+    add_cyl("TankBody", (0, 0, 0.46), radius=0.44, depth=0.80, mat=mat_tank, vertices=64)
 
     # Circumferential stiffening / weld rings
     for z in (0.18, 0.38, 0.58, 0.78):
-        add_cyl(f"Ring_{z:.2f}", (0, 0, z), radius=0.452, depth=0.018, mat=mat_band, vertices=36)
+        add_cyl(f"Ring_{z:.2f}", (0, 0, z), radius=0.450, depth=0.016, mat=mat_band, vertices=64)
 
     # Painted industrial hazard band near top
-    add_cyl("HazardBand", (0, 0, 0.70), radius=0.445, depth=0.065, mat=mat_accent, vertices=36)
+    add_cyl("HazardBand", (0, 0, 0.70), radius=0.444, depth=0.065, mat=mat_accent, vertices=64)
 
-    # Shallow domed roof (squashed UV sphere)
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=12, radius=0.44, location=(0, 0, 0.86))
+    # Ground-level bolted manway access hatch on +Y face
+    add_cyl("ManwayNeck", (0, 0.445, 0.14), radius=0.055, depth=0.06, mat=mat_dark_steel, vertices=24, rot=(math.pi / 2, 0, 0))
+    add_cyl("ManwayCover", (0, 0.478, 0.14), radius=0.068, depth=0.016, mat=mat_band, vertices=24, rot=(math.pi / 2, 0, 0))
+
+    # Shallow smooth domed roof
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=16, radius=0.44, location=(0, 0, 0.86))
     dome = bpy.context.active_object
     dome.name = "TankDome"
     dome.scale = (1.0, 1.0, 0.24)
     assign_mat(dome, mat_tank)
+    set_smooth(dome)
 
     # Top pressure-relief vent cap & hatch
     add_cyl("TopVent", (0, 0, 0.96), radius=0.07, depth=0.07, mat=mat_dark_steel, vertices=16)
@@ -225,35 +249,50 @@ def build_industrial_building() -> None:
     add_box("ParapetE", (0.48, 0, 0.88), (0.03, 0.94, 0.05), mat_trim)
     add_box("ParapetW", (-0.48, 0, 0.88), (0.03, 0.94, 0.05), mat_trim)
 
-    # Rooftop HVAC condenser units & exhaust stacks
-    add_box("HVAC_1", (-0.20, 0.12, 0.915), (0.26, 0.22, 0.11), mat_door)
-    add_box("HVAC_2", (0.18, -0.14, 0.91), (0.22, 0.20, 0.10), mat_door)
-    add_cyl("ExhaustStack_1", (0.28, 0.24, 0.93), radius=0.04, depth=0.14, mat=mat_trim, vertices=14)
-    add_cyl("ExhaustStack_2", (0.16, 0.24, 0.92), radius=0.032, depth=0.12, mat=mat_trim, vertices=14)
+    # Rooftop HVAC condenser units, fan shrouds, conduit pipes & exhaust stacks
+    add_box("HVAC_1", (-0.20, 0.14, 0.91), (0.28, 0.22, 0.10), mat_door)
+    add_cyl("HVACFan_1a", (-0.25, 0.14, 0.965), radius=0.055, depth=0.02, mat=mat_trim, vertices=14)
+    add_cyl("HVACFan_1b", (-0.14, 0.14, 0.965), radius=0.055, depth=0.02, mat=mat_trim, vertices=14)
 
-    # Industrial rollup bay doors on -Y and +Y faces
+    add_box("HVAC_2", (0.18, -0.14, 0.905), (0.24, 0.20, 0.09), mat_door)
+    add_cyl("HVACFan_2", (0.18, -0.14, 0.955), radius=0.06, depth=0.02, mat=mat_trim, vertices=14)
+
+    # Rooftop pipe conduits connecting HVAC to exhaust stacks
+    add_cyl("RoofConduit_1", (0.0, 0.14, 0.89), radius=0.018, depth=0.42, mat=mat_trim, vertices=10, rot=(0, math.pi / 2, 0))
+    add_cyl("RoofConduit_2", (0.18, 0.05, 0.89), radius=0.016, depth=0.32, mat=mat_trim, vertices=10, rot=(math.pi / 2, 0, 0))
+    add_box("RoofHatch", (-0.26, -0.22, 0.88), (0.14, 0.14, 0.05), mat_trim)
+
+    add_cyl("ExhaustStack_1", (0.28, 0.24, 0.94), radius=0.042, depth=0.16, mat=mat_trim, vertices=14)
+    add_cyl("ExhaustCap_1", (0.28, 0.24, 1.02), radius=0.055, depth=0.015, mat=mat_door, vertices=14)
+    add_cyl("ExhaustStack_2", (0.16, 0.24, 0.925), radius=0.032, depth=0.13, mat=mat_trim, vertices=14)
+
+    # Industrial rollup bay doors + rain canopy awnings on -Y and +Y faces
     for y_sign in (-1.0, 1.0):
-        add_box(f"BayDoorFrame_{y_sign}", (0.0, y_sign * 0.476, 0.25), (0.28, 0.02, 0.38), mat_trim)
-        add_box(f"BayDoor_{y_sign}", (0.0, y_sign * 0.478, 0.24), (0.24, 0.015, 0.35), mat_door)
+        add_box(f"BayDoorFrame_{y_sign}", (0.0, y_sign * 0.476, 0.25), (0.30, 0.025, 0.40), mat_trim)
+        add_box(f"BayDoor_{y_sign}", (0.0, y_sign * 0.480, 0.24), (0.25, 0.016, 0.36), mat_door)
+        # Overhead steel rain canopy awning
+        add_box(f"Awning_{y_sign}", (0.0, y_sign * 0.515, 0.47), (0.36, 0.09, 0.022), mat_trim)
         # Yellow safety bollards flanking the bay door
-        for bx in (-0.16, 0.16):
+        for bx in (-0.17, 0.17):
             add_cyl(
                 f"Bollard_{y_sign}_{bx}",
-                (bx, y_sign * 0.505, 0.11),
+                (bx, y_sign * 0.51, 0.11),
                 radius=0.016,
                 depth=0.14,
                 mat=mat_yellow,
                 vertices=10,
             )
 
-    # Glowing control-room window strip on +X and -X faces
+    # Glowing control-room window strip + lower intake louver grilles on +X and -X faces
     for x_sign in (-1.0, 1.0):
-        add_box(f"WinFrame_{x_sign}", (x_sign * 0.476, 0.0, 0.62), (0.025, 0.60, 0.16), mat_trim)
-        add_box(f"WinGlass_{x_sign}", (x_sign * 0.482, 0.0, 0.62), (0.015, 0.54, 0.11), mat_window)
+        add_box(f"WinFrame_{x_sign}", (x_sign * 0.476, 0.0, 0.62), (0.028, 0.60, 0.16), mat_trim)
+        add_box(f"WinGlass_{x_sign}", (x_sign * 0.483, 0.0, 0.62), (0.016, 0.54, 0.11), mat_window)
+        add_box(f"Louver_{x_sign}", (x_sign * 0.478, -0.24, 0.26), (0.024, 0.22, 0.18), mat_trim)
+        add_box(f"ElecPanel_{x_sign}", (x_sign * 0.482, 0.26, 0.26), (0.032, 0.14, 0.20), mat_door)
 
     # Rooftop comms mast & red aviation beacon
-    add_cyl("CommsMast", (-0.36, -0.34, 0.94), radius=0.012, depth=0.16, mat=mat_trim, vertices=8)
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=10, ring_count=8, radius=0.022, location=(-0.36, -0.34, 1.02))
+    add_cyl("CommsMast", (-0.36, -0.34, 0.95), radius=0.012, depth=0.18, mat=mat_trim, vertices=8)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=10, ring_count=8, radius=0.024, location=(-0.36, -0.34, 1.04))
     bcn = bpy.context.active_object
     bcn.name = "AviationBeacon"
     assign_mat(bcn, mat_red_beacon)
@@ -366,75 +405,197 @@ def build_valve_assembly() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 5. Industrial Inspection Quadrotor (Matrice-style, ~2.2m visual span)
+# 5. Industrial Inspection Quadrotor (Matrice 350 RTK-style, detailed PBR)
 # ---------------------------------------------------------------------------
 def build_quadrotor() -> None:
     clear_scene()
-    mat_carbon = make_mat("CarbonFiber", (0.08, 0.09, 0.11), metallic=0.35, roughness=0.32)
-    mat_shell = make_mat("DroneShell", (0.20, 0.23, 0.28), metallic=0.45, roughness=0.30)
-    mat_alu = make_mat("Aluminum", (0.72, 0.76, 0.80), metallic=0.88, roughness=0.24)
+    mat_carbon = make_mat("CarbonFiber", (0.07, 0.08, 0.10), metallic=0.38, roughness=0.28)
+    mat_shell = make_mat("DroneShell", (0.24, 0.28, 0.34), metallic=0.52, roughness=0.26)
+    mat_alu = make_mat("Aluminum", (0.78, 0.82, 0.86), metallic=0.90, roughness=0.20)
+    mat_battery = make_mat("BatteryPack", (0.14, 0.16, 0.20), metallic=0.25, roughness=0.45)
     mat_accent = make_mat(
         "AccentLED",
-        (0.15, 0.85, 0.95),
+        (0.15, 0.88, 0.98),
         metallic=0.1,
-        roughness=0.2,
-        emission=(0.15, 0.85, 0.95),
-        emission_strength=2.2,
+        roughness=0.18,
+        emission=(0.15, 0.88, 0.98),
+        emission_strength=3.0,
     )
-    mat_prop = make_mat("PropBlade", (0.12, 0.13, 0.15), metallic=0.2, roughness=0.42)
+    mat_prop = make_mat("PropBlade", (0.10, 0.11, 0.13), metallic=0.25, roughness=0.35)
+    mat_lens = make_mat("OpticLens", (0.04, 0.12, 0.22), metallic=0.92, roughness=0.06)
 
-    # Central fuselage (nose faces +X in Blender -> +X in Three.js)
-    add_box("FuselageCore", (0, 0, 0.04), (0.78, 0.50, 0.24), mat_carbon)
-    add_box("TopCanopy", (0.04, 0, 0.18), (0.62, 0.38, 0.12), mat_shell)
+    # Layered central fuselage (nose faces +X)
+    add_box("FuselageLower", (0, 0, 0.02), (0.86, 0.56, 0.18), mat_carbon)
+    add_box("TopCanopy", (0.06, 0, 0.16), (0.68, 0.44, 0.13), mat_shell)
+    add_box("NoseVisor", (0.43, 0, 0.12), (0.12, 0.34, 0.11), mat_carbon)
 
-    # Glowing agent-color accent strip + GPS mast
-    accent = add_box("AccentLED", (0.04, 0, 0.255), (0.50, 0.24, 0.04), mat_accent)
+    # Dual rear slide-in LiPo battery packs
+    add_box("BatteryL", (-0.34, -0.15, 0.14), (0.28, 0.16, 0.16), mat_battery)
+    add_box("BatteryR", (-0.34, 0.15, 0.14), (0.28, 0.16, 0.16), mat_battery)
+
+    # Glowing agent-color accent spine + dual RTK GPS antenna masts
+    accent = add_box("AccentLED", (0.08, 0, 0.24), (0.52, 0.22, 0.045), mat_accent)
     accent.name = "AccentLED"
-    add_cyl("GPSMast", (-0.18, 0, 0.34), radius=0.018, depth=0.18, mat=mat_alu, vertices=8)
-    add_cyl("GPSPuck", (-0.18, 0, 0.44), radius=0.085, depth=0.04, mat=mat_shell, vertices=14)
+    for gy in (-0.16, 0.16):
+        add_cyl(f"RTKMast_{gy}", (-0.18, gy, 0.34), radius=0.016, depth=0.20, mat=mat_alu, vertices=8)
+        add_cyl(f"RTKPuck_{gy}", (-0.18, gy, 0.46), radius=0.075, depth=0.042, mat=mat_shell, vertices=14)
 
-    # Under-slung optical + gas sniffer gimbal payload
-    add_box("GimbalMount", (0.24, 0, -0.14), (0.16, 0.16, 0.12), mat_alu)
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=14, ring_count=10, radius=0.13, location=(0.28, 0, -0.25))
-    cam = bpy.context.active_object
-    cam.name = "SensorGimbal"
-    assign_mat(cam, mat_carbon)
-    add_cyl("SnifferTube", (0.44, 0, -0.25), radius=0.032, depth=0.22, mat=mat_alu, vertices=10, rot=(0, math.pi / 2, 0))
+    # Under-slung dual optical + laser methane sniffer gimbal payload
+    add_box("GimbalYoke", (0.26, 0, -0.14), (0.18, 0.22, 0.14), mat_alu)
+    add_box("GimbalBody", (0.28, 0, -0.27), (0.22, 0.24, 0.18), mat_carbon)
+    add_cyl("OpticalLens", (0.40, -0.05, -0.27), radius=0.06, depth=0.05, mat=mat_lens, vertices=14, rot=(0, math.pi / 2, 0))
+    add_cyl("ThermalLens", (0.40, 0.06, -0.27), radius=0.045, depth=0.05, mat=mat_alu, vertices=14, rot=(0, math.pi / 2, 0))
+    add_cyl("SnifferTube", (0.48, 0.0, -0.21), radius=0.028, depth=0.28, mat=mat_alu, vertices=10, rot=(0, math.pi / 2, 0))
 
-    # Landing skids
-    for sy in (-0.34, 0.34):
-        add_cyl(f"SkidBar_{sy}", (0.0, sy, -0.40), radius=0.024, depth=0.88, mat=mat_carbon, vertices=10, rot=(0, math.pi / 2, 0))
-        for sx in (-0.22, 0.22):
-            add_cyl(f"SkidLeg_{sy}_{sx}", (sx, sy * 0.82, -0.22), radius=0.02, depth=0.38, mat=mat_carbon, vertices=8, rot=(sy * 0.45, 0, 0))
+    # T-bar carbon landing skids with cross-braces
+    for sy in (-0.40, 0.40):
+        add_cyl(f"SkidBar_{sy}", (0.02, sy, -0.44), radius=0.026, depth=0.96, mat=mat_carbon, vertices=10, rot=(0, math.pi / 2, 0))
+        add_cyl(f"SkidLegF_{sy}", (0.22, sy * 0.80, -0.23), radius=0.022, depth=0.44, mat=mat_carbon, vertices=8, rot=(sy * 0.42, 0, 0))
+        add_cyl(f"SkidLegR_{sy}", (-0.22, sy * 0.80, -0.23), radius=0.022, depth=0.44, mat=mat_carbon, vertices=8, rot=(sy * 0.42, 0, 0))
 
-    # 4 diagonal motor booms, aluminum motor bells, and separately named rotors
+    # 4 diagonal motor booms, brushed aluminum motor bells, spinner hubs & twin-blade props
     arm_angles = [math.pi / 4, -math.pi / 4, 3 * math.pi / 4, -3 * math.pi / 4]
-    arm_len = 0.95
+    arm_len = 1.05
     for i, ang in enumerate(arm_angles):
         cx = math.cos(ang) * (arm_len * 0.5)
         cy = math.sin(ang) * (arm_len * 0.5)
         mx = math.cos(ang) * arm_len
         my = math.sin(ang) * arm_len
 
-        # Tubular carbon arm
         add_cyl(
             f"Arm_{i}",
-            (cx, cy, 0.08),
-            radius=0.036,
+            (cx, cy, 0.09),
+            radius=0.042,
             depth=arm_len,
             mat=mat_carbon,
             vertices=10,
             rot=(0, math.pi / 2, ang),
         )
-        # Motor bell & nav LED pod underneath
-        add_cyl(f"Motor_{i}", (mx, my, 0.13), radius=0.09, depth=0.12, mat=mat_alu, vertices=14)
-        add_cyl(f"NavLED_{i}", (mx, my, 0.04), radius=0.05, depth=0.04, mat=mat_accent, vertices=10)
+        # High-vis accent collar on each arm
+        add_cyl(
+            f"NavLED_Arm_{i}",
+            (mx * 0.72, my * 0.72, 0.09),
+            radius=0.050,
+            depth=0.14,
+            mat=mat_accent,
+            vertices=10,
+            rot=(0, math.pi / 2, ang),
+        )
+        # Motor bell + silver spinner cap + bright nav LED pod
+        add_cyl(f"Motor_{i}", (mx, my, 0.14), radius=0.105, depth=0.13, mat=mat_alu, vertices=16)
+        add_cyl(f"NavLED_{i}", (mx, my, 0.04), radius=0.065, depth=0.05, mat=mat_accent, vertices=12)
 
-        # Twin-blade propeller (named Rotor_0..3 so Three.js can spin each one)
-        rotor = add_box(f"Rotor_{i}", (mx, my, 0.21), (0.86, 0.085, 0.018), mat_prop)
+        # Twin-blade propeller (named Rotor_0..3 so Three.js spins them)
+        rotor = add_box(f"Rotor_{i}", (mx, my, 0.22), (0.98, 0.095, 0.02), mat_prop)
         rotor.name = f"Rotor_{i}"
 
     export_glb("quadrotor.glb")
+
+
+# ---------------------------------------------------------------------------
+# 6. Compressor / Heat-Exchanger Station (distinct from Control Building!)
+#    Normalized to [-0.5, 0.5] x [-0.5, 0.5] x [0, 1.0]
+# ---------------------------------------------------------------------------
+def build_compressor_station() -> None:
+    clear_scene()
+    mat_concrete = make_mat("CompConcrete", (0.24, 0.26, 0.29), metallic=0.0, roughness=0.92)
+    mat_steel = make_mat("CompSteel", (0.20, 0.25, 0.31), metallic=0.58, roughness=0.44)
+    mat_vessel = make_mat("PressureVessel", (0.64, 0.68, 0.72), metallic=0.72, roughness=0.30)
+    mat_dark = make_mat("CompDark", (0.12, 0.14, 0.17), metallic=0.75, roughness=0.36)
+    mat_yellow = make_mat("CompYellow", (0.90, 0.66, 0.08), metallic=0.20, roughness=0.38)
+    mat_blue = make_mat("CompBlue", (0.18, 0.44, 0.72), metallic=0.40, roughness=0.36)
+
+    # Concrete equipment pad
+    add_box("Pad", (0, 0, 0.03), (1.0, 1.0, 0.06), mat_concrete)
+
+    # Half-open steel compressor house on the -Y half
+    add_box("CompHall", (0, -0.20, 0.34), (0.90, 0.52, 0.56), mat_steel)
+    add_box("CompRoof", (0, -0.20, 0.64), (0.94, 0.56, 0.04), mat_dark)
+
+    # Twin horizontal cylindrical pressure vessels / heat exchangers on the +Y half
+    for dy in (0.16, 0.36):
+        add_cyl(
+            f"Vessel_{dy:.2f}",
+            (0.0, dy, 0.32),
+            radius=0.11,
+            depth=0.78,
+            mat=mat_vessel,
+            vertices=20,
+            rot=(0, math.pi / 2, 0),
+        )
+        # Steel saddle supports
+        for sx in (-0.26, 0.26):
+            add_box(f"Saddle_{dy:.2f}_{sx:.2f}", (sx, dy, 0.14), (0.06, 0.22, 0.20), mat_dark)
+        # Flanged end caps
+        for ex in (-0.40, 0.40):
+            add_cyl(
+                f"Cap_{dy:.2f}_{ex:.2f}",
+                (ex, dy, 0.32),
+                radius=0.118,
+                depth=0.03,
+                mat=mat_blue,
+                vertices=16,
+                rot=(0, math.pi / 2, 0),
+            )
+
+    # 3 Tall industrial exhaust silencer stacks rising to z = 0.98
+    for i, sx in enumerate((-0.28, 0.0, 0.28)):
+        add_cyl(f"SilencerBase_{i}", (sx, -0.22, 0.74), radius=0.055, depth=0.20, mat=mat_vessel, vertices=14)
+        add_cyl(f"SilencerPipe_{i}", (sx, -0.22, 0.89), radius=0.032, depth=0.20, mat=mat_dark, vertices=12)
+
+    # Safety yellow walkway handrail along vessel deck
+    add_box("WalkRailF", (0, 0.47, 0.14), (0.92, 0.018, 0.018), mat_yellow)
+    for px in (-0.44, -0.22, 0.0, 0.22, 0.44):
+        add_box(f"WalkPost_{px:.2f}", (px, 0.47, 0.10), (0.018, 0.018, 0.12), mat_yellow)
+
+    export_glb("compressor_station.glb")
+
+
+# ---------------------------------------------------------------------------
+# 7. Iconic Industrial Flare Stack Tower (~32m tall lattice derrick)
+# ---------------------------------------------------------------------------
+def build_flare_stack() -> None:
+    clear_scene()
+    mat_steel = make_mat("DerrickSteel", (0.28, 0.33, 0.39), metallic=0.78, roughness=0.38)
+    mat_pipe = make_mat("FlarePipe", (0.55, 0.59, 0.64), metallic=0.82, roughness=0.30)
+    mat_red = make_mat("FlareStripeRed", (0.85, 0.18, 0.14), metallic=0.2, roughness=0.4)
+    mat_flame = make_mat(
+        "FlareFlame",
+        (1.0, 0.55, 0.10),
+        metallic=0.0,
+        roughness=0.2,
+        emission=(1.0, 0.48, 0.08),
+        emission_strength=6.0,
+    )
+
+    # Concrete footing
+    add_box("FlareBase", (0, 0, 0.4), (4.2, 4.2, 0.8), mat_steel)
+
+    # Central vertical flare riser pipe (30m)
+    add_cyl("FlareRiser", (0, 0, 15.5), radius=0.42, depth=30.0, mat=mat_pipe, vertices=16)
+    add_cyl("FlareTip", (0, 0, 30.8), radius=0.52, depth=1.2, mat=mat_red, vertices=16)
+
+    # 4 tapered steel lattice legs + horizontal tie rings
+    for i in range(4):
+        ang = i * math.pi / 2 + math.pi / 4
+        lx = math.cos(ang) * 1.45
+        ly = math.sin(ang) * 1.45
+        add_cyl(f"Leg_{i}", (lx * 0.72, ly * 0.72, 13.0), radius=0.12, depth=26.0, mat=mat_steel, vertices=8)
+
+    for z in (4.0, 9.0, 14.0, 19.0, 24.0):
+        s = 2.6 - 0.04 * z
+        add_box(f"RingN_{z}", (0, s * 0.5, z), (s, 0.14, 0.14), mat_steel)
+        add_box(f"RingS_{z}", (0, -s * 0.5, z), (s, 0.14, 0.14), mat_steel)
+        add_box(f"RingE_{z}", (s * 0.5, 0, z), (0.14, s, 0.14), mat_steel)
+        add_box(f"RingW_{z}", (-s * 0.5, 0, z), (0.14, s, 0.14), mat_steel)
+
+    # Glowing pilot flame cone at top
+    bpy.ops.mesh.primitive_cone_add(vertices=12, radius1=0.72, depth=2.6, location=(0, 0, 32.6))
+    flame = bpy.context.active_object
+    flame.name = "FlareFlame"
+    assign_mat(flame, mat_flame)
+
+    export_glb("flare_stack.glb")
 
 
 if __name__ == "__main__":
@@ -443,4 +604,6 @@ if __name__ == "__main__":
     build_pipe_rack()
     build_valve_assembly()
     build_quadrotor()
+    build_compressor_station()
+    build_flare_stack()
     print("All GLB assets generated successfully.")

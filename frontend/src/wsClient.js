@@ -3,8 +3,9 @@
  * standalone synthetic stream generator so UI never blocks on Python.
  */
 export class SimWsClient {
-  constructor({ onWorldInit, onSimTick, onBeliefUpdate, onStatus, onBackendStatus }) {
+  constructor({ onWorldInit, onWindField, onSimTick, onBeliefUpdate, onStatus, onBackendStatus }) {
     this.onWorldInit = onWorldInit;
+    this.onWindField = onWindField;
     this.onSimTick = onSimTick;
     this.onBeliefUpdate = onBeliefUpdate;
     this.onStatus = onStatus;
@@ -46,6 +47,8 @@ export class SimWsClient {
         const msg = JSON.parse(evt.data);
         if (msg.type === "world_init") {
           this.onWorldInit?.(msg);
+        } else if (msg.type === "wind_field") {
+          this.onWindField?.(msg);
         } else if (msg.type === "sim_tick") {
           this.onSimTick?.(msg);
         } else if (msg.type === "backend_status") {

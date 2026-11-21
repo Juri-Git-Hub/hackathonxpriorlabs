@@ -200,3 +200,51 @@ def test_abl_vertical_wind_shear_and_wall_gas_occlusion() -> None:
     trans_clear = world.segment_transmission(puff_west, pt_west_clear)[0]
     assert trans_clear == 1.0
     assert trans_blocked < 0.15
+
+
+def test_poisson_wind_field_obstacles_pipes_and_cylinder_tanks() -> None:
+    """Verify mass-consistent 3D wind solver respects boxes, cylinder tanks, pipe rack, and pipes."""
+    world = World()
+    airflow = Airflow(world, base_wind_angle_deg=0.0, base_wind_speed=4.0, sigma_w=0.0, seed=42)
+
+    # 1. Exact mass conservation (div(u) ~ 0) across all fluid MAC cells
+    u, v, wv = airflow._u_unit, airflow._v_unit, airflow._w_unit
+    div = ((u[1:] - u[:-1]) + (v[:, 1:] - v[:, :-1]) + (wv[:, :, 1:] - wv[:, :, :-1])) / airflow._dx
+    rms_div = float(np.sqrt(np.mean(div[airflow._fluid] ** 2)))
+    assert rms_div < 0.01
+
+    # 2. Rectangular building (bldg_control): upwind stagnation & exact zero interior wind
+    w_open = airflow.sample_wind(np.array([-50.0, -20.0, 5.0]))
+    w_upwind = airflow.sample_wind(np.array([-39.0, -20.0, 5.0]))
+    w_inside = airflow.sample_wind(np.array([-29.0, -20.0, 5.0]))
+    assert float(w_upwind[0]) < 0.55 * float(w_open[0])
+    assert float(np.linalg.norm(w_inside)) == 0.0
+
+    # 3. Porous pipe_rack_center lets wind AND gas puffs pass through (not teleported)
+    pr_pt = np.array([[0.0, -1.0, 4.0]])
+    w_pr = airflow.sample_wind(pr_pt)[0]
+    assert float(w_pr[0]) > 0.45 * float(w_open[0])
+    pushed_puff = world.push_outside_buildings(pr_pt, margin=0.2, skip_porous=True)
+    assert np.allclose(pushed_puff, pr_pt)
+
+    # 4. Storage tank uses exact cylinder geometry (no phantom AABB corner collision/occlusion)
+    corner_air = (-9.5, 14.5, 5.0)  # r=13.44m from tank_north center (r_cyl=10m)
+    assert not world.is_inside_building(corner_air, margin=0.0)
+    assert world.segment_transmission(np.array([[-9.8, 14.2, 5.0]]), (-9.2, 14.8, 5.0))[0] == 1.0
+
+    # 5. Standalone pipes exist in World, add sub-grid drag, and push puffs off pipe interior
+    assert len(world.pipes) >= 8
+    assert float(np.max(airflow._porous_drag)) > 0.15
+    pipe_center = np.array([[0.0, -2.0, 4.4]])  # On line_gas_main (radius 0.34m)
+    pushed_pipe = world.push_outside_pipes(pipe_center, margin=0.05)
+    assert float(np.linalg.norm(pushed_pipe - pipe_center)) >= 0.35
+
+    # 6. Strictly divergence-free 3D eddy modes (k . e == 0)
+    dots = np.sum(airflow._k_vecs * airflow._e_vecs, axis=1)
+    assert float(np.max(np.abs(dots))) < 1e-12
+
+    # 7. WindFieldPayload serialization for frontend 3D visualization
+    wf = airflow.get_wind_field_payload()
+    assert wf.type == "wind_field"
+    nx, ny, nz = wf.dims
+    assert len(wf.vectors) == nx * ny * nz * 3

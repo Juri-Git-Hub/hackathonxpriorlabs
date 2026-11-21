@@ -1,6 +1,9 @@
-import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 import { simToThree, threeToSim } from "./coords.js";
 import { loadModelAssets } from "./assets.js";
@@ -8,9 +11,12 @@ import { setupEnvironment } from "./environment.js";
 import { SimWsClient } from "./wsClient.js";
 import { RefineryView } from "./refinery.js";
 import { PlumeView } from "./plumeView.js";
+import { WindView } from "./windView.js";
 import { BeliefView } from "./beliefView.js";
 import { DroneView } from "./droneView.js";
 import { HudController } from "./hud.js";
+import { CameraRig } from "./cameraRig.js";
+import { CanvasRecorder } from "./recorder.js";
 
 async function bootstrap() {
   // 1. Scene, camera, renderer
@@ -32,6 +38,18 @@ async function bootstrap() {
 
   setupEnvironment(scene, renderer);
 
+  // Subtle cinema bloom (high threshold so only lights, windows, flare, & neon LEDs glow)
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.18, // restrained cinema bloom (never washes out close-ups)
+    0.30,
+    0.90
+  );
+  composer.addPass(bloomPass);
+  composer.addPass(new OutputPass());
+
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
@@ -46,6 +64,7 @@ async function bootstrap() {
   // 3. Scene views
   const refineryView = new RefineryView(scene, models);
   const plumeView = new PlumeView(scene);
+  const windView = new WindView(scene);
   const beliefView = new BeliefView(scene);
   const droneView = new DroneView(scene, models.quadrotor);
 
@@ -83,9 +102,63 @@ async function bootstrap() {
     pulseRings.push({ mesh: ring, age: 0 });
   }
 
+  // Glowing 3D selection highlight ring (connects Inspector panel to exact 3D object!)
+  const selectionRing = new THREE.Mesh(
+    new THREE.TorusGeometry(2.4, 0.16, 12, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false,
+    })
+  );
+  selectionRing.rotation.x = Math.PI / 2;
+  selectionRing.visible = false;
+  scene.add(selectionRing);
+  let selectedDroneId = null;
+
   let placeLeakMode = false;
-  let followDroneId = null;
-  let focusTarget = null;
+
+  const cameraRig = new CameraRig(camera, controls, {
+    onStateChange: (state) => hud.setCameraRigState(state),
+  });
+
+  const recorder = new CanvasRecorder(renderer.domElement, {
+    fps: 60,
+    bitrate: 10_000_000,
+    onStateChange: (state) => hud.setRecordingState(state),
+    onSaved: (filename, _size, kind) => {
+      hud.showToast(
+        kind === "screenshot"
+          ? `Screenshot saved: ${filename}`
+          : `Recording saved: ${filename}`,
+        3000
+      );
+    },
+    onError: (msg) => hud.showToast(msg, 3200),
+  });
+
+  function cycleFollowDrone() {
+    const ids = hud.getKnownDroneIds();
+    const order = ids.length > 0 ? ids : ["tabpfn", "gradient", "lawnmower"];
+    const curIdx = cameraRig.followDroneId ? order.indexOf(cameraRig.followDroneId) : -1;
+    const nextId = curIdx + 1 < order.length ? order[curIdx + 1] : null;
+    cameraRig.setFollowDrone(nextId);
+    hud.showToast(
+      nextId ? `Following drone: ${nextId.toUpperCase()}` : "Camera: Free flight",
+      1800
+    );
+  }
+
+  function triggerRecordingToggle() {
+    const started = recorder.toggle();
+    if (started) hud.showToast("Recording started (press R to stop)", 2000);
+  }
+
+  function triggerScreenshot() {
+    hud.triggerShutterFlash();
+    recorder.captureScreenshot(() => composer.render());
+  }
 
   function placeLeakAt(simPos) {
     if (hud.completed) return;
@@ -118,8 +191,12 @@ async function bootstrap() {
       hud.hazardForecastTime=null;
       hud.updateRiskTime(0);
     },
+    onWindField: (windField) => {
+      windView.setWindField(windField);
+    },
     onSimTick: (tick) => {
       plumeView.update(tick.puffs, tick.leaks, tick.wind_vec);
+      windView.setAmbientWind(tick.wind_vec);
       droneView.update(tick.drones);
       hud.updateTick(tick);
     },
@@ -139,6 +216,7 @@ async function bootstrap() {
     onRoute: visible => beliefView.setRouteVisible(visible),
     onTogglePlume: (visible) => plumeView.setVisible(visible),
     onToggleBelief: (visible) => beliefView.setVisible(visible),
+    onToggleWind: (visible) => windView.setVisible(visible),
     onTogglePlaceLeakMode: (active) => {
       placeLeakMode = active;
       reticle.visible = false;
@@ -146,23 +224,30 @@ async function bootstrap() {
     },
     onResetTrails: () => droneView.clearTrails(),
     onSelectDrone: (droneId) => {
+      selectedDroneId = droneId;
       hud.showInspector({ kind: "drone", id: droneId });
       const pos = droneView.getDroneWorldPos(droneId);
       if (pos) {
-        focusTarget = pos.clone();
+        cameraRig.focusPoint(pos);
       }
     },
     onFollowDrone: (droneId) => {
-      followDroneId = droneId;
-      if (droneId) focusTarget = null;
+      cameraRig.setFollowDrone(droneId);
     },
     onFocusPosition: (simPos) => {
-      followDroneId = null;
-      focusTarget = simToThree(simPos, new THREE.Vector3());
+      cameraRig.focusPoint(simToThree(simPos, new THREE.Vector3()));
     },
     onPlaceLeakAt: (simPos) => {
       placeLeakAt(simPos);
     },
+    onToggleRecording: () => triggerRecordingToggle(),
+    onCaptureScreenshot: () => triggerScreenshot(),
+    onSelectCameraPreset: (presetKey) => cameraRig.setPreset(presetKey),
+    onToggleAutoOrbit: () => {
+      const active = cameraRig.toggleAutoOrbit();
+      hud.showToast(active ? "Auto-Orbit enabled" : "Auto-Orbit stopped", 1600);
+    },
+    onCycleFollowDrone: () => cycleFollowDrone(),
   });
 
   // 5. Interactive Raycasting (hover reticle + click drones/pipes/valves/buildings + place leaks)
@@ -245,16 +330,77 @@ async function bootstrap() {
       if (meta) {
         const hitSimPos = threeToSim(hit.point);
         hud.showInspector(meta, hitSimPos);
+        if (meta.kind === "drone") {
+          selectedDroneId = meta.id;
+        } else {
+          selectedDroneId = null;
+          selectionRing.position.copy(hit.point);
+          selectionRing.scale.setScalar(meta.kind === "building" ? 3.5 : 1.0);
+          selectionRing.visible = true;
+        }
       }
     } else {
+      selectedDroneId = null;
+      selectionRing.visible = false;
       hud.clearInspector();
     }
   });
 
   window.addEventListener("keydown", (evt) => {
+    const activeEl = document.activeElement;
+    const isEditable =
+      activeEl &&
+      (activeEl.tagName === "INPUT" ||
+        activeEl.tagName === "TEXTAREA" ||
+        activeEl.tagName === "SELECT" ||
+        activeEl.isContentEditable);
+
     if (evt.key === "Escape") {
-      if (placeLeakMode) hud.setPlaceLeakMode(false);
-      else hud.clearInspector();
+      if (hud.shortcutsOpen) {
+        hud.setShortcutsOpen(false);
+      } else if (placeLeakMode) {
+        hud.setPlaceLeakMode(false);
+      } else {
+        selectedDroneId = null;
+        selectionRing.visible = false;
+        hud.clearInspector();
+      }
+      return;
+    }
+
+    if (evt.metaKey || evt.ctrlKey || isEditable) return;
+
+    const k = evt.key.toLowerCase();
+    if (evt.key === "?" || (evt.key === "/" && evt.shiftKey)) {
+      evt.preventDefault();
+      hud.setShortcutsOpen(!hud.shortcutsOpen);
+    } else if (k === "p") {
+      hud.setPresentationMode(!hud.presentationMode);
+    } else if (k === "h") {
+      hud.setHudHidden(!hud.hudHidden);
+    } else if (k === "r") {
+      triggerRecordingToggle();
+    } else if (k === "f") {
+      triggerScreenshot();
+    } else if (k === "o") {
+      const active = cameraRig.toggleAutoOrbit();
+      hud.showToast(active ? "Auto-Orbit enabled" : "Auto-Orbit stopped", 1600);
+    } else if (k === "v") {
+      hud.setPlumeVisible(!hud.plumeVisible);
+    } else if (k === "b") {
+      hud.setBeliefVisible(!hud.beliefVisible);
+    } else if (evt.code === "Space") {
+      evt.preventDefault();
+      hud.togglePause();
+    } else if (evt.key === "Tab") {
+      evt.preventDefault();
+      cycleFollowDrone();
+    } else if (evt.key === "1" || evt.key === "0" || evt.key === "Home") {
+      cameraRig.setPreset("overview");
+    } else if (evt.key === "2") {
+      cameraRig.setPreset("top");
+    } else if (evt.key === "3") {
+      cameraRig.setPreset("low");
     }
   });
 
@@ -263,9 +409,72 @@ async function bootstrap() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
   });
 
   wsClient.start();
+
+  // Lightweight debug/camera helper for deterministic multi-angle inspection
+  window.__simDebug = {
+    cameraRig,
+    recorder,
+    setCamera: (pos, target) => cameraRig.setImmediate(pos, target),
+    setPreset: (key) => cameraRig.setPreset(key),
+    toggleOrbit: () => cameraRig.toggleAutoOrbit(),
+    toggleRecording: () => triggerRecordingToggle(),
+    captureScreenshot: () => triggerScreenshot(),
+    selectDrone: (id) => {
+      selectedDroneId = id;
+      hud.showInspector({ kind: "drone", id });
+    },
+    focusOnDrone: (id, offset = [-10, 6, 12]) => {
+      const p = droneView.getDroneWorldPos(id);
+      if (p) {
+        cameraRig.setImmediate(
+          [p.x + offset[0], p.y + offset[1], p.z + offset[2]],
+          [p.x, p.y, p.z]
+        );
+      }
+    },
+    placeLeak: (pos) => placeLeakAt(pos),
+    setPlume: (v) => hud.setPlumeVisible(v),
+    setBelief: (v) => hud.setBeliefVisible(v),
+    setWindField: (v) => hud.setWindVisible(v),
+    sendCommand: (cmd) => {
+      if (cmd.action === "set_wind") {
+        hud.syncWindSetpoint(cmd.wind_angle_deg, cmd.wind_speed);
+      }
+      wsClient.sendCommand(cmd);
+    },
+    setPresentationMode: (v) => hud.setPresentationMode(v),
+    setHudHidden: (v) => hud.setHudHidden(v),
+    clearInspector: () => {
+      selectedDroneId = null;
+      selectionRing.visible = false;
+      hud.clearInspector();
+    },
+    inspectAsset: () => {
+      const obj = refineryView.getInteractiveObjects().find((o) => o.userData.inspect?.kind === "asset");
+      if (obj) {
+        selectedDroneId = null;
+        hud.showInspector(obj.userData.inspect, obj.userData.inspect.posSim);
+        simToThree(obj.userData.inspect.posSim, selectionRing.position);
+        selectionRing.scale.setScalar(1.0);
+        selectionRing.visible = true;
+      }
+    },
+    inspectPipe: () => {
+      const obj = refineryView.getInteractiveObjects().find((o) => o.userData.inspect?.kind === "pipe");
+      if (obj) {
+        selectedDroneId = null;
+        const pt = [-6, -2, 4.4];
+        hud.showInspector(obj.userData.inspect, pt);
+        simToThree(pt, selectionRing.position);
+        selectionRing.scale.setScalar(1.0);
+        selectionRing.visible = true;
+      }
+    },
+  };
 
   const clock = new THREE.Clock();
   const tmpFollow = new THREE.Vector3();
@@ -275,17 +484,7 @@ async function bootstrap() {
     const dt = Math.min(clock.getDelta(), 0.05);
     const elapsed = clock.elapsedTime;
 
-    if (followDroneId) {
-      const p = droneView.getDroneWorldPos(followDroneId, tmpFollow);
-      if (p) {
-        controls.target.lerp(p, Math.min(1.0, dt * 6.0));
-      }
-    } else if (focusTarget) {
-      controls.target.lerp(focusTarget, Math.min(1.0, dt * 6.0));
-      if (controls.target.distanceTo(focusTarget) < 0.25) {
-        focusTarget = null;
-      }
-    }
+    cameraRig.update(dt, (id, out) => droneView.getDroneWorldPos(id, out));
 
     // Animate leak placement pulse rings
     for (let i = pulseRings.length - 1; i >= 0; i--) {
@@ -305,9 +504,22 @@ async function bootstrap() {
 
     controls.update();
     droneView.animate(dt);
+    const tabPos = droneView.getDroneWorldPos("tabpfn", tmpFollow);
+    if (tabPos) beliefView.setTabpfnDroneWorldPos(tabPos);
+    if (selectedDroneId) {
+      const sp = droneView.getDroneWorldPos(selectedDroneId, tmpFollow);
+      if (sp) {
+        selectionRing.position.copy(sp);
+        selectionRing.scale.setScalar(1.35 + 0.12 * Math.sin(elapsed * 5.0));
+        selectionRing.visible = true;
+      }
+    } else if (selectionRing.visible) {
+      selectionRing.rotation.z = elapsed * 1.4;
+    }
     plumeView.animate(dt);
+    windView.animate(dt);
     beliefView.animate(elapsed);
-    renderer.render(scene, camera);
+    composer.render();
   }
   animate();
 }

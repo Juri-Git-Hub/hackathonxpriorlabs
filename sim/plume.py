@@ -94,6 +94,7 @@ class Plume:
 
         mid_pos = active_pos + 0.5 * w1 * dt
         mid_pos[:, 2] = np.maximum(0.2, mid_pos[:, 2])
+        mid_pos = self.world.push_outside_buildings(mid_pos, margin=0.2, skip_porous=True)
         w2, _ = self.airflow.sample_wind_and_turbulence(mid_pos, compute_turb=False)
         w2[:, 2] += vz_buoy
 
@@ -111,8 +112,9 @@ class Plume:
             new_pos[below_ground, 2] = 0.40 - new_pos[below_ground, 2]
             new_pos[below_ground, 2] = np.maximum(0.20, new_pos[below_ground, 2])
 
-        # Keep puffs outside solid building interiors
-        new_pos = self.world.push_outside_buildings(new_pos, margin=0.2)
+        # Keep puffs outside solid buildings/tanks (porous pipe rack allows passage) & standalone pipes
+        new_pos = self.world.push_outside_buildings(new_pos, margin=0.2, skip_porous=True)
+        new_pos = self.world.push_outside_pipes(new_pos, margin=0.05)
 
         self.pos[mask] = new_pos
         self.age[mask] = active_age + dt

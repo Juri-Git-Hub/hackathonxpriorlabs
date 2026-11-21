@@ -4,6 +4,65 @@ Die Oberfläche ist die Three.js-/Vite-Simulation aus dem aktuellen `main`. Unse
 
 ## Start
 
+---
+
+## Core Architectural Rules (For Humans & AI Agents)
+
+1. **Single Source of Truth (`shared/schemas.py`):** All cross-module payloads (`WorldInitPayload`, `DroneObservation`, `SimTickPayload`, `BeliefUpdatePayload`, `JudgeCommand`) are frozen Pydantic v2 models. Do not invent ad-hoc dicts or rename fields without updating all consumers.
+2. **Coordinate System Convention:**
+   - **Python Physics & Agents:** Right-handed **Z-up**, in meters. Facility bounds: `x ∈ [-60, 60]`, `y ∈ [-60, 60]`, `z ∈ [0, 30]` (ground plane at `z = 0`).
+   - **Three.js Frontend (Y-up):** Convert strictly at the rendering boundary using `three_pos = (sim_x, sim_z, -sim_y)`. Never convert coordinates in Python.
+3. **Strict Async Isolation for TabPFN:** Physics runs at a fixed **20 Hz** (`dt = 0.05s`) and must **never block** on TabPFN inference. `agents/tabpfn_agent.py` subclasses `AsyncInferenceAgent` (`agents/base.py`), which runs inference in a single background worker thread and atomically swaps `target_pos` and `BeliefUpdatePayload`.
+4. **Headless-First Execution:** `sim/` and `agents/` have **zero dependency** on FastAPI, WebSockets, Three.js, or serial hardware, and run headless at `>500 steps/sec` for fast benchmarking.
+5. **Mock-First Parallelism:**
+   - Backend runs with `--mock-agents` (`MockTabPFNAgent`) so physics and frontend can be developed and demoed without loading TabPFN weights.
+   - Frontend should support `?mock=true` for standalone UI development.
+   - Hardware bridge (`hardware/drone_bridge.py`) subscribes externally via WebSocket and never blocks or crashes the sim.
+
+---
+
+## Repository Structure & Ownership Boundaries
+
+```text
+.
+├── shared/
+│   └── schemas.py          # FROZEN CONTRACT: Pydantic v2 models for all boundaries
+├── sim/                    # OWNER: Simulation / Physics (headless, zero server deps)
+│   ├── world.py            # 120x120x30m refinery AABBs, assets, 3D candidate grid
+│   ├── airflow.py          # Base wind + OU gusts + building deflection & wake cavities
+│   ├── plume.py            # Vectorized Lagrangian 3D Gaussian puff dispersion (<=400 puffs)
+│   ├── drone.py            # 2nd-order dynamics, drag, thrust attitude, obstacle repulsion, battery
+│   ├── sensor.py           # Asymmetric rise/decay lag, noise, toggleable NaN dropouts
+│   └── engine.py           # Master 20 Hz simulation loop + multi-drone race coordinator
+├── agents/                 # OWNER: AI / TabPFN
+│   ├── base.py             # BaseAgent ABC + non-blocking AsyncInferenceAgent worker wrapper
+│   ├── lawnmower.py        # Baseline 1: deterministic 3D serpentine raster sweep
+│   ├── gradient.py         # Baseline 2: bio-inspired surge-cast / gradient ascent
+│   ├── mock_agent.py       # Fast (<1ms) mock TabPFN agent for --mock-agents mode
+│   └── tabpfn_agent.py     # TabPFNRegressor quantile UCB + travel penalty (READY FOR AI TEAM)
+├── server/                 # OWNER: Backend / Glue
+│   └── app.py              # FastAPI WebSocket broadcaster (/ws, /health) + judge commands
+├── frontend/               # OWNER: Three.js UI (Vite + Three.js, see frontend/README.md)
+├── hardware/               # OWNER: Physical Drone Bridge (optional, isolated WS client)
+│   └── drone_bridge.py
+├── tools/                  # OWNER: Physics Audit, Headless Evals & CLI Control (see tools/README.md)
+│   ├── physics_audit.py    # 10 quantitative physics realism checks (--json supported)
+│   ├── scenarios.py        # Standardized scenarios (wake_trap, wind_shift_90, multi_leak, ...)
+│   ├── eval_runner.py      # Headless multi-scenario benchmark & JSONL debug trace exporter
+│   └── sim_ctl.py          # Unified CLI to control & inspect BOTH headless and live simulations
+├── tests/
+│   ├── test_physics.py     # Plume bending, wake trapping, 6-DOF drone, >500 steps/s check
+│   ├── test_agents.py      # Contract compliance, async non-blocking test, headless 3-drone race
+│   ├── test_tools.py       # Physics audit, eval runner, and headless/live CLI tests
+│   └── test_ws_contract.py # Schema serialization + FastAPI WebSocket end-to-end tests
+└── requirements.txt
+```
+
+---
+
+## Quickstart
+
+### 1. Setup Environment (Python 3.12 recommended for TabPFN/PyTorch)
 ```bash
 python -m venv .venv
 source .venv/bin/activate
@@ -47,6 +106,29 @@ npm run dev
 ```
 
 Vite auf Port 5173 leitet `/ws` und `/health` zum Backend auf 8501 weiter. Das Backend liefert gebaute Frontend-Dateien aus `frontend/dist`; der Build wird nicht versioniert. `?mock=true` bleibt für die eigenständige Three.js-Entwicklung erhalten.
+### 5. Physics Audit, Headless Evals & CLI Control (For AI Agents & Humans)
+See [tools/README.md](tools/README.md) for full CLI docs and JSON schemas:
+```bash
+# 10-check quantitative physics realism audit (returns JSON & exit code 0/1)
+python -m tools.physics_audit
+python -m tools.sim_ctl audit --json
+
+# Headless multi-scenario benchmark + JSONL debug trace (>500 steps/s)
+python -m tools.eval_runner --scenarios open_corridor,wake_trap,wind_shift_90 --duration 60
+python -m tools.sim_ctl headless run --scenario wake_trap --duration 45 --trace-out /tmp/trace.jsonl
+
+# Instant 3D spatial physics probe (wind, wake turbulence, roof AGL, context, ppm)
+python -m tools.sim_ctl headless probe --pos 18,24,5 --wind-angle 0 --wind-speed 4.0 --leak 12,24,4
+
+# Inspect & control a LIVE running server (with or without 3D frontend open)
+python -m tools.sim_ctl live health
+python -m tools.sim_ctl live status
+python -m tools.sim_ctl live scenario wake_trap
+python -m tools.sim_ctl live cmd set-wind --angle 90 --speed 5.5
+python -m tools.sim_ctl live watch --ticks 10
+```
+
+---
 
 ## Backend und Bewegung
 

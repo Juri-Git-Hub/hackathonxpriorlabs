@@ -18,6 +18,7 @@ from shared.schemas import (
     MissionReport,
     SimTickPayload,
     Vec3,
+    WindFieldPayload,
     WorldInitPayload,
 )
 from sim.airflow import Airflow
@@ -92,6 +93,10 @@ class SimEngine:
 
     def get_world_init(self) -> WorldInitPayload:
         return self.world.to_world_init()
+
+    def get_wind_field(self) -> WindFieldPayload:
+        with self._lock:
+            return self.airflow.get_wind_field_payload()
 
     def _default_leaks(self) -> list[LeakSource]:
         return [

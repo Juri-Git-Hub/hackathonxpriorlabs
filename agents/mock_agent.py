@@ -32,53 +32,80 @@ class MockTabPFNAgent(BaseAgent):
         self._grid_np = np.zeros((0, 3), dtype=np.float64)
         self._obs_pos: list[Vec3] = []
         self._obs_log_ppm: list[float] = []
+        self._obs_upwind_est: list[Vec3] = []
         self._step_count: int = 0
         self._current_target: Vec3 = (0.0, 0.0, 5.0)
         self._latest_belief: Optional[BeliefUpdatePayload] = None
+        self._last_wind: tuple[float, float] = (3.0, 0.8)
 
     def reset(self, world_init: WorldInitPayload) -> None:
         self._grid_np = np.array(world_init.grid_coords, dtype=np.float64)
         self._obs_pos.clear()
         self._obs_log_ppm.clear()
+        self._obs_upwind_est.clear()
         self._step_count = 0
         self._latest_belief = None
+        self._last_wind = (3.0, 0.8)
         if len(world_init.grid_coords) > 0:
-            self._current_target = world_init.grid_coords[len(world_init.grid_coords) // 2]
+            # Start steering toward the central industrial pipe corridor
+            dists_center = np.linalg.norm(self._grid_np - np.array([-8.0, -6.0, 5.0]), axis=1)
+            self._current_target = world_init.grid_coords[int(np.argmin(dists_center))]
         else:
-            self._current_target = (0.0, 0.0, 5.0)
+            self._current_target = (-8.0, -6.0, 5.0)
 
     def update(self, obs: DroneObservation) -> Vec3:
         self._step_count += 1
+        if obs.wind_measured[0] is not None and obs.wind_measured[1] is not None:
+            self._last_wind = (obs.wind_measured[0], obs.wind_measured[1])
+
+        log_ppm = math.log1p(max(0.0, obs.ppm_measured))
         self._obs_pos.append(obs.pos)
-        self._obs_log_ppm.append(math.log1p(max(0.0, obs.ppm_measured)))
+        self._obs_log_ppm.append(log_ppm)
+
+        # Upwind-shifted source hypothesis when elevated gas is detected
+        wx, wy = self._last_wind
+        spd = max(0.3, math.hypot(wx, wy))
+        shift = min(14.0, max(0.0, (obs.ppm_measured - 2.0) * 0.6)) if obs.ppm_measured > 2.5 else 0.0
+        upwind_pt = (
+            obs.pos[0] - (wx / spd) * shift,
+            obs.pos[1] - (wy / spd) * shift,
+            max(3.0, min(10.0, obs.pos[2])),
+        )
+        self._obs_upwind_est.append(upwind_pt)
 
         if len(self._obs_pos) > self.MAX_HISTORY:
             self._obs_pos.pop(0)
             self._obs_log_ppm.pop(0)
+            self._obs_upwind_est.pop(0)
 
         if self._grid_np.shape[0] == 0:
             return self._current_target
 
-        # Compute fast RBF spatial belief & distance-based uncertainty over grid_coords
-        obs_arr = np.array(self._obs_pos, dtype=np.float64)  # (K, 3)
-        y_arr = np.array(self._obs_log_ppm, dtype=np.float64)  # (K,)
+        obs_arr = np.array(self._obs_pos, dtype=np.float64)
+        upwind_arr = np.array(self._obs_upwind_est, dtype=np.float64)
+        y_arr = np.array(self._obs_log_ppm, dtype=np.float64)
 
-        # Pairwise squared distances: (N, K)
-        diff = self._grid_np[:, None, :] - obs_arr[None, :, :]
-        dist2 = np.sum(diff * diff, axis=2)
-        min_dist = np.sqrt(np.min(dist2, axis=1))
+        diff_vis = self._grid_np[:, None, :] - obs_arr[None, :, :]
+        dist2_vis = np.sum(diff_vis * diff_vis, axis=2)
+        min_dist = np.sqrt(np.min(dist2_vis, axis=1))
 
-        # Smooth kernel estimate for q50 (log-ppm scale)
-        length_scale = 18.0
-        weights = np.exp(-0.5 * dist2 / (length_scale ** 2))
+        # Smooth upwind-aware spatial belief estimate (q50)
+        diff_src = self._grid_np[:, None, :] - upwind_arr[None, :, :]
+        dist2_src = np.sum(diff_src * diff_src, axis=2)
+        length_scale = 14.0
+        weights = np.exp(-0.5 * dist2_src / (length_scale ** 2))
         w_sum = np.sum(weights, axis=1) + 1e-6
         q50 = (weights @ y_arr) / w_sum
 
-        # Uncertainty grows with distance from visited points
-        uncertainty = np.clip(1.8 * (1.0 - np.exp(-min_dist / 16.0)) + 0.15, 0.05, 2.5)
+        # Add gentle central facility prior before any strong plume hit
+        max_obs_ppm = float(np.max(np.expm1(y_arr)))
+        if max_obs_ppm < 4.0:
+            center_d2 = np.sum((self._grid_np - np.array([-4.0, -4.0, 5.0])) ** 2, axis=1)
+            q50 = q50 + 0.65 * np.exp(-0.5 * center_d2 / (24.0 ** 2))
 
-        # Spatial UCB + travel penalty + 3m revisit mask
-        beta = max(0.4, 2.5 * (0.93 ** self._step_count))
+        uncertainty = np.clip(1.6 * (1.0 - np.exp(-min_dist / 15.0)) + 0.12, 0.05, 2.2)
+
+        beta = max(0.35, 2.0 * (0.91 ** self._step_count))
         drone_pos = np.array(obs.pos, dtype=np.float64)
         travel_dist = np.linalg.norm(self._grid_np - drone_pos, axis=1)
         revisit_mask = np.where(min_dist < self.REVISIT_RADIUS_M, -1e6, 0.0)

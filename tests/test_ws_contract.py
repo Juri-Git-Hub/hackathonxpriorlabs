@@ -9,6 +9,7 @@ from shared.schemas import (
     BeliefUpdatePayload,
     JudgeCommand,
     SimTickPayload,
+    WindFieldPayload,
     WorldInitPayload,
 )
 
@@ -58,15 +59,21 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
                 ).model_dump_json()
             )
 
-            # 3. Collect messages until we see both SimTickPayload and BeliefUpdatePayload
+            # 3. Collect messages until we see WindFieldPayload, SimTickPayload, and BeliefUpdatePayload
             seen_ticks = 0
             seen_belief = False
+            seen_wind_field = False
             dropout_applied = False
             leak_added = False
 
             for _ in range(60):
                 raw = ws.receive_text()
-                if '"sim_tick"' in raw:
+                if '"wind_field"' in raw:
+                    wf = WindFieldPayload.model_validate_json(raw)
+                    nx, ny, nz = wf.dims
+                    assert len(wf.vectors) == nx * ny * nz * 3
+                    seen_wind_field = True
+                elif '"sim_tick"' in raw:
                     tick = SimTickPayload.model_validate_json(raw)
                     seen_ticks += 1
                     assert [d.id for d in tick.drones] == ['tabpfn']
@@ -81,11 +88,12 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
                     assert len(belief.uncertainty) == len(world_init.grid_coords)
                     seen_belief = True
 
-                if seen_ticks >= 5 and seen_belief and dropout_applied and leak_added:
+                if seen_ticks >= 5 and seen_belief and seen_wind_field and dropout_applied and leak_added:
                     break
 
             assert seen_ticks >= 5
             assert seen_belief
+            assert seen_wind_field
             assert dropout_applied
             assert leak_added
 
