@@ -359,28 +359,42 @@ export class RefineryView {
 
     const surface = presentation.surface ?? "concrete";
 
-    // 1. Surrounding textured terrain with rolling berms outside the 120x120m facility pad
-    const outerGeo = new THREE.PlaneGeometry(580, 580, 52, 52);
+    // 1. Expansive 1200x1200m surrounding landscape with smooth apron, rolling berms,
+    //    and distant 3D perimeter hills/mountains tailored to each world's biome.
+    const outerGeo = new THREE.PlaneGeometry(1240, 1240, 96, 96);
     outerGeo.rotateX(-Math.PI / 2);
     const posAttr = outerGeo.attributes.position;
-    const bermScale = surface === "desert" ? 1.55 : surface === "asphalt" ? 1.35 : 1.0;
+    const hillAmp =
+      surface === "asphalt" ? 1.55 :
+      surface === "desert" ? 1.35 :
+      surface === "frost" ? 1.20 :
+      1.05;
     for (let i = 0; i < posAttr.count; i++) {
       const vx = posAttr.getX(i);
       const vz = posAttr.getZ(i);
-      const distOut = Math.max(Math.abs(vx) - 64, Math.abs(vz) - 64, 0);
+      const distOut = Math.max(Math.abs(vx) - 65, Math.abs(vz) - 65, 0);
       if (distOut > 0) {
-        const berm =
-          Math.min(1.0, distOut / 45) *
-          bermScale *
-          (2.8 * Math.sin(vx * 0.025) * Math.cos(vz * 0.025) +
-            1.6 * Math.sin(vx * 0.055 + vz * 0.04));
-        posAttr.setY(i, berm - 0.15);
+        // Gentle near-field berms (65..180m) + dramatic distant rolling hills (180..600m)
+        const nearBlend = Math.min(1.0, distOut / 55);
+        const farBlend = Math.min(1.0, Math.max(0, distOut - 95) / 260);
+        const nearBerm =
+          nearBlend *
+          (2.4 * Math.sin(vx * 0.025) * Math.cos(vz * 0.025) +
+            1.4 * Math.sin(vx * 0.055 + vz * 0.04));
+        const farHills =
+          farBlend * farBlend * hillAmp *
+          (24.0 +
+            18.0 * Math.sin(vx * 0.009 + 0.6) * Math.cos(vz * 0.011 - 0.4) +
+            11.0 * Math.sin(vx * 0.019 - vz * 0.015) +
+            5.5 * Math.cos(vx * 0.033 + vz * 0.027));
+        posAttr.setY(i, Math.max(-0.15, nearBerm + farHills - 0.15));
       } else {
         posAttr.setY(i, -0.08);
       }
     }
     outerGeo.computeVertexNormals();
     const outerTex = createOuterTerrainTexture(surface);
+    outerTex.repeat.set(22, 22);
     const outerMat = new THREE.MeshStandardMaterial({
       map: outerTex,
       roughness: surface === "wet_slate" ? 0.82 : 0.96,

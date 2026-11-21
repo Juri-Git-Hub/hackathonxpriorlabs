@@ -29,7 +29,7 @@ async function bootstrap() {
     48,
     window.innerWidth / window.innerHeight,
     0.5,
-    600
+    1400
   );
   camera.position.set(-64, 46, 68);
 
