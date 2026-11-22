@@ -88,7 +88,7 @@ python -m tools.sim_ctl headless probe \
 ```
 
 ### B. Live / Non-Headless Mode (Controlling the Running Server & 3D Frontend)
-Start the server (`python -m server.app --mock-agents --port 8000`) and optionally open the 3D UI (`http://localhost:5173`). Any AI agent or script can now inspect and steer the live simulation:
+Start the server (`python -m server.app --port 8000`) and optionally open the 3D UI (`http://localhost:5173`). Any AI agent or script can now inspect and steer the live simulation:
 
 ```bash
 # Check server health & sim_time

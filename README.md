@@ -17,7 +17,8 @@ A real-time, physically grounded **3D drone gas-leak detection simulator** for c
   - Live judge controls: adjust wind speed/angle, click to place or relocate leaks at configurable heights, inject 30% `NaN` sensor dropouts, pause/single-step/reset missions, switch worlds or generate randomized layouts, inspect buildings/pipes/valves/drones, and toggle clean presentation mode (`P`).
 - **Pluggable Autonomous Agents (`agents/`):**
   - Strict non-blocking async architecture (`AsyncInferenceAgent`) so the 20 Hz physics loop never blocks on inference or 3D A* path planning.
-  - Includes **Wind-Plume** (`agents/wind_plume.py`, default local agent), **Dual-TabPFN** (`agents/tabpfn_agent.py` / `agents/reliable_tabpfn.py`), **Bio-Inspired Gradient / Surge-Cast** (`agents/gradient.py`), **3D Volumetric Lawnmower** (`agents/lawnmower.py`), and a fast **Mock** agent (`agents/mock_agent.py`).
+  - Live simulation runs the **Dual-TabPFN** agent (`agents/tabpfn_agent.py` / `agents/reliable_tabpfn.py`) via either the free Prior Labs TabPFN API or local TabPFN on your own computer.
+  - Also includes offline benchmark baselines: **Wind-Plume** (`agents/wind_plume.py`), **Bio-Inspired Gradient / Surge-Cast** (`agents/gradient.py`), **3D Volumetric Lawnmower** (`agents/lawnmower.py`), and a fast **Mock** agent (`agents/mock_agent.py`) for unit tests.
 - **Headless Benchmarking & CLI Control (`tools/`):**
   - Quantitative 10-check physics realism audit (`tools/physics_audit.py`), standardized multi-scenario evaluation (`tools/eval_runner.py`), and a unified CLI (`tools/sim_ctl.py`) for inspecting and steering both headless and live simulations.
 
@@ -38,34 +39,44 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Launch the Interactive 3D Simulation
+### 2. Configure TabPFN (Pick One)
+
+The simulator uses **TabPFN** for live leak localization and automatically detects your backend (`TABPFN_BACKEND=auto`):
+
+- **Option A — Free Prior Labs TabPFN API (no GPU required):**
+  ```bash
+  pip install tabpfn-client
+  python -c "import tabpfn_client; tabpfn_client.init()"
+  ```
+  *(Or export a token directly via `export TABPFN_TOKEN=...`.)*
+
+- **Option B — Run locally on your own computer (CUDA GPU, Apple Silicon MPS, or CPU):**
+  ```bash
+  pip install tabpfn
+  ```
+  *(Optional: force a specific device with `export TABPFN_DEVICE=cuda|mps|cpu`.)*
+
+- **Option C — Custom self-hosted HTTP endpoint:**
+  ```bash
+  export TABPFN_API_URL=http://127.0.0.1:8001/regress
+  ```
+
+### 3. Launch the Interactive 3D Simulation
 
 ```bash
 python launch_demo.py
 ```
 
-`launch_demo.py` automatically installs frontend dependencies if needed, builds `frontend/dist`, and serves the Three.js UI, `/ws`, and `/health` on **http://localhost:8501**.
+`launch_demo.py` installs frontend dependencies if needed, builds `frontend/dist`, verifies your TabPFN backend, and serves the Three.js UI, `/ws`, and `/health` on **http://localhost:8501**.
 
-#### Launch Modes
+Optional flags:
 
 ```bash
-# Default: responsive wind-plume sensor agent on a procedural facility layout
-python launch_demo.py
-
-# Repeatable local demo on curated refinery layouts (starts when the page opens)
-python launch_demo.py --mvp
-
-# Fast mock agent (no external GPU/model backend required)
-python launch_demo.py --mock-agents
-
 # Reproducible layout & simulation seeds on a custom port
 python launch_demo.py --port 8502 --seed 99 --layout-seed 73
-
-# TabPFN agent (auto-detects free Prior Labs API, local TabPFN, or custom HTTP)
-python launch_demo.py --tabpfn
 ```
 
-### 3. Frontend Hot-Reload Development
+### 4. Frontend Hot-Reload Development
 
 To iterate on the Three.js UI with Vite HMR:
 
@@ -114,51 +125,13 @@ All cross-module payloads are Pydantic v2 models defined in [shared/schemas.py](
 
 | Agent | Module | Description |
 | :--- | :--- | :--- |
-| **Wind-Plume** *(default)* | [agents/wind_plume.py](agents/wind_plume.py) | Onboard wind-relative downwind transect search with 3D A* routing, transit-hit revisits, and upwind/crosswind/vertical source localization. |
-| **Dual-TabPFN** (`--tabpfn`) | [agents/tabpfn_agent.py](agents/tabpfn_agent.py), [agents/reliable_tabpfn.py](agents/reliable_tabpfn.py) | Non-blocking TabPFN spatial localization & plume mapping using pre-contact and post-contact physics contexts (`data/`) via the free Prior Labs TabPFN API, local TabPFN, or a custom HTTP endpoint. |
-| **Gradient / Surge-Cast** | [agents/gradient.py](agents/gradient.py) | Bio-inspired anemotactic upwind surge and crosswind cast baseline. |
-| **3D Lawnmower** | [agents/lawnmower.py](agents/lawnmower.py) | Deterministic 3D volumetric serpentine raster sweep baseline. |
-| **Mock Agent** (`--mock-agents`) | [agents/mock_agent.py](agents/mock_agent.py) | Sub-millisecond mock belief generator for UI/server testing without ML weights. |
+| **Dual-TabPFN** *(live standard)* | [agents/tabpfn_agent.py](agents/tabpfn_agent.py), [agents/reliable_tabpfn.py](agents/reliable_tabpfn.py) | Non-blocking TabPFN spatial localization & plume mapping using pre-contact and post-contact physics contexts (`data/`) via the free Prior Labs TabPFN API, local TabPFN, or a custom HTTP endpoint. |
+| **Wind-Plume** *(baseline)* | [agents/wind_plume.py](agents/wind_plume.py) | Onboard wind-relative downwind transect search with 3D A* routing and upwind/crosswind/vertical localization. |
+| **Gradient / Surge-Cast** *(baseline)* | [agents/gradient.py](agents/gradient.py) | Bio-inspired anemotactic upwind surge and crosswind cast baseline. |
+| **3D Lawnmower** *(baseline)* | [agents/lawnmower.py](agents/lawnmower.py) | Deterministic 3D volumetric serpentine raster sweep baseline. |
+| **Mock Agent** *(tests)* | [agents/mock_agent.py](agents/mock_agent.py) | Sub-millisecond mock belief generator for headless unit tests without ML weights. |
 
-### Setting Up TabPFN (`--tabpfn`)
-
-[agents/tabpfn_remote.py](agents/tabpfn_remote.py) automatically detects your TabPFN backend (`TABPFN_BACKEND=auto`). Pick whichever option fits your machine:
-
-#### Option A — Free Prior Labs TabPFN API (No GPU Required)
-
-1. Install the official client and sign in once to get a free API token:
-   ```bash
-   pip install tabpfn-client
-   python -c "import tabpfn_client; tabpfn_client.init()"
-   ```
-   *(Or pass your token directly via `export TABPFN_TOKEN=...`.)*
-2. Launch the simulator with TabPFN enabled:
-   ```bash
-   python launch_demo.py --tabpfn
-   ```
-
-#### Option B — Run Locally on Your Own Computer (GPU or CPU)
-
-1. Install TabPFN locally:
-   ```bash
-   pip install tabpfn
-   ```
-2. Launch the simulator:
-   ```bash
-   python launch_demo.py --tabpfn
-   # Optional: force a specific device (cuda, mps, or cpu)
-   TABPFN_DEVICE=cuda python launch_demo.py --tabpfn
-   ```
-
-#### Option C — Custom Self-Hosted HTTP Endpoint
-
-If you host your own `TabPFNRegressor` `/regress` server:
-
-```bash
-TABPFN_API_URL=http://127.0.0.1:8001/regress python launch_demo.py --tabpfn
-```
-
-You can also force a specific backend at any time with `TABPFN_BACKEND=client|local|http`.
+You can force a specific TabPFN backend at any time with `TABPFN_BACKEND=client|local|http`.
 
 ---
 
@@ -216,7 +189,7 @@ python -m tools.sim_ctl live cmd set-wind --angle 90 --speed 5.5
 │   ├── tabpfn_remote.py        # Unified TabPFN backend (Prior Labs API, local, or HTTP)
 │   ├── gradient.py             # Bio-inspired surge-cast baseline
 │   ├── lawnmower.py            # 3D volumetric raster sweep baseline
-│   └── mock_agent.py           # Fast mock agent for --mock-agents mode
+│   └── mock_agent.py           # Fast mock agent for headless unit tests
 ├── server/
 │   └── app.py                  # FastAPI WebSocket broadcaster (/ws, /health) & static UI
 ├── frontend/                   # Interactive Three.js + Vite 3D visualization
