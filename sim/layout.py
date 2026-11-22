@@ -160,7 +160,23 @@ def generate_layout(building_templates, asset_templates, seed, *, preserve_model
     and proportions from the selected industrial archetype. Tanks retain square
     footprints so the renderer's cylinders/spheres and connection ports agree.
     """
-    rng = np.random.default_rng(seed)
+    # A greedy placement can paint itself into a corner. Restart the entire
+    # layout with deterministic random streams instead of retrying the same
+    # impossible last placement forever.
+    for attempt in range(32):
+        rng = np.random.default_rng(seed if attempt == 0 else np.random.SeedSequence([seed, attempt]))
+        try:
+            return _generate_layout_attempt(building_templates, asset_templates, seed, rng, preserve_models)
+        except _PlacementFailed:
+            continue
+    raise ValueError('Could not place buildings with safe separation after 32 layout attempts')
+
+
+class _PlacementFailed(Exception):
+    pass
+
+
+def _generate_layout_attempt(building_templates, asset_templates, seed, rng, preserve_models=False):
     archetype = _ARCHETYPES[int(seed) % len(_ARCHETYPES)]
     route_z = float(archetype["route_z"])
     used_models: set[str] = set()
@@ -205,7 +221,7 @@ def generate_layout(building_templates, asset_templates, seed, *, preserve_model
                     max_xyz=(float(hi[0]), float(hi[1]), float(size[2]))))
                 break
         else:
-            raise ValueError('Could not place buildings with safe separation')
+            raise _PlacementFailed()
 
     # Each structure has a port on its face pointing toward the facility center.
     centroid = np.mean([(np.array(b.min_xyz)+b.max_xyz)/2 for b in buildings], axis=0)
@@ -229,7 +245,7 @@ def generate_layout(building_templates, asset_templates, seed, *, preserve_model
                 if _free_xy(point[:2], buildings, margin=2.5) and all(np.linalg.norm(point-np.array(a.pos)) > 4 for a in assets):
                     break
             else:
-                raise ValueError('Could not place connected facility assets')
+                raise _PlacementFailed()
         asset = template.model_copy(update={'pos': tuple(map(float, point))})
         assets.append(asset)
         nodes.append((asset.id, point, point))

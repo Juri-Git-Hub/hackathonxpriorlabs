@@ -55,6 +55,7 @@ export class WindView {
     this.scene.add(this.group);
 
     this._field = null;
+    this._solids = [];
     this._fallbackWind = [0, 0];
     this._renderedAmbientDirection = null;
     this._time = 0;
@@ -75,6 +76,7 @@ export class WindView {
         attribute float aArc;
         attribute float aArcFrac;
         attribute float aSpeedRatio;
+        attribute float aActivity;
         attribute float aPhase;
         attribute float aEdge;
         attribute float aWidth;
@@ -82,6 +84,7 @@ export class WindView {
         varying float vArc;
         varying float vArcFrac;
         varying float vSpeedRatio;
+        varying float vActivity;
         varying float vPhase;
         varying float vEdge;
 
@@ -89,6 +92,7 @@ export class WindView {
           vArc = aArc;
           vArcFrac = aArcFrac;
           vSpeedRatio = aSpeedRatio;
+          vActivity = aActivity;
           vPhase = aPhase;
           vEdge = aEdge;
 
@@ -109,6 +113,7 @@ export class WindView {
         varying float vArc;
         varying float vArcFrac;
         varying float vSpeedRatio;
+        varying float vActivity;
         varying float vPhase;
         varying float vEdge;
 
@@ -142,7 +147,8 @@ export class WindView {
           vec3 baseCol = speedColor(vSpeedRatio);
           vec3 col = mix(baseCol * 0.85, baseCol * 1.15 + vec3(0.20, 0.28, 0.34), tail * 0.55 + headGlow * 0.65);
 
-          float alpha = crossFade * endFade * (0.14 + 0.40 * tail + 0.28 * headGlow) * energy;
+          float emphasis = mix(0.30, 0.85, smoothstep(0.04, 0.45, vActivity));
+          float alpha = crossFade * endFade * (0.10 + 0.30 * tail + 0.18 * headGlow) * energy * emphasis;
           if (alpha < 0.012) discard;
           gl_FragColor = vec4(col, min(alpha, 0.92));
         }
@@ -192,6 +198,24 @@ export class WindView {
   setVisible(flag) {
     this.visible = Boolean(flag);
     this.group.visible = this.visible;
+  }
+
+  setWorld(world) {
+    this._solids = (world.buildings || []).filter((b) => b.kind !== "pipe_rack" && b.kind !== "pipe_segment");
+    if (this._field || Math.hypot(...this._fallbackWind) > 0.15) this._rebuildStreamlineRibbons();
+  }
+
+  _insideSolid(x, y, z) {
+    const margin = 0.2;
+    return this._solids.some((b) => {
+      const lo = b.min_xyz, hi = b.max_xyz;
+      if (z < lo[2] - margin || z > hi[2] + margin) return false;
+      if (b.kind === "storage_tank") {
+        const radius = Math.min(hi[0] - lo[0], hi[1] - lo[1]) / 2 + margin;
+        return Math.hypot(x - (lo[0] + hi[0]) / 2, y - (lo[1] + hi[1]) / 2) <= radius;
+      }
+      return x >= lo[0] - margin && x <= hi[0] + margin && y >= lo[1] - margin && y <= hi[1] + margin;
+    });
   }
 
   setAmbientWind(windVec) {
@@ -344,7 +368,7 @@ export class WindView {
     // Spacing along each inflow edge is scaled by 1/|u_normal| so perpendicular spacing stays uniform
     // across the entire 120x120m pad with zero empty corners.
     const seeds = [];
-    const crossSpacing = 10.0;
+    const crossSpacing = 12.0;
     const edgeCoord = 57.5;
     const spanMax = 55.0;
 
@@ -366,10 +390,13 @@ export class WindView {
       }
     }
 
-    // Light interior wake-fill seeds at pipe height so areas downwind of solid obstacles stay populated
-    for (const ix of [-22, 6, 32]) {
-      for (const iy of [-24, 0, 24]) {
-        seeds.push([ix, iy, 4.5]);
+    // Distribute short traces throughout the site, with offset rows to avoid a rigid grid.
+    for (const z of [4.5, 9.5]) {
+      for (let x = -48; x <= 48; x += 18) {
+        const offset = Math.round((x + 48) / 18) % 2 ? 9 : 0;
+        for (let y = -48 + offset; y <= 48; y += 18) {
+          seeds.push([x, y, z]);
+        }
       }
     }
 
@@ -378,6 +405,7 @@ export class WindView {
     const arcs = [];
     const arcFracs = [];
     const speedRatios = [];
+    const activities = [];
     const phases = [];
     const edges = [];
     const widths = [];
@@ -385,9 +413,9 @@ export class WindView {
 
     const v1 = [0, 0, 0];
     const v2 = [0, 0, 0];
-    const maxSteps = 210; // 210 * 0.85m = 178.5m (> 170m diagonal of 120x120m pad)
+    const maxSteps = 42; // Keep each trace local rather than spanning the map.
     const ds = 0.85; // Fine spatial step for razor-smooth curves around round tanks & roofs
-    const baseWidth = 0.17;
+    const baseWidth = 0.11;
 
     let vertOffset = 0;
 
@@ -398,19 +426,27 @@ export class WindView {
 
       const pts = [];
       let arcLen = 0;
+      let previousDirection = null;
 
       for (let step = 0; step < maxSteps; step++) {
+        if (this._insideSolid(x, y, z)) break;
         this._sampleField(x, y, z, v1);
         const spd1 = Math.hypot(v1[0], v1[1], v1[2]);
-        if (spd1 < 0.08) break;
+        if (spd1 < Math.max(0.08, baseSpd * 0.12)) break;
+        const direction = [v1[0] / spd1, v1[1] / spd1, v1[2] / spd1];
+        if (previousDirection && direction[0] * previousDirection[0] + direction[1] * previousDirection[1] + direction[2] * previousDirection[2] < 0.7) break;
+        previousDirection = direction;
 
-        pts.push([x, y, z, arcLen, spd1 / baseSpd]);
+        const directionChange = Math.hypot(v1[0] / spd1 - ux, v1[1] / spd1 - uy, v1[2] / spd1);
+        const activity = Math.max(directionChange, Math.abs(spd1 / baseSpd - 1));
+        pts.push([x, y, z, arcLen, spd1 / baseSpd, activity]);
 
         const inv1 = 1.0 / spd1;
         const mx = x + 0.5 * v1[0] * inv1 * ds;
         const my = y + 0.5 * v1[1] * inv1 * ds;
         const mz = Math.max(0.8, Math.min(maxZ - 0.6, z + 0.5 * v1[2] * inv1 * ds));
 
+        if (this._insideSolid(mx, my, mz)) break;
         this._sampleField(mx, my, mz, v2);
         const spd2 = Math.hypot(v2[0], v2[1], v2[2]);
         if (spd2 < 0.08) break;
@@ -428,13 +464,7 @@ export class WindView {
 
       // Convert to Three.js world positions and apply 1-pass Laplacian smoothing for silky curves
       const threePts = pts.map((pt) => simToThree([pt[0], pt[1], pt[2]], new THREE.Vector3()));
-      const smoothPts = threePts.map((p, k) => {
-        if (k === 0 || k === threePts.length - 1) return p.clone();
-        return new THREE.Vector3()
-          .addVectors(threePts[k - 1], threePts[k + 1])
-          .multiplyScalar(0.25)
-          .addScaledVector(p, 0.5);
-      });
+      const smoothPts = threePts;
 
       const phase = ((sIdx * 0.6180339) % 1.0);
       const totalArc = Math.max(1e-3, pts[pts.length - 1][3]);
@@ -458,6 +488,7 @@ export class WindView {
         arcs.push(pts[k][3], pts[k][3]);
         arcFracs.push(frac, frac);
         speedRatios.push(speedR, speedR);
+        activities.push(pts[k][5], pts[k][5]);
         phases.push(phase, phase);
         edges.push(-1.0, 1.0);
         widths.push(w, w);
@@ -479,6 +510,7 @@ export class WindView {
     geo.setAttribute("aArc", new THREE.Float32BufferAttribute(arcs, 1));
     geo.setAttribute("aArcFrac", new THREE.Float32BufferAttribute(arcFracs, 1));
     geo.setAttribute("aSpeedRatio", new THREE.Float32BufferAttribute(speedRatios, 1));
+    geo.setAttribute("aActivity", new THREE.Float32BufferAttribute(activities, 1));
     geo.setAttribute("aPhase", new THREE.Float32BufferAttribute(phases, 1));
     geo.setAttribute("aEdge", new THREE.Float32BufferAttribute(edges, 1));
     geo.setAttribute("aWidth", new THREE.Float32BufferAttribute(widths, 1));

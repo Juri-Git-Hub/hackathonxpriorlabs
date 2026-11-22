@@ -237,6 +237,7 @@ async function bootstrap() {
   // 4. WebSocket client & HUD
   const wsClient = new SimWsClient({
     onWorldInit: (worldInit) => {
+      windView.setWorld(worldInit);
       const mapId = worldInit.map_id ?? "refinery";
       const layoutSeed = worldInit.layout_seed ?? null;
       const layoutStatus = document.getElementById("layout-status");

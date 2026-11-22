@@ -61,14 +61,19 @@ class SimEngine:
         agents: dict[str, AgentProtocol],
         seed: int = 42,
         layout_seed: int | None = None,
+        map_id: str = "refinery",
     ) -> None:
         self._lock = threading.RLock()
         self._seed = seed
-        self._refinery_layout_seed = layout_seed
-        self._generated_layout_seed: int | None = None
-        self._map_layout_seeds: dict[str, int] = {}
+        self._refinery_layout_seed = layout_seed if map_id == "refinery" else None
+        self._generated_layout_seed: int | None = layout_seed if map_id == "generated" else None
+        self._map_layout_seeds: dict[str, int] = (
+            {map_id: layout_seed}
+            if layout_seed is not None and map_id not in ("refinery", "generated")
+            else {}
+        )
 
-        self.world = World(layout_seed=layout_seed)
+        self.world = World(layout_seed=layout_seed, map_id=map_id)
         self.airflow = Airflow(self.world, seed=seed)
         self.plume = Plume(self.world, self.airflow, seed=seed + 100)
 

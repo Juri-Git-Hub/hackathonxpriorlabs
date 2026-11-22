@@ -11,6 +11,7 @@ from server.app import create_app
 from shared.schemas import JudgeCommand
 from sim.engine import SimEngine
 from sim.world import World
+from sim import layout
 from sim.world import _MAPS
 from tests.test_search_control import reading
 
@@ -29,6 +30,23 @@ def test_randomize_keeps_active_map_and_restores_its_layout(map_id):
     engine.apply_command(JudgeCommand(action='select_map', map_id=other))
     engine.apply_command(JudgeCommand(action='select_map', map_id=map_id))
     assert engine.get_world_init() == randomized
+
+
+def test_layout_retries_a_failed_placement_deterministically(monkeypatch):
+    original = layout._generate_layout_attempt
+    calls = []
+
+    def fail_first(*args):
+        calls.append(args[2])
+        if len(calls) % 2:
+            raise layout._PlacementFailed()
+        return original(*args)
+
+    monkeypatch.setattr(layout, '_generate_layout_attempt', fail_first)
+    first = World(layout_seed=23, map_id='generated').to_world_init()
+    second = World(layout_seed=23, map_id='generated').to_world_init()
+    assert first == second
+    assert calls == [23, 23, 23, 23]
 
 
 @pytest.mark.parametrize('seed', range(12))

@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 from urllib.request import urlopen
-from tunnel import ensure_tunnel
+from agents.tabpfn_remote import DEFAULT_API_URL, ensure_tunnel
 from integration.wind_search import DEFAULT_ADAPTIVE_WIND
 
 if __name__=='__main__':
@@ -17,7 +17,7 @@ if __name__=='__main__':
     if not (frontend/'node_modules').exists():subprocess.run(['npm','ci'],cwd=frontend,check=True)
     subprocess.run(['npm','run','build'],cwd=frontend,check=True)
     if not a.mock_agents:
-        endpoint=os.environ.get('PLUMESENSE_API_URL','http://127.0.0.1:18000/predict');ensure_tunnel(endpoint)
+        endpoint=os.environ.get('TABPFN_API_URL',DEFAULT_API_URL);ensure_tunnel(endpoint)
         with urlopen(endpoint.rsplit('/',1)[0]+'/health',timeout=15) as response:print('GPU API:',response.read().decode(),flush=True)
     command=[sys.executable,'-m','server.app','--host','127.0.0.1','--port',str(a.port),'--seed',str(a.seed)]
     if a.mock_agents:command.append('--mock-agents')
