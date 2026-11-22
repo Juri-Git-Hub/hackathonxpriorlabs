@@ -492,24 +492,26 @@ class World:
         solid_obstacles = [
             geom
             for bldg, geom in zip(self.buildings, self._bldg_geom_scalar)
-            if bldg.kind not in ("pipe_segment", "pipe_rack")
+            if bldg.kind != "pipe_segment"
         ]
 
-        def _in_solid_obstacle(px: float, py: float, pz: float) -> bool:
-            for x0, y0, z0, x1, y1, z1, cx, cy, _hx, _hy, r_cyl, r_cyl2, is_cyl, _is_porous, _tr in solid_obstacles:
-                if pz < z0 or pz > z1:
+        def _too_close_to_obstacle(px: float, py: float, pz: float, margin: float = 1.5) -> bool:
+            for x0, y0, z0, x1, y1, z1, cx, cy, _hx, _hy, r_cyl, _r_cyl2, is_cyl, is_porous, _tr in solid_obstacles:
+                m = 0.75 if is_porous else margin
+                if pz < z0 or pz > z1 + m:
                     continue
                 if is_cyl:
+                    r = r_cyl + m
                     dx = px - cx
                     dy = py - cy
-                    if dx * dx + dy * dy <= r_cyl2:
+                    if dx * dx + dy * dy <= r * r:
                         return True
-                elif x0 <= px <= x1 and y0 <= py <= y1:
+                elif (x0 - m) <= px <= (x1 + m) and (y0 - m) <= py <= (y1 + m):
                     return True
             return False
 
         fallback: Vec3 = self.default_leak_pos
-        for _ in range(64):
+        for _ in range(96):
             seg_idx = int(gen.choice(len(lengths), p=probs))
             t = float(gen.uniform(0.0, 1.0))
             pt = self._pipe_seg_a[seg_idx] + t * self._pipe_seg_ab[seg_idx]
@@ -522,7 +524,7 @@ class World:
                 or pz > self.bounds_max[2]
             ):
                 continue
-            if not _in_solid_obstacle(px, py, pz):
+            if not _too_close_to_obstacle(px, py, pz):
                 return (px, py, pz)
         return fallback
 
