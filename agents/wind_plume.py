@@ -4,7 +4,7 @@ from collections import deque
 import numpy as np
 
 from agents.base import AsyncInferenceAgent
-from integration.search_control import SearchController
+from agents.search_control import SearchController
 from shared.schemas import BeliefUpdatePayload
 
 

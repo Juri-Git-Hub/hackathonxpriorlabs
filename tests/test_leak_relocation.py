@@ -31,17 +31,25 @@ def test_invalid_replacement_preserves_current_mission(position):
 
 def test_websocket_replacement_refreshes_scene_and_errors_are_visible():
     app=create_app(mock_agents=True)
+    world=app.state.engine.world
+    valid_pos=(-48.0,-45.0,3.5)
+    bldg=world.buildings[0]
+    inside_pos=[
+        0.5*(bldg.min_xyz[0]+bldg.max_xyz[0]),
+        0.5*(bldg.min_xyz[1]+bldg.max_xyz[1]),
+        0.5*(bldg.min_xyz[2]+bldg.max_xyz[2]),
+    ]
     with TestClient(app) as client,client.websocket_connect('/ws') as ws:
         ws.receive_text();ws.receive_text()
-        ws.send_json({'type':'judge_cmd','action':'place_leak','leak_pos':[-26,38,3.5],'replace_existing':True})
+        ws.send_json({'type':'judge_cmd','action':'place_leak','leak_pos':list(valid_pos),'replace_existing':True})
         import json
         for _ in range(40):
             message=json.loads(ws.receive_text())
             if message['type']=='world_init':break
         else:raise AssertionError('No scene reset after relocation')
-        assert app.state.engine.leaks[0].pos==(-26,38,3.5)
+        assert app.state.engine.leaks[0].pos==valid_pos
         assert len(app.state.engine.leaks)==1
-        ws.send_json({'type':'judge_cmd','action':'place_leak','leak_pos':[0,0,3.5],'replace_existing':True})
+        ws.send_json({'type':'judge_cmd','action':'place_leak','leak_pos':inside_pos,'replace_existing':True})
         for _ in range(40):
             message=json.loads(ws.receive_text())
             if message['type']=='error':

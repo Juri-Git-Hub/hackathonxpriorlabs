@@ -24,15 +24,16 @@ from pydantic import ValidationError
 
 from agents.base import BaseAgent
 from agents.mock_agent import MockTabPFNAgent
-from integration.wind_search import DEFAULT_ADAPTIVE_WIND
 from shared.schemas import JudgeCommand, BackendStatusPayload
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from sim.engine import SimEngine
 
+DEFAULT_ADAPTIVE_WIND = False
+
 logger = logging.getLogger("gas_leak_server")
 
-# With the fixed MVP wind and sensor, each layout confirms within 75 seconds.
+# The MVP draws from a small set of refinery layouts.
 MVP_LAYOUT_SEEDS = (42, 110, 114)
 
 
@@ -86,7 +87,7 @@ def create_app(
         if mock_agents or tabpfn:
             raise ValueError("The MVP preset uses the wind-sensor agent.")
         seed = 42
-        layout_seed = _mvp_layout_seed() if randomized_layout else None
+        layout_seed = _mvp_layout_seed()
         from agents.wind_plume import WindPlumeAgent
 
         # Process every observation in order for the repeatable demo.
@@ -99,9 +100,12 @@ def create_app(
             source_pre_data=source_pre_data,
             source_post_data=source_post_data,
         )
+    if layout_seed is None:
+        layout_seed = random.randrange(2**31)
     engine = SimEngine(
         agents=agents, seed=seed, layout_seed=layout_seed,
         responsive_sensor=not (mock_agents or tabpfn),
+        randomize_initial_maps=True,
     )
     clients: set[WebSocket] = set()
     latest_beliefs = {}
@@ -234,6 +238,8 @@ def create_app(
                         cmd.map_id == "refinery" or (cmd.map_id is None and previous_world.map_id == "refinery")
                     ):
                         cmd = cmd.model_copy(update={"seed": _mvp_layout_seed(previous_world.layout_seed)})
+                    elif cmd.action == "randomize_layout" and cmd.seed is None:
+                        cmd = cmd.model_copy(update={"seed": random.randrange(2**31)})
                     try:
                         engine.apply_command(cmd)
                     except ValueError as exc:
@@ -267,7 +273,7 @@ def _parse_args() -> argparse.Namespace:
         default=os.environ.get("MOCK_AGENTS", "0") == "1",
         help="Use fast MockTabPFNAgent instead of loading TabPFN weights.",
     )
-    parser.add_argument("--randomized-layout", action="store_true", help="Start the MVP on a verified procedural refinery layout.")
+    parser.add_argument("--randomized-layout", action="store_true", help="Start the MVP on a procedural refinery layout (the default).")
     parser.add_argument("--mvp", action="store_true", help="Run the fixed, local wind-sensor demo.")
     parser.add_argument("--tabpfn", action="store_true", help="Use the TabPFN flight policy and GPU backend.")
     parser.add_argument("--source-pre-data", type=Path, help="Alternate pre-contact TabPFN context.")
@@ -275,8 +281,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
     parser.add_argument("--seed", type=int, default=42, help="Simulation RNG seed")
-    parser.add_argument("--layout-seed", type=int, default=42, help="Seed for connected procedural facility layout")
-    parser.add_argument("--classic-layout", action="store_true", help="Use the original fixed facility map")
+    parser.add_argument("--layout-seed", type=int, default=None, help="Seed for connected procedural facility layout (default: random)")
     parser.add_argument("--adaptive-wind",action=argparse.BooleanOptionalAction,default=DEFAULT_ADAPTIVE_WIND,help="Refresh acquisition targets after sustained changes in measured wind")
     args = parser.parse_args()
     if args.randomized_layout and not args.mvp:
@@ -298,7 +303,7 @@ if __name__ == "__main__":
         mock_agents=args.mock_agents,
         seed=args.seed,
         adaptive_wind=args.adaptive_wind,
-        layout_seed=None if args.classic_layout else args.layout_seed,
+        layout_seed=args.layout_seed,
         tabpfn=args.tabpfn,
         mvp=args.mvp,
         randomized_layout=args.randomized_layout,

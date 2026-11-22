@@ -1,17 +1,41 @@
 # Frontend (Three.js + Vite)
 
-OWNER: Frontend / Visualization team.
+Interactive 3D visualization for the Drone Gas Leak Detection simulator.
 
-## Contract & Integration
-- Connect to backend WebSocket at `ws://localhost:8000/ws` (start backend with `python -m server.app --mock-agents`).
-- Support `?mock=true` query param to replay synthetic `world_init`, `sim_tick`, and `belief_update` payloads without needing Python running.
-- **Coordinate conversion (strictly at the rendering boundary):**
-  - Python physics is **Right-handed Z-up** (`x ∈ [-60, 60]`, `y ∈ [-60, 60]`, `z ∈ [0, 30]`).
-  - Three.js is **Y-up**: convert with `threePos = (sim_x, sim_z, -sim_y)`.
-- See [`shared/schemas.py`](../shared/schemas.py) for all WebSocket message shapes (`WorldInitPayload`, `SimTickPayload`, `BeliefUpdatePayload`, `JudgeCommand`).
+## Running
 
-## PlumeSense backend integration
+- **Integrated demo (builds and serves via FastAPI):**
+  ```bash
+  python launch_demo.py
+  # Open http://localhost:8501
+  ```
+- **Development with Vite HMR:**
+  ```bash
+  # Terminal 1 (repo root)
+  python -m server.app --port 8501
 
-Production/demo: `python launch_demo.py`, open http://localhost:8501. Development: run `python -m server.app --port 8501`, then `npm run dev` here. Vite proxies `/ws` and `/health`; built files are served by FastAPI. The frontend remains the main Three.js app; there is no Streamlit UI.
+  # Terminal 2 (frontend/)
+  npm ci
+  npm run dev
+  # Open http://localhost:5173
+  ```
+  Vite proxies `/ws` and `/health` to the backend on port `8501`. Append `?mock=true` to run with synthetic payloads without a Python backend, or `?ws=ws://host:port/ws` to point at a custom server.
 
-Optional `belief_update` fields: `source_scores`, `hazard_probabilities`, `route`, `inference_seconds`, `measurement_count`, `exposure_ppm_seconds`, `score_kind`. `backend_status` carries live inference status/errors. Existing fields remain compatible. `judge_cmd` additionally accepts `step` while paused and `seed` with `reset_race`. See `shared/schemas.py`.
+## Coordinate Convention
+
+- Python physics uses right-handed **Z-up** (`x ∈ [-60, 60]`, `y ∈ [-60, 60]`, `z ∈ [0, 30]`).
+- Three.js uses right-handed **Y-up**. Conversion is performed strictly at the rendering boundary in `src/coords.js`:
+  ```text
+  threePos = (sim_x, sim_z, -sim_y)
+  ```
+
+## WebSocket Contract
+
+See [`shared/schemas.py`](../shared/schemas.py) for all message schemas (`WorldInitPayload`, `WindFieldPayload`, `SimTickPayload`, `BeliefUpdatePayload`, `BackendStatusPayload`, `JudgeCommand`).
+
+## Tests & Build
+
+```bash
+node --test test/*.test.js
+npm run build
+```

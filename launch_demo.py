@@ -6,17 +6,17 @@ import sys
 from pathlib import Path
 from urllib.request import urlopen
 from agents.tabpfn_remote import DEFAULT_API_URL, ensure_tunnel
-from integration.wind_search import DEFAULT_ADAPTIVE_WIND
+
+DEFAULT_ADAPTIVE_WIND = False
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--mock-agents',action='store_true');p.add_argument('--port',type=int,default=8501);p.add_argument('--seed',type=int,default=42);p.add_argument('--adaptive-wind',action=argparse.BooleanOptionalAction,default=DEFAULT_ADAPTIVE_WIND)
-    p.add_argument('--randomized-layout',action='store_true',help='Start the MVP on a verified procedural refinery layout')
+    p.add_argument('--randomized-layout',action='store_true',help='Start the MVP on a procedural refinery layout (the default)')
     p.add_argument('--mvp',action='store_true',help='Run the repeatable local demonstration')
     p.add_argument('--tabpfn',action='store_true',help='Use the TabPFN flight policy and GPU backend')
     p.add_argument('--source-pre-data',type=Path,help='Alternate pre-contact TabPFN context')
     p.add_argument('--source-post-data',type=Path,help='Alternate post-contact TabPFN context')
-    p.add_argument('--layout-seed',type=int,default=42,help='Seed for a connected procedural facility')
-    p.add_argument('--classic-layout',action='store_true',help='Use the original fixed facility map')
+    p.add_argument('--layout-seed',type=int,default=None,help='Seed for a connected procedural facility (default: random)')
     a=p.parse_args()
     if a.randomized_layout and not a.mvp:
         p.error('--randomized-layout requires --mvp')
@@ -39,8 +39,7 @@ if __name__=='__main__':
         command.append('--tabpfn')
         for flag, path in (('--source-pre-data', a.source_pre_data), ('--source-post-data', a.source_post_data)):
             if path is not None:command.extend([flag,str(path.resolve())])
-    command.extend(['--layout-seed',str(a.layout_seed)])
-    if a.classic_layout:command.append('--classic-layout')
+    if a.layout_seed is not None:command.extend(['--layout-seed',str(a.layout_seed)])
     command.append('--adaptive-wind' if a.adaptive_wind else '--no-adaptive-wind')
     try:subprocess.run(command,cwd=root,check=True)
     except KeyboardInterrupt:pass

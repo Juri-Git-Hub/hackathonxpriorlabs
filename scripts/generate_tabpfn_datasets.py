@@ -701,7 +701,7 @@ def main() -> int:
     parser.add_argument("--calibrated-physics", action="store_true", help="Compute post-contact features using SI plume dispersion.")
     parser.add_argument("--post-only", action="store_true")
     parser.add_argument("--calibrated-rates", action="store_true", help="Include weaker SI leak rates in the post-contact context.")
-    parser.add_argument("--post-out", type=Path, default=Path("data/tabpfn_source_post_v8.json.gz"))
+    parser.add_argument("--post-out", type=Path, default=Path("data/tabpfn_source_post_warm30_v1.json.gz"))
     parser.add_argument("--pre-out", type=Path, default=Path("data/tabpfn_source_pre_v4.json.gz"))
     parser.add_argument("--plume-out", type=Path, default=Path("data/tabpfn_plume_prior.json"))
     args = parser.parse_args()

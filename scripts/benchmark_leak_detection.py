@@ -34,12 +34,30 @@ import numpy as np
 
 from agents.reliable_tabpfn import ReliableTabPFNAgent
 from agents.wind_plume import WindPlumeAgent
-from integration.prediction_protocol import TEST_CASES as PRED_CASES
-from integration.wind_protocol import TEST_CASES as WIND_CASES
 from shared.schemas import JudgeCommand, LeakSource, Vec3
 from sim.engine import SimEngine
 from sim.world import World
 from tools.scenarios import SCENARIOS
+
+PRED_CASES = [
+    dict(name="default_seed201", seed=201),
+    dict(name="default_seed202", seed=202),
+    dict(name="default_seed203", seed=203),
+    dict(name="other_valve", seed=204, source=[-17.5, -2.0, 3.5]),
+    dict(name="east_tank_port", seed=205, source=[20.5, -7.0, 6.0]),
+    dict(name="off_asset", seed=206, source=[8.0, -10.0, 4.0]),
+    dict(name="elevated", seed=207, source=[15.0, 8.0, 13.0]),
+]
+
+WIND_CASES = [
+    dict(name="default", seed=301),
+    dict(name="north_wind", seed=302, wind=[90, 3.5]),
+    dict(name="west_wind", seed=303, wind=[180, 4.5]),
+    dict(name="early_wind_reversal", seed=304, wind_schedule=[dict(time=5, angle=195, speed=3.5)]),
+    dict(name="later_wind_change", seed=305, wind_schedule=[dict(time=35, angle=135, speed=4)]),
+    dict(name="off_asset", seed=306, source=[8.0, -10.0, 4.0], wind=[225, 3.0]),
+    dict(name="elevated", seed=307, source=[15.0, 8.0, 13.0]),
+]
 
 
 @dataclass(frozen=True)

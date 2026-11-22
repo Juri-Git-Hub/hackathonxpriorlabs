@@ -13,14 +13,16 @@ def fixture():
 
 def test_completion_stops_and_freezes_report_until_reset():
     e,b=fixture()
-    for i in range(4):e.sim_time=1+i*.5;e._check_completion('tabpfn',30)
+    steps=round(e.LOCK_SUSTAIN_S/e.OBS_INTERVAL)
+    for i in range(steps):e.sim_time=1+i*e.OBS_INTERVAL;e._check_completion('tabpfn',30)
+    expected_t=1+(steps-1)*e.OBS_INTERVAL
     assert e.paused and e.drones['tabpfn'].status=='locked'
     r=e.mission_report
-    assert r.elapsed_sim_seconds==2.5 and r.model_score==.73 and r.simulator_confirmed
+    assert np.isclose(r.elapsed_sim_seconds,expected_t) and r.model_score==.73 and r.simulator_confirmed
     p=e.drones['tabpfn'].pos.copy();e.step()
-    assert np.array_equal(e.drones['tabpfn'].pos,p) and e.sim_time==2.5
+    assert np.array_equal(e.drones['tabpfn'].pos,p) and np.isclose(e.sim_time,expected_t)
     e.apply_command(JudgeCommand(action='pause'));e.apply_command(JudgeCommand(action='step'))
-    assert e.paused and e.mission_report is r and e.sim_time==2.5
+    assert e.paused and e.mission_report is r and np.isclose(e.sim_time,expected_t)
     e.apply_command(JudgeCommand(action='reset_race'))
     assert e.mission_report is None and not e.paused and e._latest_agent_beliefs=={}
 
@@ -31,7 +33,7 @@ def test_needs_fresh_model_estimate_and_continuous_positive_measurements():
     e.sim_time=8;e._check_completion('tabpfn',100)
     assert e._lock_timers['tabpfn']==0
     e.sim_time=1;e._check_completion('tabpfn',100)
-    assert e._lock_timers['tabpfn']==.5
+    assert np.isclose(e._lock_timers['tabpfn'],e.OBS_INTERVAL)
     e._check_completion('tabpfn',.5)
     assert e._lock_timers['tabpfn']==0
 

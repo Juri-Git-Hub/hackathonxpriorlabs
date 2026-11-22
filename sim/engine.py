@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import secrets
 import threading
 import time
 from typing import Optional, Protocol
@@ -65,9 +66,11 @@ class SimEngine:
         map_id: str = "refinery",
         rotor_downwash_enabled: bool = True,
         responsive_sensor: bool = False,
+        randomize_initial_maps: bool = False,
     ) -> None:
         self._lock = threading.RLock()
         self._seed = seed
+        self._randomize_initial_maps = randomize_initial_maps
         self._refinery_layout_seed = layout_seed if map_id == "refinery" else None
         self._generated_layout_seed: int | None = layout_seed if map_id == "generated" else None
         self._map_layout_seeds: dict[str, int] = (
@@ -185,6 +188,14 @@ class SimEngine:
                         "refinery": self._refinery_layout_seed,
                         "generated": self._generated_layout_seed,
                     }.get(cmd.map_id, self._map_layout_seeds.get(cmd.map_id))
+                    if layout_seed is None and self._randomize_initial_maps:
+                        layout_seed = secrets.randbelow(2**31)
+                        if cmd.map_id == "refinery":
+                            self._refinery_layout_seed = layout_seed
+                        elif cmd.map_id == "generated":
+                            self._generated_layout_seed = layout_seed
+                        else:
+                            self._map_layout_seeds[cmd.map_id] = layout_seed
                     self._replace_world(World(layout_seed=layout_seed, map_id=cmd.map_id))
                     self.sensor_dropout_active = False
                 return

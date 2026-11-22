@@ -6,14 +6,45 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agents.mock_agent import MockTabPFNAgent
-from integration.acquisition_control import AcquisitionController
+from agents.wind_plume import WindPlumeController
 from server.app import create_app
-from shared.schemas import JudgeCommand
+from shared.schemas import DroneObservation, JudgeCommand
 from sim.engine import SimEngine
 from sim.world import World
 from sim import layout
 from sim.world import _MAPS
-from tests.test_search_control import reading
+
+
+def _reading(sim_time=0.5, pos=(-48.0, -45.0, 5.0), ppm=0.5):
+    return DroneObservation(
+        sim_time=sim_time,
+        drone_id='tabpfn',
+        pos=pos,
+        vel=(0.0, 0.0, 0.0),
+        wind_measured=(3.5, 0.0),
+        ppm_measured=ppm,
+        temp_delta=0.0,
+        nearest_asset_type='open_air',
+        asset_age_years=0.0,
+        in_wind_shadow=False,
+        upwind_pipe_score=0.0,
+        battery_pct=100.0,
+    )
+
+
+def test_app_starts_seeded_and_restores_each_world(monkeypatch):
+    monkeypatch.setattr('server.app.random.randrange', lambda _: 481)
+    seeds = iter([712, 923])
+    monkeypatch.setattr('sim.engine.secrets.randbelow', lambda _: next(seeds))
+    engine = create_app(mock_agents=True).state.engine
+    assert engine.world.layout_seed == 481
+    engine.apply_command(JudgeCommand(action='select_map', map_id='pipe_loop'))
+    first = engine.get_world_init()
+    assert first.layout_seed == 712
+    engine.apply_command(JudgeCommand(action='select_map', map_id='tank_terminal'))
+    assert engine.world.layout_seed == 923
+    engine.apply_command(JudgeCommand(action='select_map', map_id='pipe_loop'))
+    assert engine.get_world_init() == first
 
 
 @pytest.mark.parametrize('map_id', list(_MAPS))
@@ -97,10 +128,11 @@ def test_layout_is_reproducible_and_changes_the_actual_preflight_route():
     assert a == repeat and a.buildings != b.buildings and a.pipe_runs != b.pipe_runs
     plans = []
     for world in (a, b):
-        controller = AcquisitionController(world)
-        obs = reading(.5, pos=(-48., -45., 5.), ppm=.5)
-        controller.ingest(obs); controller.plan(None, obs, preflight=True)
-        route = controller.preview_route(obs.pos, controller.route)
+        controller = WindPlumeController(world)
+        obs = _reading(.5, pos=(-48., -45., 5.), ppm=.5)
+        controller.ingest(obs)
+        route = [obs.pos, *controller.route]
+        assert len(route) >= 2
         assert all(controller.planner.visible(x, y) for x, y in zip(route, route[1:]))
         plans.append(route)
     assert plans[0] != plans[1]
@@ -114,7 +146,7 @@ def test_layout_reset_rebuilds_physics_and_keeps_wind_but_clears_the_mission():
     assert engine.airflow.world is engine.world and engine.plume.world is engine.world
     assert np.allclose(engine.airflow.w0, (0, 4))
     assert len(engine.leaks) == 1
-    assert engine.leaks[0].pos == next(a.pos for a in engine.world.assets if a.id == 'flange_01')
+    assert not engine.world.is_inside_building(engine.leaks[0].pos, margin=0.0)
     assert engine.get_world_init().pipe_runs == engine.world.pipe_runs
     old = engine.get_world_init()
     engine.apply_command(JudgeCommand(action='reset_race', keep_leaks=True))

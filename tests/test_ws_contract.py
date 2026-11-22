@@ -144,14 +144,16 @@ def test_completed_report_is_sent_on_reconnect_and_cleared_by_reset():
     with e._lock:
         p=e.leaks[0].pos;e.drones['tabpfn'].pos=np.array(p)
         e._latest_agent_beliefs['tabpfn']=BeliefUpdatePayload(sim_time=1,drone_id='tabpfn',q50=[1],uncertainty=[0],estimated_source=p,next_waypoint=p)
-        for i in range(4):e.sim_time=1+i*.5;e._check_completion('tabpfn',30)
+        steps=round(e.LOCK_SUSTAIN_S/e.OBS_INTERVAL)
+        for i in range(steps):e.sim_time=1+i*e.OBS_INTERVAL;e._check_completion('tabpfn',30)
+        expected_t=1+(steps-1)*e.OBS_INTERVAL
     with TestClient(app) as client:
         for _ in range(2):
             with client.websocket_connect('/ws') as ws:
                 ws.receive_text()
                 status=json.loads(ws.receive_text())
                 assert status['mission_state']=='found'
-                assert status['mission_report']['elapsed_sim_seconds']==2.5
+                assert abs(status['mission_report']['elapsed_sim_seconds']-expected_t)<1e-6
         with client.websocket_connect('/ws') as ws:
             ws.receive_text();ws.receive_text()
             ws.send_text(JudgeCommand(action='reset_race').model_dump_json())
@@ -183,7 +185,7 @@ def test_select_map_broadcasts_new_geometry_before_the_next_mission_tick():
             if map_id == "refinery":
                 assert layout == refinery
             else:
-                assert layout.layout_seed is None
+                assert layout.layout_seed is not None
                 assert layout.grid_coords != refinery.grid_coords
                 assert any(box.kind == "pipe_segment" for box in layout.buildings)
                 assert layout.pipe_runs

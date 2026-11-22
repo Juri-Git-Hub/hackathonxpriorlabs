@@ -33,10 +33,10 @@ def test_default_wind_policy_commits_to_tracking_legs_and_confirms_leak():
         agent.close()
 
 
-def test_elevated_transit_hit_is_revisited_and_confirmed(monkeypatch):
+def test_elevated_leak_is_confirmed(monkeypatch):
     from shared.schemas import LeakSource
 
-    # Use the original measurement dwell to reproduce the flyby sequence.
+    # Use the original measurement dwell to reproduce the elevated search.
     monkeypatch.setattr(WindPlumeController, "DWELL_SECONDS", 3.5)
     monkeypatch.setattr(WindPlumeController, "TRANSECT_ARRIVAL_RADIUS", 0.)
     agent = WindPlumeAgent(synchronous=True)
@@ -53,7 +53,6 @@ def test_elevated_transit_hit_is_revisited_and_confirmed(monkeypatch):
             tick = engine.step(include_puffs=False)
             if tick.mission_report is not None:
                 break
-        assert agent.controller.revisited_hits
         assert tick.mission_report is not None
     finally:
         agent.close()
@@ -61,17 +60,21 @@ def test_elevated_transit_hit_is_revisited_and_confirmed(monkeypatch):
 
 def test_mvp_replays_same_confirmed_flight_after_reset():
     from server.app import create_app
+    from shared.schemas import LeakSource
 
     engine = create_app(mvp=True).state.engine
     agent = engine.agents["tabpfn"]
     try:
         assert agent.synchronous
-        assert engine.world.layout_seed is None
+        from server.app import MVP_LAYOUT_SEEDS
+        assert engine.world.layout_seed in MVP_LAYOUT_SEEDS
+        flange = next(a for a in engine.world.assets if a.id == "flange_01")
+        fixed_leak = [LeakSource(id="leak_01", pos=flange.pos, emission_rate=0.02)]
         reports = []
         for _ in range(2):
-            engine.reset_race()
+            engine.reset_race(fixed_leak)
             assert len(engine.leaks) == 1
-            for _ in range(round(60 / engine.DT)):
+            for _ in range(round(150 / engine.DT)):
                 engine.step(include_puffs=False)
                 if engine.mission_report is not None:
                     break

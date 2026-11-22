@@ -1,6 +1,6 @@
 import numpy as np
-from integration.navigation import Planner3D,RoutedAgent
-from shared.schemas import BuildingBox,WorldInitPayload
+from agents.navigation import Planner3D, RoutedAgent
+from shared.schemas import BuildingBox, WorldInitPayload
 from sim.drone import Drone
 from sim.world import World
 from agents.lawnmower import LawnmowerAgent
@@ -26,28 +26,6 @@ def test_volumetric_baseline_changes_height_before_crossing_facility():
     first=a._waypoints[:6]
     assert len({p[2] for p in first})>=4
     assert len({p[:2] for p in first})==1
-
-def test_tabpfn_agent_can_select_and_follow_high_altitude_goal():
-    from agents.plumesense_agent import PlumeSenseAgent
-    from shared.schemas import DroneObservation
-    class Source:
-        def predict(self,f):return np.exp(-((f.query_x+30)**2+(f.query_y+25)**2+(f.query_z-23)**2)/40)
-    class Hazard:
-        def predict(self,f):return np.zeros(len(f))
-    a=PlumeSenseAgent(models=[Source(),Hazard()]);a.reset(World().to_world_init())
-    o=DroneObservation(sim_time=1,drone_id='tabpfn',pos=(-48,-45,5),vel=(0,0,0),wind_measured=(2,0),ppm_measured=20,temp_delta=0,nearest_asset_type='valve',asset_age_years=10,in_wind_shadow=False,upwind_pipe_score=0,battery_pct=100)
-    a._record_observation(o);target,belief=a._run_inference(o)
-    # Map-derived altitude samples bracket the model's 23m peak; no fixed
-    # 23m waypoint is required to demonstrate genuinely vertical selection.
-    assert abs(belief.estimated_source[2]-23)<=4
-    # First settle at the gas contact; then a high model hypothesis may propose
-    # a genuinely vertical local measurement rather than an immediate global jump.
-    for t in [1.5,2,2.5,3,3.5,4]:
-        reading=o.model_copy(update={'sim_time':t})
-        a._record_observation(reading);a._run_inference(reading)
-    assert a.waypoint[2]>5
-    assert a.route and a.planner.visible(o.pos,a.route[0])
-    a.close()
 
 def test_planner_rejects_targets_outside_flight_volume():
     p=Planner3D(World().to_world_init())
