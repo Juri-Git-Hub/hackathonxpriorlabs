@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PlumeSense — Autonomous Gas Leak Localization</title>
+  <style>
+    :root {
+      --dark-bg: #0d1821;
+      --dark-surface: #152532;
+      --dark-surface-2: #1a2e3d;
+      --dark-border: rgba(148, 195, 214, 0.16);
+      --light-bg: #f3efe8;
+      --light-surface: #e8e2d7;
+      --light-border: rgba(13, 24, 33, 0.14);
+      --teal: #45c4b0;
+      --teal-dark: #147a6e;
+      --orange: #f09d44;
+      --text-light: #f4f7fa;
+      --text-light-muted: #9eb2c0;
+      --text-dark: #101d27;
+      --text-dark-muted: #43535f;
+      --radius: 14px;
+      --font-sans: "Inter", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #070d12;
+      color: var(--text-light);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .deck {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide {
+      position: absolute;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      padding: 4.6% 5.2% 4.2%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(10px) scale(0.992);
+      transition: opacity 0.32s ease, transform 0.32s ease;
+      overflow: hidden;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    .slide.theme-dark {
+      background: radial-gradient(circle at 85% 15%, rgba(69, 196, 176, 0.08), transparent 42%),
+                  radial-gradient(circle at 12% 88%, rgba(240, 157, 68, 0.05), transparent 36%),
+                  var(--dark-bg);
+      color: var(--text-light);
+    }
+
+    .slide.theme-light {
+      background: var(--light-bg);
+      color: var(--text-dark);
+    }
+
+    /* Typography */
+    .eyebrow {
+      font-size: clamp(11px, 1.05vw, 15px);
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 0.65rem;
+    }
+
+    .theme-light .eyebrow {
+      color: var(--teal-dark);
+    }
+
+    h1 {
+      font-size: clamp(28px, 3.35vw, 54px);
+      font-weight: 750;
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+    }
+
+    h2 {
+      font-size: clamp(24px, 2.85vw, 44px);
+      font-weight: 700;
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+    }
+
+    h3 {
+      font-size: clamp(15px, 1.35vw, 22px);
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    p, li {
+      font-size: clamp(13px, 1.22vw, 19px);
+      line-height: 1.48;
+    }
+
+    .muted {
+      color: var(--text-light-muted);
+    }
+
+    .theme-light .muted {
+      color: var(--text-dark-muted);
+    }
+
+    /* Bullet list */
+    ul.clean-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85em;
+    }
+
+    ul.clean-list li {
+      position: relative;
+      padding-left: 1.35em;
+    }
+
+    ul.clean-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.56em;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--teal);
+    }
+
+    .theme-light ul.clean-list li::before {
+      background: var(--teal-dark);
+    }
+
+    /* Media frame */
+    .media-frame {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #091118;
+      border: 1px solid var(--dark-border);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
+    }
+
+    .theme-light .media-frame {
+      border: 1px solid var(--light-border);
+      box-shadow: 0 14px 32px rgba(16, 29, 39, 0.16);
+    }
+
+    .media-frame img,
+    .media-frame video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .media-caption {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(9, 17, 24, 0.78);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e8f1f6;
+      font-size: clamp(10px, 0.85vw, 13px);
+      font-weight: 500;
+    }
+
+    /* Slide footer */
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: clamp(10px, 0.9vw, 13.5px);
+      color: var(--text-light-muted);
+      padding-top: 0.7rem;
+      border-top: 1px solid rgba(148, 195, 214, 0.1);
+    }
+
+    .theme-light .slide-footer {
+      color: var(--text-dark-muted);
+      border-top-color: rgba(16, 29, 39, 0.1);
+    }
+
+    /* Slide 1: Cover */
+    .cover-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.02fr 1.18fr;
+      gap: 3.4%;
+      align-items: center;
+      margin: 1.2% 0;
+    }
+
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(69, 196, 176, 0.12);
+      border: 1px solid rgba(69, 196, 176, 0.3);
+      color: var(--teal);
+      font-size: clamp(11px, 0.92vw, 14px);
+      font-weight: 600;
+      margin-bottom: 1.3rem;
+    }
+
+    .brand-pill .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 10px var(--teal);
+    }
+
+    .cover-sub {
+      margin-top: 1.15rem;
+      font-size: clamp(14px, 1.35vw, 21px);
+      color: var(--text-light-muted);
+      max-width: 92%;
+    }
+
+    .cover-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 1.8rem;
+    }
+
+    .chip {
+      padding: 8px 14px;
+      border-radius: 10px;
+      background: var(--dark-surface);
+      border: 1px solid var(--dark-border);
+      font-size: clamp(11px, 0.95vw, 14.5px);
+      font-weight: 600;
+      color: #d8e6ef;
+    }
+
+    .chip strong {
+      color: var(--teal);
+    }
+
+    .cover-media {
+      aspect-ratio: 16 / 10;
+      width: 100%;
+    }
+
+    /* Slide 2: Problem */
+    .problem-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 0.92fr 1.18fr;
+      gap: 4%;
+      align-items: center;
+      margin: 1.5% 0;
+    }
+
+    .big-stat {
+      font-size: clamp(46px, 5.8vw, 88px);
+      font-weight: 800;
+      line-height: 0.95;
+      color: var(--orange);
+      letter-spacing: -0.03em;
+      margin-bottom: 0.45rem;
+    }
+
+    .stat-desc {
+      font-size: clamp(14px, 1.28vw, 20px);
+      color: var(--text-light);
+      margin-bottom: 1.6rem;
+      max-width: 95%;
+    }
+
+    .problem-media {
+      aspect-ratio: 16 / 10;
+      width: 100%;
+    }
+
+    /* Slide 3: Opportunity */
+    .opp-cards {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 1.4%;
+      align-items: center;
+      margin: 1.4% 0 2.2%;
+    }
+
+    .opp-card {
+      background: var(--dark-bg);
+      color: var(--text-light);
+      padding: 1.45rem 1.6rem;
+      border-radius: var(--radius);
+      min-height: clamp(118px, 16vh, 172px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 12px 26px rgba(13, 24, 33, 0.14);
+    }
+
+    .opp-card .metric {
+      font-size: clamp(26px, 2.9vw, 44px);
+      font-weight: 800;
+      line-height: 1.05;
+      color: var(--teal);
+      margin-bottom: 0.45rem;
+    }
+
+    .opp-card.highlight .metric {
+      color: var(--orange);
+    }
+
+    .opp-card .label {
+      font-size: clamp(12px, 1.08vw, 17px);
+      color: #c9d7e0;
+      line-height: 1.35;
+    }
+
+    .opp-arrow {
+      font-size: clamp(20px, 2.2vw, 32px);
+      font-weight: 800;
+      color: var(--teal-dark);
+      user-select: none;
+    }
+
+    .opp-bottom {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1.08fr;
+      gap: 3.5%;
+      align-items: center;
+      min-height: 0;
+    }
+
+    .opp-media {
+      height: 100%;
+      max-height: 36vh;
+      width: 100%;
+    }
+
+    /* Slide 4: How it works */
+    .models-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2.2%;
+      margin: 1.6% 0 1.8%;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .model-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .model-shot {
+      aspect-ratio: 16 / 10;
+      width: 100%;
+      margin-bottom: 0.9rem;
+    }
+
+    .model-shot img {
+      object-fit: contain;
+      background: #0c1720;
+    }
+
+    .model-step {
+      font-size: clamp(10px, 0.85vw, 13px);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 0.3rem;
+    }
+
+    .model-col p {
+      font-size: clamp(12px, 1.05vw, 16.5px);
+      color: var(--text-light-muted);
+      margin-top: 0.35rem;
+      line-height: 1.4;
+    }
+
+    .callout-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2.5%;
+      align-items: center;
+      padding: 1.05rem 1.5rem;
+      border-radius: var(--radius);
+      background: var(--dark-surface);
+      border: 1px solid var(--dark-border);
+      margin-bottom: 0.6rem;
+    }
+
+    .callout-bar .left {
+      font-size: clamp(13px, 1.15vw, 18px);
+      color: #dce8f0;
+    }
+
+    .callout-bar .right {
+      font-size: clamp(13px, 1.18vw, 18.5px);
+      font-weight: 700;
+      color: var(--orange);
+    }
+
+    /* Slide 5: Architecture & Live Demo */
+    .demo-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.22fr 0.95fr;
+      gap: 3.2%;
+      align-items: center;
+      margin: 1.4% 0;
+      min-height: 0;
+    }
+
+    .demo-video-wrap {
+      aspect-ratio: 16 / 10;
+      width: 100%;
+    }
+
+    .feature-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .feature-card {
+      padding: 0.95rem 1.15rem;
+      border-radius: 12px;
+      background: var(--dark-surface);
+      border: 1px solid var(--dark-border);
+    }
+
+    .feature-card h3 {
+      font-size: clamp(13px, 1.12vw, 17.5px);
+      color: var(--teal);
+      margin-bottom: 0.25rem;
+    }
+
+    .feature-card p {
+      font-size: clamp(11.5px, 0.98vw, 15px);
+      color: var(--text-light-muted);
+      line-height: 1.38;
+    }
+
+    /* Controls bar */
+    .nav-bar {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(10, 19, 27, 0.78);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(148, 195, 214, 0.18);
+      z-index: 100;
+      opacity: 0.35;
+      transition: opacity 0.2s ease;
+    }
+
+    .nav-bar:hover,
+    .nav-bar:focus-within {
+      opacity: 1;
+    }
+
+    .nav-btn {
+      background: transparent;
+      border: 1px solid rgba(148, 195, 214, 0.22);
+      color: #e6f0f6;
+      border-radius: 999px;
+      padding: 4px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .nav-btn:hover {
+      background: rgba(69, 196, 176, 0.18);
+      border-color: var(--teal);
+    }
+
+    .dots {
+      display: flex;
+      gap: 7px;
+      padding: 0 4px;
+    }
+
+    .dot-btn {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.28);
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    .dot-btn.active {
+      background: var(--teal);
+      transform: scale(1.25);
+    }
+
+    /* Print / PDF export */
+    @media print {
+      body { background: #fff; overflow: visible; }
+      .nav-bar { display: none !important; }
+      .deck { display: block; width: auto; height: auto; }
+      .slide {
+        position: relative;
+        opacity: 1 !important;
+        pointer-events: auto;
+        transform: none !important;
+        width: 100vw;
+        height: 100vh;
+        page-break-after: always;
+        break-after: page;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+
+    <!-- SLIDE 1: COVER -->
+    <section class="slide theme-dark active" data-slide="1">
+      <div></div>
+      <div class="cover-grid">
+        <div>
+          <div class="brand-pill">
+            <span class="dot"></span>
+            Autonomous 3D Methane Localization · Powered by TabPFN
+          </div>
+          <h1>PlumeSense</h1>
+          <p class="cover-sub">
+            Autonomous inspection drones that pinpoint industrial gas leaks in 3D — turning turbulent plumes into exact valve-level locations in minutes.
+          </p>
+          <div class="cover-chips">
+            <div class="chip"><strong>3×</strong> TabPFN Flight Loop</div>
+            <div class="chip"><strong>3D A*</strong> Obstacle Routing</div>
+            <div class="chip"><strong>2.6 m</strong> Accuracy in 90 s</div>
+          </div>
+        </div>
+        <div class="cover-media">
+          <div class="media-frame">
+            <video src="assets/drone-run.mp4" autoplay loop muted playsinline poster="assets/site-overview.png"></video>
+            <span class="media-caption">Live 3D simulation · Autonomous drone tracking a methane plume</span>
+          </div>
+        </div>
+      </div>
+      <footer class="slide-footer">
+        <span>PlumeSense · Autonomous Gas Leak Detection</span>
+        <span>1 / 5</span>
+      </footer>
+    </section>
+
+    <!-- SLIDE 2: THE PROBLEM -->
+    <section class="slide theme-dark" data-slide="2">
+      <div>
+        <div class="eyebrow">The Problem</div>
+        <h2>Industrial gas leaks are hard to pinpoint</h2>
+      </div>
+      <div class="problem-grid">
+        <div>
+          <div class="big-stat">~3×</div>
+          <p class="stat-desc">
+            official methane estimates across six studied U.S. oil and gas regions
+          </p>
+          <ul class="clean-list">
+            <li>Alarm goes off: which valve or pipe connection is leaking?</li>
+            <li>Methane is the second-largest driver of human-caused warming after CO<sub>2</sub></li>
+            <li>Turbulent wind, buildings, and sensor lag smear plumes downwind</li>
+          </ul>
+        </div>
+        <div class="problem-media">
+          <div class="media-frame">
+            <img src="assets/site-overview.png" alt="Simulation overview: industrial site with pipes and valves" />
+            <span class="media-caption">Simulation overview · Industrial site with pipes, valves &amp; leaking plume</span>
+          </div>
+        </div>
+      </div>
+      <footer class="slide-footer">
+        <span>Sources: IPCC AR6 · Sherwin et al., Nature</span>
+        <span>2 / 5</span>
+      </footer>
+    </section>
+
+    <!-- SLIDE 3: THE OPPORTUNITY -->
+    <section class="slide theme-light" data-slide="3">
+      <div>
+        <div class="eyebrow">The Opportunity</div>
+        <h2>A recurring inspection need</h2>
+      </div>
+
+      <div class="opp-cards">
+        <div class="opp-card">
+          <div class="metric">$20B+</div>
+          <div class="label">global leak detection and repair (LDAR) market</div>
+        </div>
+        <div class="opp-arrow" aria-hidden="true">→</div>
+        <div class="opp-card">
+          <div class="metric">500 sites</div>
+          <div class="label">European gas operators first, €15,000 per site per year</div>
+        </div>
+        <div class="opp-arrow" aria-hidden="true">→</div>
+        <div class="opp-card highlight">
+          <div class="metric">€7.5M</div>
+          <div class="label">annual recurring revenue (ARR) scenario</div>
+        </div>
+      </div>
+
+      <div class="opp-bottom">
+        <ul class="clean-list">
+          <li>EU rules: regular inspections, documented per component</li>
+          <li>PlumeSense: autonomous drone platform that pinpoints where to follow up</li>
+          <li>Methane first; other gases use other sensors, same platform</li>
+        </ul>
+        <div class="opp-media">
+          <div class="media-frame">
+            <img src="assets/drone-inspection.png" alt="Simulation: drone inspection run over the site" />
+            <span class="media-caption">Autonomous drone inspection run over the facility</span>
+          </div>
+        </div>
+      </div>
+
+      <footer class="slide-footer">
+        <span>Sources: EU Methane Regulation (Art. 14, Annex II) · Grand View Research</span>
+        <span>3 / 5</span>
+      </footer>
+    </section>
+
+    <!-- SLIDE 4: HOW IT WORKS -->
+    <section class="slide theme-dark" data-slide="4">
+      <div>
+        <div class="eyebrow">How It Works</div>
+        <h2>Three TabPFN instances, one flight loop</h2>
+      </div>
+
+      <div class="models-grid">
+        <div class="model-col">
+          <div class="model-shot">
+            <div class="media-frame">
+              <img src="assets/overview-hud.png" alt="Search prior: where to sample first" />
+            </div>
+          </div>
+          <div class="model-step">1 · Where should I sample?</div>
+          <h3>Search prior</h3>
+          <p>Pipes, wind and clean-air readings → where to sample first</p>
+        </div>
+
+        <div class="model-col">
+          <div class="model-shot">
+            <div class="media-frame">
+              <img src="assets/overview-hud.png" alt="Ranked 3D leak candidates" />
+            </div>
+          </div>
+          <div class="model-step">2 · Where is the leak?</div>
+          <h3>Source localization</h3>
+          <p>Gas readings + wind + plume physics → ranked 3D candidates</p>
+        </div>
+
+        <div class="model-col">
+          <div class="model-shot">
+            <div class="media-frame">
+              <img src="assets/overview-hud.png" alt="Plume concentration map" />
+            </div>
+          </div>
+          <div class="model-step">3 · Where has the gas spread?</div>
+          <h3>Plume mapping</h3>
+          <p>Live readings + prior examples → concentration map in 3D</p>
+        </div>
+      </div>
+
+      <div class="callout-bar">
+        <div class="left">Controller picks the next sample point; 3D A* routes around obstacles</div>
+        <div class="right">Simulation run: source located within 2.6 m after 90 s</div>
+      </div>
+
+      <footer class="slide-footer">
+        <span>Live TabPFN outputs &amp; result from recorded simulation run</span>
+        <span>4 / 5</span>
+      </footer>
+    </section>
+
+    <!-- SLIDE 5: LIVE TESTBED & WHY IT WORKS -->
+    <section class="slide theme-dark" data-slide="5">
+      <div>
+        <div class="eyebrow">Validation &amp; Architecture</div>
+        <h2>Built on a physics-accurate 3D testbed</h2>
+      </div>
+
+      <div class="demo-grid">
+        <div class="demo-video-wrap">
+          <div class="media-frame">
+            <video src="assets/drone-run.mp4" autoplay loop muted playsinline controls poster="assets/drone-inspection.png"></video>
+            <span class="media-caption">Real-time 6-DOF flight · Mass-consistent 3D wind &amp; Gaussian puffs</span>
+          </div>
+        </div>
+        <div class="feature-stack">
+          <div class="feature-card">
+            <h3>Zero-Shortcut In-Context Learning</h3>
+            <p>TabPFN contexts are collected strictly on unseen procedural layouts — generalizing to new industrial sites without retraining.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Causal Sensor-Lag Deconvolution</h3>
+            <p>Compensates for asymmetric chemical sensor lag (0.6 s rise / 1.8 s decay) and tolerates 30% sensor dropout faults.</p>
+          </div>
+          <div class="feature-card">
+            <h3>3D Obstacle-Aware Navigation</h3>
+            <p>3D A* routes safely around tanks, pipe racks, and buildings while running TabPFN inference asynchronously off the flight loop.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Live Baseline Benchmarking</h3>
+            <p>Race PlumeSense live against Wind-Plume, Gradient, and Lawnmower drones under shifting wind and turbulent wakes.</p>
+          </div>
+        </div>
+      </div>
+
+      <footer class="slide-footer">
+        <span>PlumeSense · Ready for live demo</span>
+        <span>5 / 5</span>
+      </footer>
+    </section>
+
+  </main>
+
+  <nav class="nav-bar" aria-label="Slide controls">
+    <button class="nav-btn" id="btn-prev" title="Previous (←)">← Prev</button>
+    <div class="dots" id="dots"></div>
+    <button class="nav-btn" id="btn-next" title="Next (→)">Next →</button>
+    <button class="nav-btn" id="btn-fs" title="Fullscreen (F)">Fullscreen</button>
+  </nav>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const dotsWrap = document.getElementById("dots");
+    let current = 0;
+
+    slides.forEach((_, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "dot-btn" + (idx === 0 ? " active" : "");
+      btn.title = `Slide ${idx + 1}`;
+      btn.addEventListener("click", () => goTo(idx));
+      dotsWrap.appendChild(btn);
+    });
+
+    const dots = Array.from(dotsWrap.querySelectorAll(".dot-btn"));
+
+    function goTo(idx) {
+      current = Math.max(0, Math.min(slides.length - 1, idx));
+      slides.forEach((s, i) => {
+        s.classList.toggle("active", i === current);
+        const vid = s.querySelector("video");
+        if (vid) {
+          if (i === current) vid.play().catch(() => {});
+          else vid.pause();
+        }
+      });
+      dots.forEach((d, i) => d.classList.toggle("active", i === current));
+      history.replaceState(null, "", `#${current + 1}`);
+    }
+
+    document.getElementById("btn-prev").addEventListener("click", () => goTo(current - 1));
+    document.getElementById("btn-next").addEventListener("click", () => goTo(current + 1));
+    document.getElementById("btn-fs").addEventListener("click", () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+      else document.exitFullscreen().catch(() => {});
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
+        e.preventDefault();
+        goTo(current + 1);
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+        e.preventDefault();
+        goTo(current - 1);
+      } else if (e.key === "f" || e.key === "F") {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+        else document.exitFullscreen().catch(() => {});
+      } else if (e.key >= "1" && e.key <= String(slides.length)) {
+        goTo(Number(e.key) - 1);
+      }
+    });
+
+    const hashIdx = parseInt(location.hash.replace("#", ""), 10);
+    if (!Number.isNaN(hashIdx) && hashIdx >= 1 && hashIdx <= slides.length) {
+      goTo(hashIdx - 1);
+    }
+  </script>
+</body>
+</html>
