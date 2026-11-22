@@ -153,7 +153,7 @@ def _pipe_route(start, goal, buildings):
     raise ValueError('Could not connect the generated facility pipe network')
 
 
-def generate_layout(building_templates, asset_templates, seed, *, preserve_models=False):
+def generate_layout(building_templates, asset_templates, seed, *, preserve_models=False, large_pipes=False):
     """Relocate equipment with seed-driven archetypes, then connect all nodes with an MST.
 
     Buildings keep their identities and kinds while drawing varied Blender structures
@@ -166,7 +166,7 @@ def generate_layout(building_templates, asset_templates, seed, *, preserve_model
     for attempt in range(32):
         rng = np.random.default_rng(seed if attempt == 0 else np.random.SeedSequence([seed, attempt]))
         try:
-            return _generate_layout_attempt(building_templates, asset_templates, seed, rng, preserve_models)
+            return _generate_layout_attempt(building_templates, asset_templates, seed, rng, preserve_models, large_pipes)
         except _PlacementFailed:
             continue
     raise ValueError('Could not place buildings with safe separation after 32 layout attempts')
@@ -176,9 +176,9 @@ class _PlacementFailed(Exception):
     pass
 
 
-def _generate_layout_attempt(building_templates, asset_templates, seed, rng, preserve_models=False):
+def _generate_layout_attempt(building_templates, asset_templates, seed, rng, preserve_models=False, large_pipes=False):
     archetype = _ARCHETYPES[int(seed) % len(_ARCHETYPES)]
-    route_z = float(archetype["route_z"])
+    route_z = 21.0 if large_pipes else float(archetype["route_z"])
     used_models: set[str] = set()
 
     buildings = []
@@ -281,7 +281,7 @@ def _generate_layout_attempt(building_templates, asset_templates, seed, rng, pre
             name=f'{archetype["name"].replace("_", " ").title()} Line {i+1:02d}',
             service=service,
             pressure_bar=round(pressure + float(rng.uniform(-1.5, 2.0)), 1),
-            radius=round(base_r + float(rng.uniform(-0.03, 0.05)), 2),
+            radius=round(float(rng.uniform(0.8, 1.05)) if large_pipes and i < 2 else base_r + float(rng.uniform(-0.03, 0.05)), 2),
             material=p_mat,
             from_id=aid,
             to_id=bid,

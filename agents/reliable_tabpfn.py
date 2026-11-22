@@ -48,7 +48,7 @@ from shared.schemas import (
 
 logger = logging.getLogger("reliable_tabpfn")
 
-DEFAULT_SOURCE_POST_DATA = Path(__file__).resolve().parents[1] / "data" / "tabpfn_source_post_v8.json.gz"
+DEFAULT_SOURCE_POST_DATA = Path(__file__).resolve().parents[1] / "data" / "tabpfn_source_post_warm30_v1.json.gz"
 DEFAULT_SOURCE_PRE_DATA = Path(__file__).resolve().parents[1] / "data" / "tabpfn_source_pre_v4.json.gz"
 DEFAULT_PLUME_DATA = Path(__file__).resolve().parents[1] / "data" / "tabpfn_plume_prior.json"
 
@@ -68,7 +68,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
     GAS_CONTACT_INST_PPM: float = 2.5
     GAS_CONTACT_RAW_PPM: float = 3.5
     LOCK_HOLD_PPM: float = 15.0
-    POST_CACHE_KEY: str = "reliable_source_post_v8"
+    POST_CACHE_KEY: str = "reliable_source_post_warm30_v1"
     PRE_CACHE_KEY: str = "reliable_source_pre_v4"
 
     def __init__(

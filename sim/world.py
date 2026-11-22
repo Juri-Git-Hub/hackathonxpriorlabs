@@ -230,7 +230,8 @@ class World:
         if self.layout_seed is not None and (map_id == "refinery" or is_generated):
             from sim.layout import generate_layout, layout_theme
             self.buildings, self.assets, self.pipe_runs = generate_layout(self.buildings, self.assets, self.layout_seed)
-            self.theme = layout_theme(self.layout_seed)
+            if is_generated:
+                self.theme = layout_theme(self.layout_seed)
 
         if map_id in _MAPS and map_id != "refinery":
             layout = _MAPS[map_id]
@@ -240,7 +241,8 @@ class World:
             if self.layout_seed is not None:
                 from sim.layout import generate_layout
                 self.buildings, self.assets, self.pipe_runs = generate_layout(
-                    self.buildings, self.assets, self.layout_seed, preserve_models=True
+                    self.buildings, self.assets, self.layout_seed, preserve_models=True,
+                    large_pipes=map_id == "pipe_loop",
                 )
             self.default_leak_pos = next(
                 asset.pos for asset in self.assets if asset.id == layout["default_leak_asset"]

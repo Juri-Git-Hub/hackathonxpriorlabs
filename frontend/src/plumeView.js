@@ -372,6 +372,7 @@ export class VolumetricPlumePass extends Pass {
       uCameraPos: { value: new THREE.Vector3() },
       uFlowPhase: { value: 0 },
       uEnabled: { value: 0 },
+      uDesert: { value: 0 },
     };
 
     const material = new THREE.ShaderMaterial({
@@ -403,6 +404,7 @@ export class VolumetricPlumePass extends Pass {
         uniform vec3 uCameraPos;
         uniform float uFlowPhase;
         uniform float uEnabled;
+        uniform float uDesert;
 
         in vec2 vUv;
         out vec4 fragColor;
@@ -554,6 +556,9 @@ export class VolumetricPlumePass extends Pass {
           vec3 colSunCrest = vec3(0.98, 0.78, 0.36);
           vec3 colMidVapor = vec3(0.92, 0.52, 0.16);
           vec3 colShadow   = vec3(0.36, 0.17, 0.09);
+          colSunCrest = mix(colSunCrest, vec3(0.58, 0.72, 0.78), uDesert);
+          colMidVapor = mix(colMidVapor, vec3(0.24, 0.39, 0.47), uDesert);
+          colShadow = mix(colShadow, vec3(0.08, 0.16, 0.22), uDesert);
 
           for (int i = 0; i < STEPS; i++) {
             if (t > tEnd || transmittance < 0.04) break;
@@ -574,7 +579,7 @@ export class VolumetricPlumePass extends Pass {
               scatterCol = mix(scatterCol, colSunCrest, pow(clamp(lightEnergy, 0.0, 1.0), 1.6) * (0.28 + 0.62 * billow) * (0.35 + 0.65 * hFrac));
 
               // Beer-Lambert volumetric absorption (translucent, unobtrusive cloud feel)
-              float sigma = d * 0.165;
+              float sigma = d * mix(0.165, 0.24, uDesert);
               float stepTrans = exp(-sigma * stepSize);
               accumLight += transmittance * scatterCol * (1.0 - stepTrans);
               transmittance *= stepTrans;

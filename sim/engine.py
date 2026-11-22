@@ -236,8 +236,8 @@ class SimEngine:
                     layout_seed = cmd.seed if cmd.seed is not None else last_seed + 1
                     self._replace_world(World(layout_seed=layout_seed, map_id="generated"))
                     self._generated_layout_seed = layout_seed
-                elif cmd.map_id is None and self.world.map_id != "refinery":
-                    map_id = self.world.map_id
+                elif (cmd.map_id or self.world.map_id) != "refinery":
+                    map_id = cmd.map_id or self.world.map_id
                     layout_seed = cmd.seed if cmd.seed is not None else (self._map_layout_seeds.get(map_id, 0) + 1)
                     self._replace_world(World(layout_seed=layout_seed, map_id=map_id))
                     self._map_layout_seeds[map_id] = layout_seed

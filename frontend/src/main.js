@@ -258,6 +258,7 @@ async function bootstrap() {
           theme: resolvedTheme,
         };
         envController.setTheme(presentation.theme);
+        plumePass.uniforms.uDesert.value = presentation.theme === "desert_sun" ? 1 : 0;
         selectionHighlighter.clearAll();
         refineryView.build(worldInit, presentation);
         hud.clearInspector();
