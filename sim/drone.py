@@ -29,7 +29,9 @@ class Drone:
     I_YY = 0.022              # kg*m^2
     I_ZZ = 0.041              # kg*m^2
     J_ROTOR = 6.0e-5          # kg*m^2 (per rotor+propeller for gyroscopic precession)
-    ROTOR_RADIUS = 0.127      # m (10-inch propellers, for ground effect)
+    ROTOR_RADIUS = 0.127      # m (10-inch propellers, for ground effect & actuator disk)
+    AIR_DENSITY = 1.204       # kg/m^3 (dry air at 20 C, 1 atm)
+    TOTAL_DISK_AREA = 4.0 * math.pi * ROTOR_RADIUS * ROTOR_RADIUS
 
     # Brushless motor & propeller aerodynamics
     K_F = 1.4e-5              # N / (rad/s)^2  (hover ~512.5 rad/s = 4895 RPM)
@@ -716,6 +718,36 @@ class Drone:
             self.battery_pct = max(0.0, self.battery_pct - 100.0 * energy_j / self.BATTERY_CAPACITY_JOULES)
             if self.battery_pct <= 0.0:
                 self.status = "depleted"
+
+    def induced_downwash_velocity(self) -> float:
+        """Actuator-disk momentum-theory hover induced downwash velocity v_i (m/s)."""
+        w = self.rotor_speeds
+        thrust = self.K_F * float(w[0] * w[0] + w[1] * w[1] + w[2] * w[2] + w[3] * w[3])
+        if thrust <= 0.0:
+            return 0.0
+        return math.sqrt(thrust / (2.0 * self.AIR_DENSITY * self.TOTAL_DISK_AREA))
+
+    def sensor_sample_point_and_dilution(self, wind_local: np.ndarray) -> tuple[Vec3, float]:
+        """Compute effective gas-intake position and rotor-downwash mixing dilution factor.
+
+        In hover, rotor induction draws air from slightly above the rotor plane and mixes
+        thin plumes; in forward flight or crosswind, the wake skews aft so an upwind/top
+        sensor boom samples clean freestream air.
+        """
+        v_i = self.induced_downwash_velocity()
+        if v_i < 1e-3:
+            return self.pos_tuple, 1.0
+        vrx = float(self.vel[0] - wind_local[0])
+        vry = float(self.vel[1] - wind_local[1])
+        v_rel_xy = math.hypot(vrx, vry)
+        eta = v_i / math.hypot(v_i, v_rel_xy)  # 1 in hover, -> 0 in fast forward flight
+        intake_pos = (
+            float(self.pos[0]),
+            float(self.pos[1]),
+            float(self.pos[2]) + 0.35 * eta,
+        )
+        dilution = 1.0 - 0.15 * eta * eta
+        return intake_pos, dilution
 
     @property
     def tilt_rad(self) -> float:

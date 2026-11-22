@@ -248,3 +248,82 @@ def test_poisson_wind_field_obstacles_pipes_and_cylinder_tanks() -> None:
     assert wf.type == "wind_field"
     nx, ny, nz = wf.dims
     assert len(wf.vectors) == nx * ny * nz * 3
+
+
+def test_controlled_release_matches_analytical_gaussian_plume_ppmv() -> None:
+    """Verify SI ideal-gas ppmv matches analytical Briggs urban D steady-state Gaussian plume."""
+    world = World()
+    airflow = Airflow(world, base_wind_angle_deg=0.0, base_wind_speed=4.0, sigma_w=0.0, seed=1)
+    plume = Plume(world, airflow, spawn_interval=0.2, d_turb=0.0, seed=1, stability_class="D")
+    src = (-45.0, -48.0, 6.0)
+    q_kg_s = 0.02  # 20 g/s CH4 release
+    leaks = [LeakSource(id="ctrl", pos=src, emission_rate=q_kg_s, buoyancy_vz=0.0)]
+
+    for _ in range(600):  # 30s
+        plume.step(0.05, leaks)
+
+    u_local = float(airflow.sample_wind(np.array([src[0] + 20.0, src[1], src[2]]))[0])
+    for dist_x in (15.0, 30.0, 45.0):
+        sim_ppm = plume.sample_concentration((src[0] + dist_x, src[1], src[2]))
+        sy_arr, sz_arr = plume._sigmas(np.array([dist_x]), np.array([dist_x / u_local]))
+        sy, sz = float(sy_arr[0]), float(sz_arr[0])
+        h = src[2]
+        c_mass = (q_kg_s / (2.0 * math.pi * u_local * sy * sz)) * (
+            1.0 + math.exp(-2.0 * h * h / (sz * sz))
+        )
+        ana_ppm = c_mass * plume.kg_m3_to_ppmv
+        assert abs(sim_ppm - ana_ppm) / ana_ppm < 0.15
+
+
+def test_stability_classes_multi_leak_buffer_and_render_cap() -> None:
+    """Verify unstable (A) spreads wider than stable (F), and >400 physics puffs cap render at 400."""
+    world = World()
+    airflow = Airflow(world, base_wind_angle_deg=0.0, base_wind_speed=1.5, sigma_w=0.0, seed=1)
+    p_unstable = Plume(world, airflow, stability_class="A", d_turb=0.0, seed=1)
+    p_stable = Plume(world, airflow, stability_class="F", d_turb=0.0, seed=1)
+    sxy_a, sz_a = p_unstable._sigmas(np.array([30.0]), np.array([10.0]))
+    sxy_f, sz_f = p_stable._sigmas(np.array([30.0]), np.array([10.0]))
+    assert float(sxy_a[0]) > float(sxy_f[0]) * 2.0
+    assert float(sz_a[0]) > float(sz_f[0]) * 2.0
+
+    # 3 leaks over 50s -> 600 puffs (> 400 render cap, < 1200 physics buffer)
+    leaks = [
+        LeakSource(id="l1", pos=(-45.0, -48.0, 4.0), emission_rate=0.02, buoyancy_vz=0.0),
+        LeakSource(id="l2", pos=(-45.0, -44.0, 4.0), emission_rate=0.02, buoyancy_vz=0.0),
+        LeakSource(id="l3", pos=(-45.0, -40.0, 4.0), emission_rate=0.02, buoyancy_vz=0.0),
+    ]
+    for _ in range(1000):  # 50s
+        p_stable.step(0.05, leaks)
+    assert int(np.sum(p_stable.active)) > 450
+    rendered = p_stable.get_puff_states()
+    assert len(rendered) == Plume.MAX_RENDER_PUFFS
+
+
+def test_sensor_thermal_no_shortcut_path_tdlas_and_rotor_downwash() -> None:
+    """Verify thermal channel removes artificial log1p(ppm) shortcut, TDLAS works, and downwash acts."""
+    sensor = GasSensor(seed=5)
+    assert sensor.baseline_ppm == 1.9
+    # Even at 500 ppm dilute plume, thermodynamic Joule-Thomson delta-T is tiny (< 0.02 K magnitude)
+    for _ in range(100):
+        sensor.step(500.0, 0.05)
+    assert abs(sensor.filtered_temp_delta) < 0.16
+
+    # Path-integrated open-path laser TDLAS (ppm*m)
+    world = World()
+    airflow = Airflow(world, base_wind_angle_deg=0.0, base_wind_speed=3.5, sigma_w=0.0, seed=1)
+    plume = Plume(world, airflow, d_turb=0.0, seed=1)
+    leaks = [LeakSource(id="l1", pos=(-40.0, -48.0, 4.0), emission_rate=0.02, buoyancy_vz=0.0)]
+    for _ in range(200):
+        plume.step(0.05, leaks)
+    col_plume = sensor.sample_path_integrated(plume, (-25.0, -48.0, 12.0), (-25.0, -48.0, 0.5))
+    col_clean = sensor.sample_path_integrated(plume, (-25.0, -30.0, 12.0), (-25.0, -30.0, 0.5))
+    assert col_plume > col_clean * 5.0
+
+    # Rotor downwash momentum theory: hover v_i ~ 5.5 m/s, intake shifted upward & slightly diluted
+    drone = Drone("dw_test", start_pos=(-40.0, -40.0, 6.0))
+    v_i = drone.induced_downwash_velocity()
+    assert 4.5 <= v_i <= 6.5
+    pos_hover, dil_hover = drone.sensor_sample_point_and_dilution(np.zeros(3))
+    pos_fast, dil_fast = drone.sensor_sample_point_and_dilution(np.array([8.0, 0.0, 0.0]))
+    assert pos_hover[2] > drone.pos[2] + 0.25
+    assert 0.80 <= dil_hover < dil_fast <= 1.0

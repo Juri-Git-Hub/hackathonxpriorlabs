@@ -304,8 +304,8 @@ def _check_plume_buoyancy_and_occlusion() -> CheckResult:
     # Compare rising methane (+0.25) vs heavy gas (-0.20)
     plume_light = Plume(world, airflow, seed=10)
     plume_heavy = Plume(world, airflow, seed=10)
-    lk_light = [LeakSource(id="l", pos=(-40.0, -40.0, 6.0), emission_rate=1.0, buoyancy_vz=0.25)]
-    lk_heavy = [LeakSource(id="h", pos=(-40.0, -40.0, 6.0), emission_rate=1.0, buoyancy_vz=-0.20)]
+    lk_light = [LeakSource(id="l", pos=(-40.0, -40.0, 6.0), emission_rate=0.02, buoyancy_vz=0.25)]
+    lk_heavy = [LeakSource(id="h", pos=(-40.0, -40.0, 6.0), emission_rate=0.02, buoyancy_vz=-0.20)]
 
     for _ in range(160):  # 8s
         plume_light.step(0.05, lk_light)
@@ -316,7 +316,7 @@ def _check_plume_buoyancy_and_occlusion() -> CheckResult:
 
     # Wall occlusion: leak right on west side of bldg_control (x in [-38, -20], y in [-28, -12])
     plume_occ = Plume(world, Airflow(world, 90.0, 0.2, sigma_w=0.0, seed=4), seed=11)
-    lk_wall = [LeakSource(id="w", pos=(-39.5, -20.0, 4.0), emission_rate=1.0, buoyancy_vz=0.0)]
+    lk_wall = [LeakSource(id="w", pos=(-39.5, -20.0, 4.0), emission_rate=0.02, buoyancy_vz=0.0)]
     for _ in range(60):
         plume_occ.step(0.05, lk_wall)
     c_same_side = plume_occ.sample_concentration((-42.0, -20.0, 4.0))
@@ -400,6 +400,54 @@ def _check_sensor_dynamics_and_faults() -> CheckResult:
     )
 
 
+def _check_controlled_release_gaussian_plume() -> CheckResult:
+    """Validate Lagrangian puff ppmv against analytical steady-state Briggs Gaussian plume."""
+    world = World()
+    # Open southern corridor (y = -48, far from buildings), steady +X wind at z = 6m
+    airflow = Airflow(world, base_wind_angle_deg=0.0, base_wind_speed=4.0, sigma_w=0.0, seed=1)
+    plume = Plume(world, airflow, spawn_interval=0.2, d_turb=0.0, seed=1, stability_class="D")
+    src = (-45.0, -48.0, 6.0)
+    q_kg_s = 0.02  # 20 g/s = 72 kg/h controlled methane release
+    leaks = [LeakSource(id="ctrl", pos=src, emission_rate=q_kg_s, buoyancy_vz=0.0)]
+
+    # Run 30s to reach steady state along 60m corridor
+    for _ in range(600):
+        plume.step(0.05, leaks)
+
+    u_local = float(airflow.sample_wind(np.array([src[0] + 20.0, src[1], src[2]]))[0])
+    rel_errors: list[float] = []
+    ratios: dict[str, float] = {}
+    for dist_x in (15.0, 30.0, 45.0):
+        probe = (src[0] + dist_x, src[1], src[2])
+        sim_ppm = plume.sample_concentration(probe)
+        # Analytical steady-state Gaussian plume with Briggs Urban D sigmas & ground reflection
+        sy_arr, sz_arr = plume._sigmas(np.array([dist_x]), np.array([dist_x / u_local]))
+        sy, sz = float(sy_arr[0]), float(sz_arr[0])
+        h = src[2]
+        c_mass = (q_kg_s / (2.0 * math.pi * u_local * sy * sz)) * (
+            1.0 + math.exp(-2.0 * h * h / (sz * sz))
+        )
+        ana_ppm = c_mass * plume.kg_m3_to_ppmv
+        rel_err = abs(sim_ppm - ana_ppm) / max(ana_ppm, 1e-6)
+        rel_errors.append(rel_err)
+        ratios[f"ratio_{int(dist_x)}m"] = round(sim_ppm / max(ana_ppm, 1e-6), 3)
+
+    max_rel_err = max(rel_errors)
+    passed = max_rel_err < 0.15
+    return CheckResult(
+        name="controlled_release_gaussian_plume_ppmv",
+        category="plume",
+        passed=passed,
+        summary=f"max_rel_err={max_rel_err * 100.0:.1f}% vs analytical Briggs D ({ratios})",
+        metrics={
+            "q_kg_s": q_kg_s,
+            "u_local_mps": round(u_local, 3),
+            "max_rel_error": round(max_rel_err, 4),
+            **ratios,
+        },
+    )
+
+
 def _check_headless_throughput() -> CheckResult:
     agents = {
         "tabpfn": MockTabPFNAgent("tabpfn"),
@@ -439,6 +487,7 @@ def run_physics_audit() -> dict[str, Any]:
         _check_abl_and_incompressible_eddies(),
         _check_cylinder_potential_flow_and_wake(),
         _check_plume_buoyancy_and_occlusion(),
+        _check_controlled_release_gaussian_plume(),
         _check_sensor_dynamics_and_faults(),
         _check_headless_throughput(),
     ]

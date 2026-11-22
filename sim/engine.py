@@ -62,6 +62,7 @@ class SimEngine:
         seed: int = 42,
         layout_seed: int | None = None,
         map_id: str = "refinery",
+        rotor_downwash_enabled: bool = True,
     ) -> None:
         self._lock = threading.RLock()
         self._seed = seed
@@ -72,6 +73,7 @@ class SimEngine:
             if layout_seed is not None and map_id not in ("refinery", "generated")
             else {}
         )
+        self.rotor_downwash_enabled = bool(rotor_downwash_enabled)
 
         self.world = World(layout_seed=layout_seed, map_id=map_id)
         self.airflow = Airflow(self.world, seed=seed)
@@ -119,7 +121,7 @@ class SimEngine:
             LeakSource(
                 id="leak_01",
                 pos=self.world.default_leak_pos,
-                emission_rate=1.0,
+                emission_rate=0.02,
                 buoyancy_vz=0.25,
             )
         ]
@@ -281,7 +283,11 @@ class SimEngine:
                     wind_local = drone_winds[idx]
                     drone.step(step_dt, wind_local, self.world)
 
-                    true_ppm = self.plume.sample_concentration(drone.pos_tuple)
+                    if self.rotor_downwash_enabled:
+                        sample_pos, dw_dilution = drone.sensor_sample_point_and_dilution(wind_local)
+                        true_ppm = self.plume.sample_concentration(sample_pos) * dw_dilution
+                    else:
+                        true_ppm = self.plume.sample_concentration(drone.pos_tuple)
                     self.sensors[drone_id].step(true_ppm, step_dt)
 
                     if trigger_obs and drone.status != "depleted":

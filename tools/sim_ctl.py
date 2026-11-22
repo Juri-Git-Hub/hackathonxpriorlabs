@@ -120,7 +120,7 @@ def _cmd_headless_probe(args: argparse.Namespace) -> int:
     if args.leak:
         leak_pos = _parse_vec3(args.leak)
         plume = Plume(world, airflow, seed=args.seed + 100)
-        leaks = [LeakSource(id="probe_leak", pos=leak_pos, emission_rate=1.0, buoyancy_vz=0.2)]
+        leaks = [LeakSource(id="probe_leak", pos=leak_pos, emission_rate=0.02, buoyancy_vz=0.2)]
         for _ in range(int(args.warmup / 0.05)):
             airflow.step(0.05)
             plume.step(0.05, leaks)
