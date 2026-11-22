@@ -147,3 +147,19 @@ def test_headless_three_drone_race() -> None:
         assert d.battery_pct < 100.0
 
 
+def test_contact_requires_repeated_weak_readings():
+    from types import SimpleNamespace
+    from agents.reliable_tabpfn import ReliableTabPFNAgent
+
+    agent = ReliableTabPFNAgent()
+    def reading(t, raw, instant=4.):
+        return SimpleNamespace(sim_time=t, ppm_raw=raw, ppm_inst=instant, is_clean=False)
+    try:
+        agent._obs_hist.samples = [reading(1., 6.2), reading(1.1, 2.1)]
+        assert not agent._has_recent_contact()
+        agent._obs_hist.samples.append(reading(1.2, 6.2))
+        assert agent._has_recent_contact()
+        agent._obs_hist.samples = [reading(1., 15.)]
+        assert agent._has_recent_contact()
+    finally:
+        agent.close()

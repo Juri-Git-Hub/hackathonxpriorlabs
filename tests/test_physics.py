@@ -338,3 +338,15 @@ def test_default_methane_buoyancy_depends_on_emission_rate() -> None:
         plume.step(0.25, [LeakSource(id='methane', pos=(-40.0, -40.0, 6.0), emission_rate=rate)])
         heights.append(plume.pos[0, 2])
     assert heights[0] < heights[1] < heights[2]
+
+
+def test_preflight_plume_is_established_before_mission_starts():
+    from agents.mock_agent import MockTabPFNAgent
+    from sim.engine import SimEngine
+
+    agent = MockTabPFNAgent(drone_id='tabpfn')
+    engine = SimEngine({'tabpfn': agent})
+    assert engine.sim_time == 0.0
+    assert engine.drones['tabpfn'].samples_taken == 0
+    assert engine.plume.active.any()
+    assert engine.plume.age[engine.plume.active].max() >= 29.0

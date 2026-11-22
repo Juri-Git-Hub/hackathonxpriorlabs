@@ -61,8 +61,8 @@ class _ColumnSpec:
 class ReliableTabPFNAgent(AsyncInferenceAgent):
     """Triple-TabPFN agent driving 3D search, localization, and hazard forecasting on the 4090."""
 
-    SOURCE_INTERVAL_SEARCH_S: float = 1.8
-    SOURCE_INTERVAL_TRACK_S: float = 1.25
+    SOURCE_INTERVAL_SEARCH_S: float = 2.0
+    SOURCE_INTERVAL_TRACK_S: float = 1.5
     HAZARD_INTERVAL_S: float = 5.0
     MAX_PLUME_ROWS: int = 90
     GAS_CONTACT_INST_PPM: float = 2.5
@@ -374,16 +374,20 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         if not samples:
             return False
         now_t = samples[-1].sim_time
+        previous_hit_time = None
         for r in reversed(samples):
             dt = now_t - r.sim_time
             if dt > 55.0:
                 break
-            if (not r.is_clean and r.ppm_inst >= self.LOCK_HOLD_PPM) or r.ppm_raw >= 15.0:
+            if r.ppm_raw >= 15.0:
                 return True
-            if dt <= window_s and (
-                (not r.is_clean and r.ppm_inst >= self.GAS_CONTACT_INST_PPM) or r.ppm_raw >= self.GAS_CONTACT_RAW_PPM
+            if dt <= window_s and r.ppm_raw >= 6.0 and (
+                (not r.is_clean and r.ppm_inst >= self.GAS_CONTACT_INST_PPM)
+                or r.ppm_raw >= self.GAS_CONTACT_RAW_PPM
             ):
-                return True
+                if previous_hit_time is not None and previous_hit_time - r.sim_time <= 1.0:
+                    return True
+                previous_hit_time = r.sim_time
         return False
 
     def _record_observation(self, obs: DroneObservation) -> Optional[Vec3]:
@@ -393,8 +397,9 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
             if self.history and obs.sim_time <= self.history[-1].sim_time + 1e-9:
                 return self.route[0] if self.route else obs.pos
 
+            elapsed = max(0.0, obs.sim_time - self.history[-1].sim_time) if self.history else 0.0
             self.history.append(obs)
-            self.exposure += float(obs.ppm_measured) * 0.5
+            self.exposure += float(obs.ppm_measured) * elapsed
             rec = self._obs_hist.append(obs)
             self._visited_search.append((rec.sim_time, rec.pos.copy(), rec.wind_est.copy()))
 
@@ -484,7 +489,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                 return True
             if dt_src >= interval - 1e-9:
                 return True
-            if self.goal is not None and math.dist(obs.pos, tuple(self.goal)) < 3.6:
+            if dt_src >= 0.5 - 1e-9 and self.goal is not None and math.dist(obs.pos, tuple(self.goal)) < 3.6:
                 return True
             return False
 
@@ -938,7 +943,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                 self.source_prediction_calls == 0
                 or (has_contact and not self._had_contact_at_last_infer)
                 or (obs.sim_time - last_src_t >= interval - 1e-9)
-                or (self.goal is not None and math.dist(obs.pos, tuple(self.goal)) < 3.6)
+                or (obs.sim_time - last_src_t >= 0.5 - 1e-9 and self.goal is not None and math.dist(obs.pos, tuple(self.goal)) < 3.6)
             )
 
         if not need_src and not self.sync_mode:

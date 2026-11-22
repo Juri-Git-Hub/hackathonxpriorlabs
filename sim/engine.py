@@ -53,6 +53,7 @@ class SimEngine:
 
     DT: float = 0.05  # 20 Hz fixed physics step
     OBS_INTERVAL: float = 0.1  # 10 Hz agent observation callback
+    PLUME_WARMUP_S: float = 30.0
     LOCK_DISTANCE_M: float = 5.0
     LOCK_SUSTAIN_S: float = 2.0
 
@@ -138,7 +139,6 @@ class SimEngine:
             self.sim_time = 0.0
             self.mission_report=None
             self._measured_wind = {}
-            self._mission_wall_start=time.monotonic()
             self._latest_agent_beliefs={}
             self._obs_accum = 0.0
             self.paused = False
@@ -148,11 +148,12 @@ class SimEngine:
             self.plume.reset(seed=self._seed + 100)
             self.leaks = list(leaks) if leaks is not None else self._default_leaks()
 
-            # Pre-warm plume for 8 seconds so gas is already dispersed at race start
-            for _ in range(int(8.0 / self.DT)):
+            # Let an existing leak disperse before the drone mission begins.
+            for _ in range(round(self.PLUME_WARMUP_S / self.DT)):
                 self.airflow.step(self.DT)
                 self.plume.step(self.DT, self.leaks)
 
+            self._mission_wall_start = time.monotonic()
             world_init = self.world.to_world_init()
             for i, (drone_id, drone) in enumerate(self.drones.items()):
                 drone.reset()

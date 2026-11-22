@@ -383,6 +383,8 @@ def main() -> int:
     parser.add_argument("--source-pre-data", type=Path, help="Alternate pre-contact TabPFN context.")
     parser.add_argument("--source-post-data", type=Path, help="Alternate post-contact TabPFN context.")
     parser.add_argument("--target-rate", type=float, help="Stop once the target fraction is mathematically unreachable.")
+    parser.add_argument("--random-seeds", type=int, help="Number of randomized refinery layouts to evaluate.")
+    parser.add_argument("--random-seed-base", type=int, default=20261122, help="Seed for generating randomized cases.")
     parser.add_argument("--case", action="append", help="Run only the named case. Repeat for multiple cases.")
     parser.add_argument("--realtime", action="store_true", help="Replay selected cases using the live async scheduler at 20 Hz.")
     parser.add_argument("--trace", type=Path, help="Write flight and source-ranking diagnostics to JSONL.")
@@ -403,6 +405,11 @@ def main() -> int:
         return 0 if ok / len(res) >= 0.8 else 1
 
     cases = _build_val_cases() if args.tier == "val" else _build_test_cases()
+    if args.random_seeds is not None:
+        if args.random_seeds < 1 or args.tier == "async":
+            parser.error("--random-seeds requires a positive count and cannot be combined with --tier async")
+        rng = np.random.default_rng(args.random_seed_base)
+        cases = [EvalCase(f"random_{i:03d}", seed=int(rng.integers(1, 2**31)), layout_seed=int(rng.integers(1, 2**31))) for i in range(args.random_seeds)]
     if args.case:
         known = {case.name for case in cases}
         if unknown := set(args.case) - known:
@@ -458,6 +465,7 @@ def write_checkpoint(args, cases, results):
     max_successes = len(successes) + len(cases) - len(results)
     summary = {
         "tier": args.tier,
+        "random_seed_base": args.random_seed_base if args.random_seeds is not None else None,
         "realtime": args.realtime,
         "simulated_rpc_latency": args.policy == "tabpfn" and not (args.no_latency or args.realtime),
         "policy": args.policy,

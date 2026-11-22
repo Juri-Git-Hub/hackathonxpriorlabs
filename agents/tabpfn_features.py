@@ -125,6 +125,7 @@ class ProcessedObs:
     is_transient: bool = False  # True during rapid drop at high ppm (>=10 ppm)
 
 
+
 class ObservationHistory:
     """Maintains causal wind estimation and sensor-lag deconvolution over full flight."""
 
@@ -559,25 +560,26 @@ class FacilityContext:
         if k == 0 or self.bldg_min.shape[0] == 0:
             return trans
 
-        px, py, pz = p_from[:, 0], p_from[:, 1], p_from[:, 2]
-        dx = p_to[:, 0] - px
-        dy = p_to[:, 1] - py
-        dz = p_to[:, 2] - pz
-
-        eps = 1e-9
-        par_x = np.abs(dx) < eps
-        par_y = np.abs(dy) < eps
-        par_z = np.abs(dz) < eps
-        inv_dx = np.where(par_x, 0.0, 1.0 / np.where(par_x, 1.0, dx))
-        inv_dy = np.where(par_y, 0.0, 1.0 / np.where(par_y, 1.0, dy))
-        inv_dz = np.where(par_z, 0.0, 1.0 / np.where(par_z, 1.0, dz))
-        has_px = bool(par_x.any())
-        has_py = bool(par_y.any())
-        has_pz = bool(par_z.any())
-
+        # Reject rays whose segment bounds cannot intersect each building. The
+        # precise intersection calculation below still uses every possible ray.
+        lower = np.minimum(p_from, p_to) - 1e-9
+        upper = np.maximum(p_from, p_to) + 1e-9
         for i in range(self.bldg_min.shape[0]):
-            x0, y0, z0 = float(self.bldg_min[i, 0]), float(self.bldg_min[i, 1]), float(self.bldg_min[i, 2])
-            x1, y1, z1 = float(self.bldg_max[i, 0]), float(self.bldg_max[i, 1]), float(self.bldg_max[i, 2])
+            x0, y0, z0 = map(float, self.bldg_min[i])
+            x1, y1, z1 = map(float, self.bldg_max[i])
+            possible = ((lower[:, 0] <= x1) & (upper[:, 0] >= x0) &
+                        (lower[:, 1] <= y1) & (upper[:, 1] >= y0) &
+                        (lower[:, 2] <= z1) & (upper[:, 2] >= z0))
+            indices = np.flatnonzero(possible)
+            if not indices.size:
+                continue
+            px, py, pz = p_from[indices].T
+            dx, dy, dz = (p_to[indices] - p_from[indices]).T
+            par_x, par_y, par_z = np.abs(dx) < 1e-9, np.abs(dy) < 1e-9, np.abs(dz) < 1e-9
+            inv_dx = np.where(par_x, 0.0, 1.0 / np.where(par_x, 1.0, dx))
+            inv_dy = np.where(par_y, 0.0, 1.0 / np.where(par_y, 1.0, dy))
+            inv_dz = np.where(par_z, 0.0, 1.0 / np.where(par_z, 1.0, dz))
+            has_px, has_py, has_pz = par_x.any(), par_y.any(), par_z.any()
             bldg_trans = float(self.bldg_transmission[i])
 
             tz1 = (z0 - pz) * inv_dz
@@ -638,7 +640,7 @@ class FacilityContext:
 
             hit = (t_exit >= t_enter) & (t_exit > 0.04) & (t_enter < 0.96)
             if hit.any():
-                trans[hit] *= bldg_trans
+                trans[indices[hit]] *= bldg_trans
 
         return trans
 
