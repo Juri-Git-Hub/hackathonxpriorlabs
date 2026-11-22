@@ -268,11 +268,15 @@
       <div class="compass-wrap">
         <svg id="wind-compass" viewBox="0 0 80 80" width="64" height="64">
           <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(148,163,184,0.28)" stroke-width="1.8" />
-          <text x="40" y="13" text-anchor="middle" fill="#94a3b8" font-size="8.5" font-weight="600">N</text>
-          <text x="69" y="43" text-anchor="middle" fill="#94a3b8" font-size="8.5" font-weight="600">E</text>
-          <g id="wind-arrow-group" transform="rotate(0 40 40)">
-            <line x1="40" y1="58" x2="40" y2="20" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
-            <polygon points="40,13 34,25 46,25" fill="#38bdf8" />
+          <g id="compass-rose" transform="rotate(0 40 40)">
+            <text class="compass-cardinal" data-cx="40" data-cy="11" x="40" y="14" text-anchor="middle" fill="#f87171" font-size="8.5" font-weight="700">N</text>
+            <text class="compass-cardinal" data-cx="69" data-cy="40" x="69" y="43" text-anchor="middle" fill="#94a3b8" font-size="8" font-weight="600">E</text>
+            <text class="compass-cardinal" data-cx="40" data-cy="69" x="40" y="72" text-anchor="middle" fill="#64748b" font-size="7.5" font-weight="600">S</text>
+            <text class="compass-cardinal" data-cx="11" data-cy="40" x="11" y="43" text-anchor="middle" fill="#64748b" font-size="7.5" font-weight="600">W</text>
+            <g id="wind-arrow-group" transform="rotate(0 40 40)">
+              <line x1="40" y1="56" x2="40" y2="22" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+              <polygon points="40,15 34,26 46,26" fill="#38bdf8" />
+            </g>
           </g>
         </svg>
         <div class="legend-items">

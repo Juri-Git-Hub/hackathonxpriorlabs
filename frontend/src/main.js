@@ -663,6 +663,7 @@ async function bootstrap() {
 
   const clock = new THREE.Clock();
   const tmpFollow = new THREE.Vector3();
+  const tmpCamDir = new THREE.Vector3();
   let lastShadowAt = -Infinity;
 
   function animate() {
@@ -700,6 +701,11 @@ async function bootstrap() {
     }
 
     controls.update();
+    camera.getWorldDirection(tmpCamDir);
+    if (Math.hypot(tmpCamDir.x, tmpCamDir.z) > 1e-4) {
+      const headingDeg = (Math.atan2(tmpCamDir.x, -tmpCamDir.z) * 180) / Math.PI;
+      hud.updateCameraHeading(headingDeg);
+    }
     droneView.animate(dt);
     const tabPos = droneView.getDroneWorldPos("tabpfn", tmpFollow);
     if (tabPos) beliefView.setTabpfnDroneWorldPos(tabPos);

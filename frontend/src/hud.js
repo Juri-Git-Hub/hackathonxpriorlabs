@@ -80,6 +80,9 @@ export class HudController {
     this.elLeakCount = document.getElementById("leak-count");
     this.elDropoutBadge = document.getElementById("dropout-badge");
     this.elScoreBody = document.getElementById("scoreboard-body");
+    this.elCompassRose = document.getElementById("compass-rose");
+    this.elCompassCardinals = Array.from(document.querySelectorAll(".compass-cardinal"));
+    this._lastCompassHeading = null;
     this.elWindArrow = document.getElementById("wind-arrow-group");
     this.elHint = document.getElementById("hint-text");
     this.elToast = document.getElementById("toast");
@@ -685,6 +688,24 @@ export class HudController {
     this._scoreRows.set(id, row);
     this.elScoreBody.appendChild(tr);
     return row;
+  }
+
+  updateCameraHeading(headingDeg) {
+    if (!this.elCompassRose || !Number.isFinite(headingDeg)) return;
+    if (
+      this._lastCompassHeading !== null &&
+      Math.abs(headingDeg - this._lastCompassHeading) < 0.25
+    ) {
+      return;
+    }
+    this._lastCompassHeading = headingDeg;
+    const roseDeg = -headingDeg;
+    this.elCompassRose.setAttribute("transform", `rotate(${roseDeg.toFixed(1)} 40 40)`);
+    for (const el of this.elCompassCardinals ?? []) {
+      const cx = el.dataset.cx;
+      const cy = el.dataset.cy;
+      el.setAttribute("transform", `rotate(${headingDeg.toFixed(1)} ${cx} ${cy})`);
+    }
   }
 
   updateTick(tick) {

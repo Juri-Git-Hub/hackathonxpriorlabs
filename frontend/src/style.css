@@ -175,7 +175,7 @@ body.hud-hidden :is(#tabpfn-models, #model-panel-divider) { display: none; }
   body.model-panel-open #header-bar { max-width: calc(100vw - var(--sim-inset, 0px) - 28px); }
   body.model-panel-open :is(.header-title, .header-meta) { flex-wrap: wrap; }
   body.model-panel-open #scoreboard, body.model-panel-open #legend { right: calc(var(--sim-inset, 0px) + 14px); }
-  body.model-panel-open #scoreboard { top: 108px; min-width: 0; width: min(375px, calc(100vw - var(--sim-inset) - 28px)); }
+  body.model-panel-open #scoreboard { top: 14px; min-width: 0; width: min(472px, calc(100vw - var(--sim-inset, 0px) - 28px)); overflow-x: auto; }
   body.model-panel-open #viewer-toolbar, body.model-panel-open #mission-report { left: calc((100% - var(--sim-inset, 0px)) / 2); }
   body.model-panel-open #viewer-toolbar {
     max-width: calc(100vw - var(--sim-inset, 0px) - 22px);
