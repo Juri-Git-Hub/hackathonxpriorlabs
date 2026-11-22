@@ -3,8 +3,8 @@
 Supports three backends, selectable via ``TABPFN_BACKEND`` (default: ``auto``):
 
 1. ``client`` — Prior Labs free hosted TabPFN API (``pip install tabpfn-client``).
-   Authenticate once with ``python -c "import tabpfn_client; tabpfn_client.init()"``
-   or export ``TABPFN_TOKEN`` (or ``TABPFN_API_KEY``). No local GPU required.
+   Authenticate once with ``python -c "from tabpfn_client import interactive_login; interactive_login()"``
+   or export ``TABPFN_TOKEN`` from https://platform.priorlabs.ai/account/api-keys. No local GPU required.
 2. ``local``  — Local ``TabPFNRegressor`` on your own computer (``pip install tabpfn``).
    Uses CUDA/MPS/CPU automatically (override with ``TABPFN_DEVICE=cuda|mps|cpu``).
 3. ``http``   — Optional custom self-hosted HTTP ``/regress`` endpoint via
@@ -33,7 +33,8 @@ _INSTALL_HELP = (
     "No TabPFN backend is available. Choose one of:\n"
     "  1) Free Prior Labs hosted API (no GPU required):\n"
     "       pip install tabpfn-client\n"
-    '       python -c "import tabpfn_client; tabpfn_client.init()"\n'
+    '       python -c "from tabpfn_client import interactive_login; interactive_login()"\n'
+    "     (or set TABPFN_TOKEN from https://platform.priorlabs.ai/account/api-keys)\n"
     "  2) Local on your own computer (GPU or CPU):\n"
     "       pip install tabpfn\n"
     "  3) Custom HTTP endpoint:\n"

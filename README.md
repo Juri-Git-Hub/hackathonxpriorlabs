@@ -49,9 +49,10 @@ SeeCH4 uses **Triple-TabPFN** for live leak localization and automatically detec
 - **Option A — Free Prior Labs TabPFN API (no GPU required):**
   ```bash
   pip install tabpfn-client
-  python -c "import tabpfn_client; tabpfn_client.init()"
+  # Log in via browser (saves your token locally):
+  python -c "from tabpfn_client import interactive_login; interactive_login()"
   ```
-  *(Or export a token directly via `export TABPFN_TOKEN=...`.)*
+  *(Or generate a token at https://platform.priorlabs.ai/account/api-keys and run `export TABPFN_TOKEN="<your-token>"`.)*
 
 - **Option B — Run locally on your own computer (CUDA GPU, Apple Silicon MPS, or CPU):**
   ```bash
