@@ -1,29 +1,29 @@
-# SeeCH4 — Autonomous 3D Industrial Gas-Leak Detection Simulator
+# SeeCH4 — Autonomous Methane-Leak Detection Drones Powered by Triple-TabPFN
 
-**SeeCH4** is a real-time, physically grounded **3D drone methane (CH₄) leak detection simulator** for complex industrial facilities. It couples a mass-consistent 3D airflow solver, Lagrangian Gaussian puff dispersion, 6-DOF rigid-body quadrotor dynamics, and realistic chemical/anemometer sensors with an interactive **Three.js** 3D visualization and our flagship **SeeCH4 Triple-TabPFN** search agent — plus live side-by-side comparison against classical baseline agents.
+**SeeCH4** is an autonomous **3D methane (CH₄) leak-hunting drone** powered by **Triple-TabPFN** — three specialized tabular foundation models working together in real time to search industrial facilities, invert turbulent gas plumes back to their 3D source, and forecast downwind methane hazards. To develop, benchmark, and demonstrate the drone safely, SeeCH4 includes a real-time 3D physics testbed and interactive **Three.js** viewer where you can race **SeeCH4 (Triple-TabPFN)** live against classical baseline drones.
 
 ---
 
 ## Highlights
 
-- **Physics-First 3D Simulation (`sim/`):**
-  - **Mass-Consistent 3D Airflow (`sim/airflow.py`):** QUIC-URB–style staggered MAC grid (`48 × 48 × 12`, `2.5 m` voxels) with Red-Black SOR Poisson pressure projection (`div(u) = 0`), atmospheric boundary layer (ABL) power-law wind shear, Röckle lee-side wake cavities, cylindrical tank potential flow & Strouhal shedding, porous pipe-rack drag, divergence-free 3D Fourier eddies, and Ornstein–Uhlenbeck wind gusts.
+- **SeeCH4 Triple-TabPFN Autonomous Drone (`agents/reliable_tabpfn.py`):**
+  - Runs three specialized **TabPFNRegressor** models asynchronously off the 20 Hz flight control loop, paired with obstacle-aware 3D A* navigation (`agents/tabpfn_nav.py`):
+    1. **Model A (Post-Contact 3D Source Inversion):** 29 pure-physics features ranking 3D source hypotheses after gas contact without asset/pipe shortcuts.
+    2. **Model B (Pre-Contact Spatial Prior):** 12 features combining facility geometry, wind, and clean-air falsification to guide initial 3D downwind catchment.
+    3. **Model C (Online 3D Plume & Hazard Mapper):** Predicts `q10`, `q50`, `q90` in `log1p(ppm)` and 4-second `>10 ppm` hazard fields.
+  - Works out of the box with the **free Prior Labs TabPFN API** (`tabpfn-client`, no GPU needed) or **locally on your own computer** (`tabpfn`, CUDA/MPS/CPU).
+- **Live Side-by-Side Drone Comparison (`frontend/`):**
+  - Built with **Three.js** + **Vite**, streaming live 20 Hz drone telemetry, 3D flight trails, a 2D Flight Map, and live Triple-TabPFN heatmaps over WebSocket.
+  - **Compare Agents Live:** Toggle **Wind-Plume (Baseline)**, **Gradient (Baseline)**, and **Lawnmower (Baseline)** drones on or off directly in the UI to compare their search trajectories and lock times against **SeeCH4 (Triple-TabPFN)** in real time.
+  - **Mission Setup & Judge Controls:** Choose worlds or randomize layouts, adjust wind direction/speed, click to place leaks on pipes/valves/ground, inject 30% `NaN` sensor faults, inspect any object, record video, and toggle clean presentation mode (`P`).
+- **High-Fidelity 3D Physics Testbed (`sim/`):**
+  - **Mass-Consistent 3D Airflow (`sim/airflow.py`):** QUIC-URB–style staggered MAC grid (`48 × 48 × 12`, `2.5 m` voxels) with Red-Black SOR Poisson pressure projection (`div(u) = 0`), ABL wind shear, Röckle lee-side wake cavities, cylindrical tank potential flow & Strouhal shedding, porous pipe-rack drag, divergence-free 3D Fourier eddies, and Ornstein–Uhlenbeck wind gusts.
   - **Lagrangian 3D Gaussian Puff Plume (`sim/plume.py`):** SI mass-to-ppmv ideal-gas calibration (default CH₄), Briggs (1973) urban/industrial Pasquill–Gifford dispersion classes (`A`–`F`), RK2 streamline advection around obstacles, buoyant plume rise, specular ground & mixing-lid reflections, and vectorized solid-wall gas occlusion.
   - **6-DOF Rigid-Body Quadrotor (`sim/drone.py`):** 160 Hz internal sub-stepping (`8×` per 20 Hz tick), 4-motor ESC lag (`35 ms`), Lee et al. geometric `SE(3)` attitude controller, gyroscopic precession, anisotropic body + blade-flapping drag, Cheeseman–Bennett ground effect, rotor downwash dilution, soft-penalty obstacle contact physics, and a physical power/battery model.
   - **Realistic Sensor Suite (`sim/sensor.py`):** Asymmetric 1st-order chemical rise/decay lag (`τ_rise = 0.6 s`, `τ_decay = 1.8 s`), `1.9 ppm` atmospheric CH₄ baseline, multiplicative noise, slow zero-drift, `5000 ppm` saturation, tilt-coupled ultrasonic anemometer noise, and toggleable 30% `NaN` sensor-fault injection.
   - **Procedural & Preset Industrial Worlds (`sim/world.py`, `sim/layout.py`):** Five industrial facility presets (`refinery`, `pipe_loop`, `tank_terminal`, `compressor_yard`, `cooling_works`) plus deterministic procedural facility generation with orthogonal A*-routed connected pipe networks and guaranteed obstacle/launch-pad clearance.
-- **SeeCH4 Triple-TabPFN Agent (`agents/reliable_tabpfn.py`):**
-  - Runs three specialized **TabPFNRegressor** models asynchronously off the 20 Hz physics loop:
-    1. **Model A (Post-Contact 3D Source Inversion):** 29 pure-physics features ranking 3D source hypotheses after gas contact.
-    2. **Model B (Pre-Contact Spatial Prior):** 12 features combining facility geometry, wind, and clean-air falsification to guide initial 3D downwind catchment.
-    3. **Model C (Online 3D Plume & Hazard Mapper):** Predicts `q10`, `q50`, `q90` in `log1p(ppm)` and 4-second `>10 ppm` hazard fields.
-  - Works out of the box with the **free Prior Labs TabPFN API** (`tabpfn-client`, no GPU needed) or **locally on your own computer** (`tabpfn`, CUDA/MPS/CPU).
-- **Interactive 3D Frontend & Live Agent Comparison (`frontend/`):**
-  - Built with **Three.js** + **Vite**, streaming live 20 Hz ticks, 3D wind vector fields, volumetric plume puffs, drone telemetry, a 2D Flight Map, and live Triple-TabPFN model heatmaps over WebSocket.
-  - **Live Compare Agents:** Toggle **Wind-Plume (Baseline)**, **Gradient (Baseline)**, and **Lawnmower (Baseline)** drones on or off directly in the UI to race them side-by-side against **SeeCH4 (Triple-TabPFN)** in real time.
-  - **Mission Setup & Judge Controls:** Choose worlds or randomize layouts, adjust wind direction/speed, click to place leaks on pipes/valves/ground, inject 30% `NaN` sensor faults, inspect any object, record video, and toggle clean presentation mode (`P`).
 - **Headless Benchmarking & CLI Control (`tools/`):**
-  - Quantitative physics realism audit (`tools/physics_audit.py`), standardized multi-scenario evaluation (`tools/eval_runner.py`), and a unified CLI (`tools/sim_ctl.py`) for inspecting and steering both headless and live simulations.
+  - Quantitative physics realism audit (`tools/physics_audit.py`), standardized multi-scenario evaluation (`tools/eval_runner.py`), and a unified CLI (`tools/sim_ctl.py`) for inspecting and steering both headless and live missions.
 
 ---
 
