@@ -1,6 +1,7 @@
 """Build the Three.js frontend and launch SeeCH4 (Triple-TabPFN autonomous methane-leak drones)."""
 
 import argparse
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -8,6 +9,17 @@ from pathlib import Path
 from agents.tabpfn_remote import check_tabpfn_backend
 
 DEFAULT_ADAPTIVE_WIND = False
+
+
+def _pick_free_port(host: str, preferred: int, max_tries: int = 20) -> int:
+    for port in range(preferred, preferred + max_tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind((host, port))
+                return port
+            except OSError:
+                continue
+    return preferred
 
 
 def main() -> None:
@@ -40,14 +52,21 @@ def main() -> None:
 
     print("TabPFN backend:", check_tabpfn_backend(), flush=True)
 
+    host = "127.0.0.1"
+    port = _pick_free_port(host, args.port)
+    if port != args.port:
+        print(f"Port {args.port} is already in use; using http://{host}:{port} instead.", flush=True)
+    else:
+        print(f"Serving SeeCH4 at http://{host}:{port}", flush=True)
+
     command = [
         sys.executable,
         "-m",
         "server.app",
         "--host",
-        "127.0.0.1",
+        host,
         "--port",
-        str(args.port),
+        str(port),
         "--seed",
         str(args.seed),
     ]
