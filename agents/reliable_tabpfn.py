@@ -749,7 +749,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
 
         # 1. CRITICAL LOCK HOLD: stay steady inside gas core when near TabPFN estimate with >=15 ppm
         if (dist_drone_est <= 4.5 or dist_drone_goal <= 3.0) and obs.ppm_measured >= self.LOCK_HOLD_PPM and hover_s < 4.5:
-            if (dist_drone_est <= 4.2 or dist_drone_goal <= 3.0) and obs.ppm_measured >= 20.0:
+            if dist_drone_est <= 4.2 or dist_drone_goal <= 3.0:
                 hold_pt = safe_goal_3d(planner, obs.pos)
                 if math.dist(hold_pt, obs.pos) <= 1.5:
                     return hold_pt, [hold_pt], "tabpfn_source_prediction"
@@ -760,9 +760,21 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         spd = math.hypot(wx, wy)
         ux, uy = (wx / spd, wy / spd) if spd >= 0.2 else (1.0, 0.0)
 
+        # 1a. CORE ANCHOR: when flying directly through a very high-ppm core (>=120 ppm),
+        # do not sprint far upwind to a distant first-contact estimate; probe locally
+        # just upwind so TabPFN quickly brackets the leak without losing contact.
+        if obs.ppm_measured >= 120.0 and dist_drone_est > 4.5:
+            local_upwind = safe_goal_3d(
+                planner,
+                (drone_pos[0] - ux * 2.5, drone_pos[1] - uy * 2.5, drone_pos[2]),
+            )
+            path = planner.route(obs.pos, local_upwind)
+            if path:
+                return local_upwind, (path[1:] if len(path) >= 2 else [local_upwind]), "tabpfn_source_prediction"
+
         # 1b. Model-C-guided 3D micro-lock box BEFORE marking an estimate stalled
         near_clean = (dist_drone_goal <= 3.5 or dist_drone_est <= 4.5) and obs.ppm_measured < self.LOCK_HOLD_PPM
-        if near_clean and hover_s >= 1.4:
+        if near_clean and hover_s >= 0.8:
             recent_10s = np.array([r.pos for r in samples if obs.sim_time - r.sim_time <= 10.0], dtype=np.float64)
             near_hot = [
                 r
@@ -783,6 +795,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
 
             recent_20s = np.array([r.pos for r in samples if obs.sim_time - r.sim_time <= 20.0], dtype=np.float64)
             raw_offsets = [
+                (est_np[0] + ux * 1.8, est_np[1] + uy * 1.8, min(28.0, est_np[2] + 0.6)),
                 (est_np[0] + ux * 2.8, est_np[1] + uy * 2.8, est_np[2]),
                 (est_np[0] + ux * 2.5, est_np[1] + uy * 2.5, min(28.0, est_np[2] + 2.0)),
                 (est_np[0] + ux * 2.5, est_np[1] + uy * 2.5, max(1.5, est_np[2] - 2.0)),

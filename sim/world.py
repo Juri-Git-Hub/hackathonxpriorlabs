@@ -477,6 +477,55 @@ class World:
                     return True
         return False
 
+    def random_pipe_leak_pos(self, rng: np.random.Generator | None = None) -> Vec3:
+        """Sample a uniformly random exposed point along the facility's pipe network."""
+        if self._pipe_seg_a.shape[0] == 0:
+            return self.default_leak_pos
+
+        gen = rng if rng is not None else np.random.default_rng()
+        lengths = np.sqrt(self._pipe_seg_len2)
+        total_len = float(lengths.sum())
+        if total_len <= 0.0:
+            return self.default_leak_pos
+        probs = lengths / total_len
+
+        solid_obstacles = [
+            geom
+            for bldg, geom in zip(self.buildings, self._bldg_geom_scalar)
+            if bldg.kind not in ("pipe_segment", "pipe_rack")
+        ]
+
+        def _in_solid_obstacle(px: float, py: float, pz: float) -> bool:
+            for x0, y0, z0, x1, y1, z1, cx, cy, _hx, _hy, r_cyl, r_cyl2, is_cyl, _is_porous, _tr in solid_obstacles:
+                if pz < z0 or pz > z1:
+                    continue
+                if is_cyl:
+                    dx = px - cx
+                    dy = py - cy
+                    if dx * dx + dy * dy <= r_cyl2:
+                        return True
+                elif x0 <= px <= x1 and y0 <= py <= y1:
+                    return True
+            return False
+
+        fallback: Vec3 = self.default_leak_pos
+        for _ in range(64):
+            seg_idx = int(gen.choice(len(lengths), p=probs))
+            t = float(gen.uniform(0.0, 1.0))
+            pt = self._pipe_seg_a[seg_idx] + t * self._pipe_seg_ab[seg_idx]
+            px, py, pz = float(pt[0]), float(pt[1]), float(pt[2])
+            fallback = (px, py, max(1.0, pz))
+            if (
+                pz < 1.0
+                or px < self.bounds_min[0] or px > self.bounds_max[0]
+                or py < self.bounds_min[1] or py > self.bounds_max[1]
+                or pz > self.bounds_max[2]
+            ):
+                continue
+            if not _in_solid_obstacle(px, py, pz):
+                return (px, py, pz)
+        return fallback
+
     def height_above_surface(self, px: float, py: float, pz: float) -> float:
         """Vertical clearance above ground (z=0) or any building/tank roof directly below."""
         h_agl = pz

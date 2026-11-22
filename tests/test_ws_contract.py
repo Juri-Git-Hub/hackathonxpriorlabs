@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 from fastapi.testclient import TestClient
 
 from server.app import create_app
@@ -193,9 +194,18 @@ def test_select_map_broadcasts_new_geometry_before_the_next_mission_tick():
                     tick = SimTickPayload.model_validate(message)
                     assert tick.sim_time < 1
                     assert len(tick.leaks) == 1
-                    assert tick.leaks[0].pos == app.state.engine.world.default_leak_pos
-                    if map_id != "refinery":
-                        assert tick.leaks[0].pos[2] == leak_height
+                    world = app.state.engine.world
+                    leak_pt = np.array(tick.leaks[0].pos, dtype=float)
+                    seg_a = world._pipe_seg_a
+                    seg_ab = world._pipe_seg_ab
+                    t_proj = np.clip(
+                        np.sum((leak_pt - seg_a) * seg_ab, axis=1) / world._pipe_seg_len2,
+                        0.0,
+                        1.0,
+                    )
+                    closest = seg_a + t_proj[:, None] * seg_ab
+                    min_dist = float(np.min(np.linalg.norm(closest - leak_pt, axis=1)))
+                    assert min_dist < 1e-6
                     break
             else:
                 raise AssertionError(f"No mission tick for {map_id}")

@@ -111,7 +111,7 @@ export class RefineryView {
     }
   }
 
-  _buildPipingNetwork(pipeRuns = []) {
+  _buildPipingNetwork(pipeRuns = [], buildings = new Map()) {
     const matYellowGas = new THREE.MeshStandardMaterial({
       color: 0xeab308,
       metalness: 0.32,
@@ -158,6 +158,34 @@ export class RefineryView {
           service: run.service ?? "Connected process gas network",
           pressureBar: run.pressureBar ?? run.pressure_bar,
         });
+        // Simulation ports sit on bounding boxes. Detailed models can be inset
+        // from those boxes, so bridge each port to the first actual mesh surface.
+        for (const [id, point] of [[run.from_id, run.points[0]], [run.to_id, run.points.at(-1)]]) {
+          const entry = buildings.get(id);
+          if (!entry || !point) continue;
+          const { box, instance } = entry;
+          const faces = [
+            [Math.abs(point[0] - box.min_xyz[0]), [-1, 0, 0], box.max_xyz[0] - box.min_xyz[0]],
+            [Math.abs(point[0] - box.max_xyz[0]), [1, 0, 0], box.max_xyz[0] - box.min_xyz[0]],
+            [Math.abs(point[1] - box.min_xyz[1]), [0, -1, 0], box.max_xyz[1] - box.min_xyz[1]],
+            [Math.abs(point[1] - box.max_xyz[1]), [0, 1, 0], box.max_xyz[1] - box.min_xyz[1]],
+          ].sort((a, b) => a[0] - b[0]);
+          if (faces[0][0] > 0.001) continue;
+          const normal = faces[0][1];
+          const originSim = point.map((v, i) => v + normal[i] * 0.05);
+          const origin = simToThree(originSim);
+          const direction = simToThree(normal).normalize().negate();
+          const ray = new THREE.Raycaster(origin, direction, 0, faces[0][2] / 2 + 0.05);
+          const hit = ray.intersectObject(instance, true)[0];
+          if (!hit || hit.distance <= 0.055) continue;
+          const end = origin.clone().addScaledVector(direction, hit.distance + 0.02);
+          const start = simToThree(point);
+          const connector = new THREE.Mesh(new THREE.CylinderGeometry(run.radius, run.radius, start.distanceTo(end), 12), material);
+          connector.position.copy(start).add(end).multiplyScalar(0.5);
+          connector.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.clone().sub(start).normalize());
+          connector.castShadow = true;
+          this.group.add(connector);
+        }
       }
       return;
     }
@@ -510,6 +538,7 @@ export class RefineryView {
     const circleAOTex = createContactAOTexture(true);
     const boxAOTex = createContactAOTexture(false);
 
+    const buildingModels = new Map();
     for (const b of worldInit.buildings) {
       if (b.kind === "pipe_segment") continue;
       const sx = b.max_xyz[0] - b.min_xyz[0];
@@ -543,6 +572,7 @@ export class RefineryView {
         instance.scale.set(sx, sz, sy);
       }
       this.group.add(instance);
+      buildingModels.set(b.id, { box: b, instance });
 
       this._tagInteractive(instance, {
         kind: "building",
@@ -634,7 +664,8 @@ export class RefineryView {
     }
 
     // 6. Connected 3D industrial piping network linking tanks, buildings, rack, and valves
-    this._buildPipingNetwork(worldInit.pipe_runs?.length ? worldInit.pipe_runs : worldInit.pipes);
+    this.group.updateMatrixWorld(true);
+    this._buildPipingNetwork(worldInit.pipe_runs?.length ? worldInit.pipe_runs : worldInit.pipes, buildingModels);
 
     // 7. Optional iconic flare stack landmark for refinery/petrochemical worlds
     if (presentation.flare_pos && this.models.flare_stack) {

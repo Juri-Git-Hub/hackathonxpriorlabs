@@ -219,14 +219,27 @@ class RemoteTabPFNRegressor:
             payload["y_train"] = [float(y) for y in y_train]
 
         def send(data: dict[str, Any]) -> dict[str, Any]:
-            req = Request(
-                self.api_url,
-                data=json.dumps(data, allow_nan=False).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urlopen(req, timeout=self.timeout_s) as resp:
-                return json.loads(resp.read())
+            import http.client
+            import time as _time
+            body = json.dumps(data, allow_nan=False).encode("utf-8")
+            last_exc: Exception | None = None
+            for attempt in range(3):
+                req = Request(
+                    self.api_url,
+                    data=body,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                try:
+                    with urlopen(req, timeout=self.timeout_s) as resp:
+                        return json.loads(resp.read())
+                except (http.client.HTTPException, ConnectionResetError, TimeoutError) as exc:
+                    last_exc = exc
+                    if attempt < 2:
+                        _time.sleep(0.25 * (attempt + 1))
+                        continue
+                    raise
+            raise last_exc  # pragma: no cover
 
         try:
             try:

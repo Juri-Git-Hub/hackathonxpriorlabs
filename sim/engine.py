@@ -128,7 +128,7 @@ class SimEngine:
         return [
             LeakSource(
                 id="leak_01",
-                pos=self.world.default_leak_pos,
+                pos=self.world.random_pipe_leak_pos(),
                 emission_rate=0.02,
             )
         ]
@@ -361,6 +361,10 @@ class SimEngine:
                     self.mission_report=MissionReport(elapsed_sim_seconds=self.sim_time,elapsed_wall_seconds=time.monotonic()-self._mission_wall_start,estimated_source=estimate,model_score=belief.source_model_score,regional_score_mass=belief.regional_score_mass,estimated_error_m=error,measurement_count=drone.samples_taken,ppm_at_detection=ppm,estimate_age_seconds=self.sim_time-belief.sim_time)
                     drone.set_target(drone.pos_tuple)
                     self.paused=True
+        elif fresh and error<=self.LOCK_DISTANCE_M and close:
+            # Tolerate brief turbulent puff dips while hovering on the source.
+            self._lock_timers[drone_id]=max(0.0,self._lock_timers[drone_id]-self.OBS_INTERVAL)
+            drone.status='tracking' if ppm>5 else 'searching'
         else:
             self._lock_timers[drone_id]=0
             drone.status='tracking' if ppm>5 else 'searching'
