@@ -128,3 +128,48 @@ def test_drone_brakes_before_pipe_clearance():
 
     assert drone.clearance_contacts == 0
     assert np.linalg.norm(drone.pos - (5, 4, 21)) < 1.0
+
+
+def test_tabpfn_fleet_partitions_search_targets_on_map_change():
+    from itertools import combinations
+
+    from server.app import build_agents
+    from shared.schemas import DroneObservation
+    from sim.engine import DEFAULT_START_POSITIONS
+
+    agents = build_agents(drone_count=3)
+    try:
+        for map_id in ("refinery", "pipe_loop"):
+            world = World(map_id=map_id).to_world_init()
+            candidate_sets = []
+            for agent, (left, right) in zip(agents.values(), ((-60, -20), (-20, 20), (20, 60))):
+                agent.reset(world)
+                candidate_sets.append(set(map(tuple, agent._search_waypoints)))
+                assert candidate_sets[-1]
+                assert all(left <= point[0] < right for point in candidate_sets[-1])
+
+                obs = DroneObservation(
+                    sim_time=1,
+                    drone_id=agent.drone_id,
+                    pos=DEFAULT_START_POSITIONS[agent.drone_id],
+                    vel=(0, 0, 0),
+                    wind_measured=(3, 0),
+                    ppm_measured=0,
+                    temp_delta=0,
+                    nearest_asset_type="open_air",
+                    asset_age_years=0,
+                    in_wind_shadow=False,
+                    upwind_pipe_score=0,
+                    battery_pct=100,
+                )
+                assert agent._record_observation(obs) is not None
+                assert tuple(agent.goal) in candidate_sets[-1]
+                assert all(
+                    agent._planner.visible(a, b)
+                    for a, b in zip(agent.planned_route, agent.planned_route[1:])
+                )
+
+            assert all(a.isdisjoint(b) for a, b in combinations(candidate_sets, 2))
+    finally:
+        for agent in agents.values():
+            agent.close()

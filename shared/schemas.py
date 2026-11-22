@@ -136,6 +136,7 @@ class PuffState(BaseModel):
 
 
 class MissionReport(BaseModel):
+    drone_id: str = "tabpfn"
     elapsed_sim_seconds: float
     elapsed_wall_seconds: float
     estimated_source: Vec3

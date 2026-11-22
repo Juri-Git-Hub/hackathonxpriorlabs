@@ -41,6 +41,8 @@ class AgentProtocol(Protocol):
 
 DEFAULT_START_POSITIONS: dict[str, Vec3] = {
     "tabpfn": (-48.0, -45.0, 5.0),
+    "tabpfn-2": (0.0, -55.0, 5.0),
+    "tabpfn-3": (48.0, -55.0, 5.0),
     "gradient": (-48.0, -40.0, 5.0),
     "lawnmower": (-48.0, -35.0, 5.0),
 }
@@ -68,6 +70,7 @@ class SimEngine:
         responsive_sensor: bool = False,
         randomize_initial_maps: bool = False,
         require_start: bool = False,
+        mission_drone_ids: frozenset[str] = frozenset({"tabpfn"}),
     ) -> None:
         self._lock = threading.RLock()
         self._seed = seed
@@ -82,6 +85,7 @@ class SimEngine:
         self.rotor_downwash_enabled = bool(rotor_downwash_enabled)
         self.responsive_sensor = responsive_sensor
         self.require_start = require_start
+        self._mission_drone_ids = mission_drone_ids
 
         self.world = World(layout_seed=layout_seed, map_id=map_id)
         self.airflow = Airflow(self.world, seed=seed)
@@ -393,8 +397,19 @@ class SimEngine:
             drone.status='tracking'
             if self._lock_timers[drone_id]+1e-9>=self.LOCK_SUSTAIN_S:
                 drone.status='locked'
-                if drone_id=='tabpfn':
-                    self.mission_report=MissionReport(elapsed_sim_seconds=self.sim_time,elapsed_wall_seconds=time.monotonic()-self._mission_wall_start,estimated_source=estimate,model_score=belief.source_model_score,regional_score_mass=belief.regional_score_mass,estimated_error_m=error,measurement_count=drone.samples_taken,ppm_at_detection=ppm,estimate_age_seconds=self.sim_time-belief.sim_time)
+                if drone_id in self._mission_drone_ids:
+                    self.mission_report = MissionReport(
+                        drone_id=drone_id,
+                        elapsed_sim_seconds=self.sim_time,
+                        elapsed_wall_seconds=time.monotonic() - self._mission_wall_start,
+                        estimated_source=estimate,
+                        model_score=belief.source_model_score,
+                        regional_score_mass=belief.regional_score_mass,
+                        estimated_error_m=error,
+                        measurement_count=drone.samples_taken,
+                        ppm_at_detection=ppm,
+                        estimate_age_seconds=self.sim_time - belief.sim_time,
+                    )
                     drone.set_target(drone.pos_tuple)
                     self.paused=True
         elif fresh and error<=self.LOCK_DISTANCE_M and close:

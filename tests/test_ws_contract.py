@@ -64,12 +64,12 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
 
             # 3. Collect messages until we see WindFieldPayload, SimTickPayload, and BeliefUpdatePayload
             seen_ticks = 0
-            seen_belief = False
+            seen_beliefs = set()
             seen_wind_field = False
             dropout_applied = False
             leak_added = False
 
-            for _ in range(60):
+            for _ in range(80):
                 raw = ws.receive_text()
                 if '"wind_field"' in raw:
                     wf = WindFieldPayload.model_validate_json(raw)
@@ -79,7 +79,7 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
                 elif '"sim_tick"' in raw:
                     tick = SimTickPayload.model_validate_json(raw)
                     seen_ticks += 1
-                    assert [d.id for d in tick.drones] == ['tabpfn']
+                    assert [d.id for d in tick.drones] == ["tabpfn", "tabpfn-2", "tabpfn-3"]
                     assert len(tick.puffs) <= 400
                     if tick.sensor_dropout_active:
                         dropout_applied = True
@@ -89,13 +89,13 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
                     belief = BeliefUpdatePayload.model_validate_json(raw)
                     assert len(belief.q50) == len(world_init.grid_coords)
                     assert len(belief.uncertainty) == len(world_init.grid_coords)
-                    seen_belief = True
+                    seen_beliefs.add(belief.drone_id)
 
-                if seen_ticks >= 5 and seen_belief and seen_wind_field and dropout_applied and leak_added:
+                if seen_ticks >= 5 and len(seen_beliefs) == 3 and seen_wind_field and dropout_applied and leak_added:
                     break
 
             assert seen_ticks >= 5
-            assert seen_belief
+            assert seen_beliefs == {"tabpfn", "tabpfn-2", "tabpfn-3"}
             assert seen_wind_field
             assert dropout_applied
             assert leak_added
@@ -144,9 +144,9 @@ def test_reset_rejects_negative_seed():
     from pydantic import ValidationError
     with pytest.raises(ValidationError):JudgeCommand(action='reset_race',seed=-1)
 
-def test_demo_has_only_tabpfn_and_exposes_mission_blockers():
+def test_single_drone_mode_exposes_mission_blockers():
     from shared.schemas import BackendStatusPayload
-    app=create_app(mock_agents=True)
+    app=create_app(mock_agents=True, drone_count=1)
     assert list(app.state.engine.drones)==['tabpfn']
     app.state.engine.apply_command(JudgeCommand(action='clear_leaks'))
     with TestClient(app) as client:
@@ -161,10 +161,10 @@ def test_completed_report_is_sent_on_reconnect_and_cleared_by_reset():
     app=create_app(mock_agents=True)
     e=app.state.engine
     with e._lock:
-        p=e.leaks[0].pos;e.drones['tabpfn'].pos=np.array(p)
-        e._latest_agent_beliefs['tabpfn']=BeliefUpdatePayload(sim_time=1,drone_id='tabpfn',q50=[1],uncertainty=[0],estimated_source=p,next_waypoint=p)
+        p=e.leaks[0].pos;e.drones['tabpfn-2'].pos=np.array(p)
+        e._latest_agent_beliefs['tabpfn-2']=BeliefUpdatePayload(sim_time=1,drone_id='tabpfn-2',q50=[1],uncertainty=[0],estimated_source=p,next_waypoint=p)
         steps=round(e.LOCK_SUSTAIN_S/e.OBS_INTERVAL)
-        for i in range(steps):e.sim_time=1+i*e.OBS_INTERVAL;e._check_completion('tabpfn',30)
+        for i in range(steps):e.sim_time=1+i*e.OBS_INTERVAL;e._check_completion('tabpfn-2',30)
         expected_t=1+(steps-1)*e.OBS_INTERVAL
     with TestClient(app) as client:
         for _ in range(2):
@@ -172,6 +172,7 @@ def test_completed_report_is_sent_on_reconnect_and_cleared_by_reset():
                 ws.receive_text()
                 status=json.loads(ws.receive_text())
                 assert status['mission_state']=='found'
+                assert status['mission_report']['drone_id'] == 'tabpfn-2'
                 assert abs(status['mission_report']['elapsed_sim_seconds']-expected_t)<1e-6
         with client.websocket_connect('/ws') as ws:
             ws.receive_text();ws.receive_text()

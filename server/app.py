@@ -28,28 +28,40 @@ from sim.engine import SimEngine
 logger = logging.getLogger("gas_leak_server")
 
 DEFAULT_ADAPTIVE_WIND = False
+DEFAULT_DRONE_COUNT = 3
 
 
 def build_agents(
     mock_agents: bool = False,
     adaptive_wind: bool = DEFAULT_ADAPTIVE_WIND,
     *,
+    drone_count: int = DEFAULT_DRONE_COUNT,
     source_pre_data: Path | None = None,
     source_post_data: Path | None = None,
 ) -> dict[str, BaseAgent]:
-    """Instantiate the primary TabPFN mission drone (or mock agent in unit tests)."""
+    """Build the flight roster and assign each drone a search sector."""
+    if drone_count not in (1, 3):
+        raise ValueError("drone_count must be 1 or 3")
+    ids = ("tabpfn", "tabpfn-2", "tabpfn-3")[:drone_count]
     if mock_agents:
-        primary: BaseAgent = MockTabPFNAgent(drone_id="tabpfn")
-    else:
-        from agents.reliable_tabpfn import ReliableTabPFNAgent
+        return {
+            drone_id: MockTabPFNAgent(drone_id, search_sector=sector, sector_count=drone_count)
+            for sector, drone_id in enumerate(ids)
+        }
 
-        primary = ReliableTabPFNAgent(
-            drone_id="tabpfn",
+    from agents.reliable_tabpfn import ReliableTabPFNAgent
+
+    return {
+        drone_id: ReliableTabPFNAgent(
+            drone_id=drone_id,
             adaptive_wind=adaptive_wind,
             source_pre_data_path=source_pre_data,
             source_post_data_path=source_post_data,
+            search_sector=sector,
+            sector_count=drone_count,
         )
-    return {"tabpfn": primary}
+        for sector, drone_id in enumerate(ids)
+    }
 
 
 def create_app(
@@ -58,12 +70,14 @@ def create_app(
     adaptive_wind: bool = DEFAULT_ADAPTIVE_WIND,
     layout_seed: int | None = None,
     *,
+    drone_count: int = DEFAULT_DRONE_COUNT,
     source_pre_data: Path | None = None,
     source_post_data: Path | None = None,
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
     agents = build_agents(
         mock_agents=mock_agents,
+        drone_count=drone_count,
         adaptive_wind=adaptive_wind,
         source_pre_data=source_pre_data,
         source_post_data=source_post_data,
@@ -77,6 +91,7 @@ def create_app(
         responsive_sensor=False,
         randomize_initial_maps=True,
         require_start=True,
+        mission_drone_ids=frozenset(agents),
     )
     clients: set[WebSocket] = set()
     latest_beliefs = {}
@@ -204,7 +219,7 @@ def create_app(
                 else "no_leak"
                 if not engine.leaks
                 else "depleted"
-                if engine.drones["tabpfn"].status == "depleted"
+                if all(drone.status == "depleted" for drone in engine.drones.values())
                 else "paused"
                 if engine.paused
                 else "searching"
@@ -290,6 +305,10 @@ def create_app(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Drone Gas Leak Detection WebSocket Server")
+    parser.add_argument(
+        "--drones", type=int, choices=(1, 3), default=DEFAULT_DRONE_COUNT,
+        help="Fleet size for leak search (default: 3)",
+    )
     parser.add_argument("--source-pre-data", type=Path, help="Alternate pre-contact TabPFN context.")
     parser.add_argument("--source-post-data", type=Path, help="Alternate post-contact TabPFN context.")
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
@@ -316,6 +335,7 @@ if __name__ == "__main__":
     args = _parse_args()
     app = create_app(
         seed=args.seed,
+        drone_count=args.drones,
         adaptive_wind=args.adaptive_wind,
         layout_seed=args.layout_seed,
         source_pre_data=args.source_pre_data,

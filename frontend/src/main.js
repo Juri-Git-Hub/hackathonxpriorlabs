@@ -331,6 +331,7 @@ async function bootstrap() {
     },
     onBeliefUpdate: (belief) => {
       flightMap.updateBelief(belief);
+      if (belief.drone_id !== "tabpfn") return;
       modelPanel.updateBelief(belief);
       beliefView.update(belief);
       hud.updateBelief(belief);

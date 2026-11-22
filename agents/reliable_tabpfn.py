@@ -25,6 +25,7 @@ from typing import Any, Optional
 import numpy as np
 
 from agents.base import AsyncInferenceAgent
+from agents.search_sector import sector_mask
 from agents.tabpfn_features import (
     PLUME_FEATURE_COLUMNS,
     POST_SOURCE_FEATURE_COLUMNS,
@@ -83,6 +84,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         source_pre_data_path: str | Path | None = None,
         plume_data_path: str | Path | None = None,
         adaptive_wind: bool = True,
+        search_sector: int = 0,
+        sector_count: int = 1,
     ) -> None:
         super().__init__(drone_id=drone_id, default_target=(-20.0, -15.0, 5.0))
         self.api_url = api_url
@@ -90,6 +93,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         self.sync_mode = sync_mode
         self.apply_rpc_latency = apply_rpc_latency
         self.adaptive_wind = adaptive_wind
+        self.search_sector = search_sector
+        self.sector_count = sector_count
         self.source_post_data_path = Path(source_post_data_path) if source_post_data_path else DEFAULT_SOURCE_POST_DATA
         self.source_pre_data_path = Path(source_pre_data_path) if source_pre_data_path else DEFAULT_SOURCE_PRE_DATA
         self.plume_data_path = Path(plume_data_path) if plume_data_path else DEFAULT_PLUME_DATA
@@ -316,6 +321,13 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         if merged.shape[0] == 0:
             merged = planner.points.copy()
 
+        if self.sector_count > 1:
+            merged = merged[sector_mask(merged, world_init, self.search_sector, self.sector_count)]
+            if len(merged) == 0:
+                merged = planner.points[
+                    sector_mask(planner.points, world_init, self.search_sector, self.sector_count)
+                ]
+
         grid_map = (
             np.argmin(np.linalg.norm(merged[:, None, :] - fac.grid_np[None, :, :], axis=2), axis=1)
             if fac.grid_np.shape[0] > 0
@@ -422,9 +434,16 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                     probe = safe_goal_3d(self._planner, (ap[0] + ux * 10.0, ap[1] + uy * 10.0, max(3.5, ap[2])))
                 else:
                     probe = safe_goal_3d(self._planner, (0.0, 0.0, 6.0))
-                path = self._planner.route(obs.pos, probe)
-                if len(path) < 2:
-                    return obs.pos
+                probes = [probe]
+                if self.sector_count > 1:
+                    closest = np.argsort(np.linalg.norm(self._search_waypoints - probe, axis=1))
+                    probes = [tuple(self._search_waypoints[idx]) for idx in closest[:24]]
+                for probe in probes:
+                    path = self._planner.route(obs.pos, probe)
+                    if len(path) >= 2:
+                        break
+                else:
+                    return None if self.sector_count > 1 else obs.pos
                 self.goal = np.array(probe, dtype=np.float64)
                 self.goal_at = obs.sim_time
                 self.goal_timeout = 18.0
@@ -652,10 +671,13 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         """Choose next collision-free 3D waypoint via full-3D TabPFN catchment + Z-aware novelty."""
         drone_pos = np.array(obs.pos, dtype=np.float64)
         wps = self._search_waypoints
+        if len(wps) == 0:
+            return obs.pos, [], False
         w_cur = np.array(wind_now, dtype=np.float64)
         w_cur_n = max(float(np.linalg.norm(w_cur)), 1e-6)
 
-        if self.goal is not None and self.search_phase == "search" and self.route:
+        continuing_search = self.sector_count == 1 or not self._had_contact_at_last_infer
+        if continuing_search and self.goal is not None and self.search_phase == "search" and self.route:
             d_goal = float(np.linalg.norm(drone_pos - self.goal))
             wind_changed = False
             if self.adaptive_wind and self.goal_wind is not None:
@@ -711,6 +733,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
             if len(path) >= 2:
                 return g, path[1:], True
 
+        if self.sector_count > 1:
+            return obs.pos, [], False
         fallback = safe_goal_3d(planner, (0.0, 0.0, 6.0))
         path = planner.route(obs.pos, fallback)
         return (fallback, path[1:], True) if len(path) >= 2 else (obs.pos, [], False)
@@ -1209,6 +1233,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
 
         except Exception as exc:
             with self._data_lock:
+                if fac is not self._fac:
+                    return obs.pos, None
                 self.error = str(exc)
                 if self.plan_state == "preparing":
                     self.plan_state = "error"

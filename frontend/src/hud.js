@@ -1,5 +1,7 @@
 const DRONE_HEX = {
   tabpfn: "#22d3ee",
+  "tabpfn-2": "#fb923c",
+  "tabpfn-3": "#c4b5fd",
   gradient: "#fb923c",
   lawnmower: "#e2e8f0",
   manual: "#a3e635",
@@ -604,7 +606,7 @@ export class HudController {
     document.getElementById("report-duration").textContent=`Suchdauer: ${report.elapsed_sim_seconds.toFixed(1)} s Simulationszeit · ${report.measurement_count} Messungen`;
     document.getElementById("report-position").textContent=`Geschätzte Quelle (x,y,z): ${report.estimated_source.map(x=>x.toFixed(1)).join(", ")} m`;
     document.getElementById("report-score").textContent=report.model_score==null ? "Modellbewertung: nicht verfügbar (z. B. Mock-Modus)" : `Modellbewertung: ${(report.model_score*100).toFixed(1)} % Klassifikationsscore (unkalibriert)`;
-    document.getElementById("report-evidence").textContent=`${this.modelMode==="mock" ? "Mock-Fund" : "Im Simulator bestätigt"} · Ortungsfehler ${report.estimated_error_m.toFixed(1)} m · ${report.ppm_at_detection.toFixed(1)} ppm vor Ort`;
+    document.getElementById("report-evidence").textContent=`${this.modelMode==="mock" ? "Mock-Fund" : "Im Simulator bestätigt"} · ${(report.drone_id ?? "tabpfn").toUpperCase()} · Ortungsfehler ${report.estimated_error_m.toFixed(1)} m · ${report.ppm_at_detection.toFixed(1)} ppm vor Ort`;
     document.getElementById("report-wall").textContent=`Echtzeit seit Reset: ${report.elapsed_wall_seconds.toFixed(1)} s (inkl. Pausen) · Schätzung ${report.estimate_age_seconds.toFixed(1)} s alt`;
   }
 

@@ -8,6 +8,7 @@ from typing import Optional
 import numpy as np
 
 from agents.base import BaseAgent
+from agents.search_sector import sector_mask
 from shared.schemas import (
     BeliefUpdatePayload,
     DroneObservation,
@@ -27,8 +28,13 @@ class MockTabPFNAgent(BaseAgent):
     TRAVEL_PENALTY = 0.015
     REVISIT_RADIUS_M = 3.0
 
-    def __init__(self, drone_id: str = "tabpfn") -> None:
+    def __init__(
+        self, drone_id: str = "tabpfn", *, search_sector: int = 0, sector_count: int = 1
+    ) -> None:
         super().__init__(drone_id)
+        self.search_sector = search_sector
+        self.sector_count = sector_count
+        self._search_mask = np.zeros(0, dtype=bool)
         self._grid_np = np.zeros((0, 3), dtype=np.float64)
         self._grid_norm2 = np.zeros((0, 1), dtype=np.float64)
         self._center_prior = np.zeros(0, dtype=np.float64)
@@ -41,7 +47,8 @@ class MockTabPFNAgent(BaseAgent):
         self._last_wind: tuple[float, float] = (3.0, 0.8)
 
     def reset(self, world_init: WorldInitPayload) -> None:
-        self._grid_np = np.array(world_init.grid_coords, dtype=np.float64)
+        self._grid_np = np.array(world_init.grid_coords, dtype=np.float64).reshape(-1, 3)
+        self._search_mask = sector_mask(self._grid_np, world_init, self.search_sector, self.sector_count)
         if self._grid_np.shape[0] > 0:
             self._grid_norm2 = np.sum(self._grid_np * self._grid_np, axis=1, keepdims=True)
             center_d2 = np.sum((self._grid_np - np.array([-4.0, -4.0, 5.0])) ** 2, axis=1)
@@ -55,10 +62,10 @@ class MockTabPFNAgent(BaseAgent):
         self._step_count = 0
         self._latest_belief = None
         self._last_wind = (3.0, 0.8)
-        if len(world_init.grid_coords) > 0:
+        if self._search_mask.any():
             # Start steering toward the central industrial pipe corridor
             dists_center = np.linalg.norm(self._grid_np - np.array([-8.0, -6.0, 5.0]), axis=1)
-            self._current_target = world_init.grid_coords[int(np.argmin(dists_center))]
+            self._current_target = world_init.grid_coords[int(np.argmin(np.where(self._search_mask, dists_center, np.inf)))]
         else:
             self._current_target = (-8.0, -6.0, 5.0)
 
@@ -121,6 +128,10 @@ class MockTabPFNAgent(BaseAgent):
         revisit_mask = np.where(min_dist < self.REVISIT_RADIUS_M, -1e6, 0.0)
 
         scores = q50 + beta * uncertainty - self.TRAVEL_PENALTY * travel_dist + revisit_mask
+        if max_obs_ppm < 4.0 and self.sector_count > 1:
+            if not self._search_mask.any():
+                return obs.pos
+            scores = np.where(self._search_mask, scores, -np.inf)
         best_idx = int(np.argmax(scores))
         next_wp = (
             float(self._grid_np[best_idx, 0]),

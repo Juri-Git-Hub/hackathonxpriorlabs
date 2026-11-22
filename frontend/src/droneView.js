@@ -3,6 +3,8 @@ import { simToThree } from "./coords.js";
 
 const DRONE_COLORS = {
   tabpfn: 0x22d3ee,
+  "tabpfn-2": 0xfb923c,
+  "tabpfn-3": 0xc4b5fd,
   gradient: 0xfb923c,
   lawnmower: 0xe2e8f0,
   manual: 0xa3e635,

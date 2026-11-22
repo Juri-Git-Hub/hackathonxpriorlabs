@@ -6,8 +6,7 @@ import sys
 from pathlib import Path
 
 from agents.tabpfn_remote import check_tabpfn_backend
-
-DEFAULT_ADAPTIVE_WIND = False
+from server.app import DEFAULT_ADAPTIVE_WIND, DEFAULT_DRONE_COUNT
 
 
 def main() -> None:
@@ -27,6 +26,10 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=DEFAULT_ADAPTIVE_WIND,
         help="Refresh acquisition targets after sustained changes in measured wind",
+    )
+    parser.add_argument(
+        "--drones", type=int, choices=(1, 3), default=DEFAULT_DRONE_COUNT,
+        help="Fleet size for leak search (default: 3)",
     )
     parser.add_argument("--source-pre-data", type=Path, help="Alternate pre-contact TabPFN context")
     parser.add_argument("--source-post-data", type=Path, help="Alternate post-contact TabPFN context")
@@ -50,6 +53,8 @@ def main() -> None:
         str(args.port),
         "--seed",
         str(args.seed),
+        "--drones",
+        str(args.drones),
     ]
     for flag, path in (
         ("--source-pre-data", args.source_pre_data),
