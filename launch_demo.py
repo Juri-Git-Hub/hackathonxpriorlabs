@@ -50,14 +50,22 @@ def main() -> None:
         subprocess.run(["npm", "ci"], cwd=frontend, check=True)
     subprocess.run(["npm", "run", "build"], cwd=frontend, check=True)
 
-    print("TabPFN backend:", check_tabpfn_backend(), flush=True)
+    backend = check_tabpfn_backend()
 
     host = "127.0.0.1"
     port = _pick_free_port(host, args.port)
+    url = f"http://localhost:{port}"
+    banner_line = "=" * 62
+    bold_cyan = "\033[1;36m" if sys.stdout.isatty() else ""
+    bold = "\033[1m" if sys.stdout.isatty() else ""
+    reset = "\033[0m" if sys.stdout.isatty() else ""
+    print(f"\n{bold_cyan}{banner_line}{reset}", flush=True)
+    print(f"  {bold}SeeCH4 is starting!{reset}", flush=True)
+    print(f"  Open in browser:  {bold_cyan}{url}{reset}", flush=True)
+    print(f"  TabPFN backend:   {backend}", flush=True)
     if port != args.port:
-        print(f"Port {args.port} is already in use; using http://{host}:{port} instead.", flush=True)
-    else:
-        print(f"Serving SeeCH4 at http://{host}:{port}", flush=True)
+        print(f"  Note:             port {args.port} was busy, using {port}", flush=True)
+    print(f"{bold_cyan}{banner_line}{reset}\n", flush=True)
 
     command = [
         sys.executable,
