@@ -173,3 +173,55 @@ def test_feature_history_recognizes_current_clean_air_baseline():
     processed = history.append(reading)
     assert processed.is_clean
     assert processed.ppm_inst == 0.0
+
+
+def test_tabpfn_backend_adapter_supports_sdk_caching_and_quantiles(monkeypatch):
+    import numpy as np
+    from agents.tabpfn_remote import RemoteTabPFNRegressor, resolve_backend
+
+    fit_calls = []
+
+    class _FakeRegressor:
+        def fit(self, X, y):
+            fit_calls.append(len(y))
+            return self
+
+        def predict(self, X, output_type="mean", quantiles=None):
+            n = len(X)
+            if output_type == "quantiles":
+                assert quantiles is not None
+                return [np.full(n, float(q)) for q in quantiles]
+            return np.full(n, 0.42)
+
+    monkeypatch.delenv("TABPFN_API_URL", raising=False)
+    monkeypatch.delenv("TABPFN_BACKEND", raising=False)
+    assert resolve_backend(api_url="http://127.0.0.1:8001/regress") == "http"
+
+    reg = RemoteTabPFNRegressor(backend="local")
+    monkeypatch.setattr(reg, "_create_sdk_model", lambda: _FakeRegressor())
+
+    mean, qs = reg.predict_mean_and_quantiles(
+        columns=["a", "b"],
+        x_train_rows=[[1.0, 2.0], [3.0, 4.0]],
+        y_train=[0.1, 0.9],
+        x_test_rows=[[2.0, 3.0], [4.0, 5.0], [5.0, 6.0]],
+        quantiles=(0.1, 0.5, 0.9),
+        cache_key="ctx",
+    )
+    assert not reg.last_fit_reused
+    assert len(fit_calls) == 1
+    assert np.allclose(mean, 0.42)
+    assert len(qs) == 3 and all(q.shape == (3,) for q in qs)
+
+    # Second call with same cache_key & training data reuses fitted model
+    qs2 = reg.predict_quantiles(
+        columns=["a", "b"],
+        x_train_rows=[[1.0, 2.0], [3.0, 4.0]],
+        y_train=[0.1, 0.9],
+        x_test_rows=[[2.0, 3.0]],
+        quantiles=(0.25, 0.75),
+        cache_key="ctx",
+    )
+    assert reg.last_fit_reused
+    assert len(fit_calls) == 1
+    assert len(qs2) == 2 and all(q.shape == (1,) for q in qs2)

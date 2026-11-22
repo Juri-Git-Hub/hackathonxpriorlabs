@@ -1,11 +1,9 @@
 """Start the Three.js frontend and WebSocket backend."""
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
-from urllib.request import urlopen
-from agents.tabpfn_remote import DEFAULT_API_URL, ensure_tunnel
+from agents.tabpfn_remote import check_tabpfn_backend
 
 DEFAULT_ADAPTIVE_WIND = False
 
@@ -28,8 +26,7 @@ if __name__=='__main__':
     if not (frontend/'node_modules').exists():subprocess.run(['npm','ci'],cwd=frontend,check=True)
     subprocess.run(['npm','run','build'],cwd=frontend,check=True)
     if a.tabpfn and not a.mock_agents:
-        endpoint=os.environ.get('TABPFN_API_URL',DEFAULT_API_URL);ensure_tunnel(endpoint)
-        with urlopen(endpoint.rsplit('/',1)[0]+'/health',timeout=15) as response:print('GPU API:',response.read().decode(),flush=True)
+        print('TabPFN backend:', check_tabpfn_backend(), flush=True)
     command=[sys.executable,'-m','server.app','--host','127.0.0.1','--port',str(a.port),'--seed',str(a.seed)]
     if a.mvp:
         command.append('--mvp')

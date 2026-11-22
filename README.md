@@ -61,7 +61,7 @@ python launch_demo.py --mock-agents
 # Reproducible layout & simulation seeds on a custom port
 python launch_demo.py --port 8502 --seed 99 --layout-seed 73
 
-# TabPFN agent connected to a remote CUDA TabPFNRegressor service (see below)
+# TabPFN agent (auto-detects free Prior Labs API, local TabPFN, or custom HTTP)
 python launch_demo.py --tabpfn
 ```
 
@@ -115,19 +115,50 @@ All cross-module payloads are Pydantic v2 models defined in [shared/schemas.py](
 | Agent | Module | Description |
 | :--- | :--- | :--- |
 | **Wind-Plume** *(default)* | [agents/wind_plume.py](agents/wind_plume.py) | Onboard wind-relative downwind transect search with 3D A* routing, transit-hit revisits, and upwind/crosswind/vertical source localization. |
-| **Dual-TabPFN** (`--tabpfn`) | [agents/tabpfn_agent.py](agents/tabpfn_agent.py), [agents/reliable_tabpfn.py](agents/reliable_tabpfn.py) | Non-blocking TabPFN spatial localization & plume mapping using pre-contact and post-contact physics contexts (`data/`) over an HTTP/SSH-tunneled CUDA regressor service. |
+| **Dual-TabPFN** (`--tabpfn`) | [agents/tabpfn_agent.py](agents/tabpfn_agent.py), [agents/reliable_tabpfn.py](agents/reliable_tabpfn.py) | Non-blocking TabPFN spatial localization & plume mapping using pre-contact and post-contact physics contexts (`data/`) via the free Prior Labs TabPFN API, local TabPFN, or a custom HTTP endpoint. |
 | **Gradient / Surge-Cast** | [agents/gradient.py](agents/gradient.py) | Bio-inspired anemotactic upwind surge and crosswind cast baseline. |
 | **3D Lawnmower** | [agents/lawnmower.py](agents/lawnmower.py) | Deterministic 3D volumetric serpentine raster sweep baseline. |
 | **Mock Agent** (`--mock-agents`) | [agents/mock_agent.py](agents/mock_agent.py) | Sub-millisecond mock belief generator for UI/server testing without ML weights. |
 
-### Remote TabPFN GPU Backend (Optional)
+### Setting Up TabPFN (`--tabpfn`)
 
-When launching with `--tabpfn`, [agents/tabpfn_remote.py](agents/tabpfn_remote.py) connects to a remote `TabPFNRegressor` `/regress` endpoint (default `http://127.0.0.1:18001/regress`) and can automatically open an SSH port forward via [tunnel.py](tunnel.py). Configure via environment variables:
+[agents/tabpfn_remote.py](agents/tabpfn_remote.py) automatically detects your TabPFN backend (`TABPFN_BACKEND=auto`). Pick whichever option fits your machine:
 
-- `TABPFN_API_URL` (default `http://127.0.0.1:18001/regress`)
-- `TABPFN_SSH_HOST` (default `viewer`)
-- `TABPFN_REMOTE_PORT` (default `8001`)
-- `TABPFN_AUTO_TUNNEL` (`1` to auto-tunnel, `0` to disable)
+#### Option A — Free Prior Labs TabPFN API (No GPU Required)
+
+1. Install the official client and sign in once to get a free API token:
+   ```bash
+   pip install tabpfn-client
+   python -c "import tabpfn_client; tabpfn_client.init()"
+   ```
+   *(Or pass your token directly via `export TABPFN_TOKEN=...`.)*
+2. Launch the simulator with TabPFN enabled:
+   ```bash
+   python launch_demo.py --tabpfn
+   ```
+
+#### Option B — Run Locally on Your Own Computer (GPU or CPU)
+
+1. Install TabPFN locally:
+   ```bash
+   pip install tabpfn
+   ```
+2. Launch the simulator:
+   ```bash
+   python launch_demo.py --tabpfn
+   # Optional: force a specific device (cuda, mps, or cpu)
+   TABPFN_DEVICE=cuda python launch_demo.py --tabpfn
+   ```
+
+#### Option C — Custom Self-Hosted HTTP Endpoint
+
+If you host your own `TabPFNRegressor` `/regress` server:
+
+```bash
+TABPFN_API_URL=http://127.0.0.1:8001/regress python launch_demo.py --tabpfn
+```
+
+You can also force a specific backend at any time with `TABPFN_BACKEND=client|local|http`.
 
 ---
 
@@ -163,7 +194,6 @@ python -m tools.sim_ctl live cmd set-wind --angle 90 --speed 5.5
 ```text
 .
 ├── launch_demo.py              # One-command frontend build + FastAPI server launcher
-├── tunnel.py                   # SSH tunnel helper for optional remote GPU inference
 ├── shared/
 │   └── schemas.py              # Pydantic v2 WebSocket & simulation data contracts
 ├── sim/                        # Headless 3D physics engine (zero web/UI dependencies)
@@ -183,7 +213,7 @@ python -m tools.sim_ctl live cmd set-wind --angle 90 --speed 5.5
 │   ├── reliable_tabpfn.py      # Dual-TabPFN spatial localization & mapping policy
 │   ├── tabpfn_features.py      # Physics & spatial feature builders for TabPFN
 │   ├── tabpfn_nav.py           # Fast 3D navigation helper for TabPFN
-│   ├── tabpfn_remote.py        # Remote CUDA TabPFNRegressor HTTP client
+│   ├── tabpfn_remote.py        # Unified TabPFN backend (Prior Labs API, local, or HTTP)
 │   ├── gradient.py             # Bio-inspired surge-cast baseline
 │   ├── lawnmower.py            # 3D volumetric raster sweep baseline
 │   └── mock_agent.py           # Fast mock agent for --mock-agents mode
