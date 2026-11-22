@@ -11,7 +11,24 @@ from server.app import create_app
 from shared.schemas import JudgeCommand
 from sim.engine import SimEngine
 from sim.world import World
+from sim.world import _MAPS
 from tests.test_search_control import reading
+
+
+@pytest.mark.parametrize('map_id', list(_MAPS))
+def test_randomize_keeps_active_map_and_restores_its_layout(map_id):
+    engine = SimEngine({'tabpfn': MockTabPFNAgent()}, layout_seed=42)
+    engine.apply_command(JudgeCommand(action='select_map', map_id=map_id))
+    original = engine.get_world_init()
+    engine.apply_command(JudgeCommand(action='randomize_layout', seed=71))
+    randomized = engine.get_world_init()
+    assert randomized.map_id == map_id
+    assert randomized.layout_seed == 71
+    assert randomized.buildings != original.buildings
+    other = 'pipe_loop' if map_id == 'refinery' else 'refinery'
+    engine.apply_command(JudgeCommand(action='select_map', map_id=other))
+    engine.apply_command(JudgeCommand(action='select_map', map_id=map_id))
+    assert engine.get_world_init() == randomized
 
 
 @pytest.mark.parametrize('seed', range(12))

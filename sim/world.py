@@ -224,10 +224,10 @@ class World:
             ),
         ]
 
-        self.layout_seed = layout_seed if map_id == "refinery" or is_generated else None
+        self.layout_seed = layout_seed
         self.theme: str | None = _MAPS.get(map_id, {}).get("presentation", {}).get("theme")
         self.pipe_runs = self.pipes
-        if self.layout_seed is not None:
+        if self.layout_seed is not None and (map_id == "refinery" or is_generated):
             from sim.layout import generate_layout, layout_theme
             self.buildings, self.assets, self.pipe_runs = generate_layout(self.buildings, self.assets, self.layout_seed)
             self.theme = layout_theme(self.layout_seed)
@@ -237,6 +237,11 @@ class World:
             self.buildings = [BuildingBox.model_validate(box) for box in layout["buildings"]]
             self.assets = [FacilityAsset.model_validate(asset) for asset in layout["assets"]]
             self.pipe_runs = [PipeRun.model_validate(run) for run in layout["pipe_runs"]]
+            if self.layout_seed is not None:
+                from sim.layout import generate_layout
+                self.buildings, self.assets, self.pipe_runs = generate_layout(
+                    self.buildings, self.assets, self.layout_seed, preserve_models=True
+                )
             self.default_leak_pos = next(
                 asset.pos for asset in self.assets if asset.id == layout["default_leak_asset"]
             )

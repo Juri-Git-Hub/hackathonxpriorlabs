@@ -546,7 +546,7 @@ async function bootstrap() {
   });
 
   generateWorld.addEventListener("click", () => {
-    wsClient.sendCommand({ action: "randomize_layout", map_id: "generated" });
+    wsClient.sendCommand({ action: "randomize_layout" });
   });
   if (wsClient.mockMode) generateWorld.title = "World generation requires the simulation server.";
   wsClient.start();

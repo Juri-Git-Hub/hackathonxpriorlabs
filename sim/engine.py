@@ -66,6 +66,7 @@ class SimEngine:
         self._seed = seed
         self._refinery_layout_seed = layout_seed
         self._generated_layout_seed: int | None = None
+        self._map_layout_seeds: dict[str, int] = {}
 
         self.world = World(layout_seed=layout_seed)
         self.airflow = Airflow(self.world, seed=seed)
@@ -168,7 +169,7 @@ class SimEngine:
                     layout_seed = {
                         "refinery": self._refinery_layout_seed,
                         "generated": self._generated_layout_seed,
-                    }.get(cmd.map_id)
+                    }.get(cmd.map_id, self._map_layout_seeds.get(cmd.map_id))
                     self._replace_world(World(layout_seed=layout_seed, map_id=cmd.map_id))
                     self.sensor_dropout_active = False
                 return
@@ -215,11 +216,16 @@ class SimEngine:
                 if cmd.seed is not None:self._seed=cmd.seed
                 self.reset_race(list(self.leaks) if cmd.keep_leaks and self.leaks else None)
             elif cmd.action == "randomize_layout":
-                if cmd.map_id == "generated":
+                if cmd.map_id == "generated" or (cmd.map_id is None and self.world.map_id == "generated"):
                     last_seed = max(self._generated_layout_seed or 0, self._refinery_layout_seed or 0)
                     layout_seed = cmd.seed if cmd.seed is not None else last_seed + 1
                     self._replace_world(World(layout_seed=layout_seed, map_id="generated"))
                     self._generated_layout_seed = layout_seed
+                elif cmd.map_id is None and self.world.map_id != "refinery":
+                    map_id = self.world.map_id
+                    layout_seed = cmd.seed if cmd.seed is not None else (self._map_layout_seeds.get(map_id, 0) + 1)
+                    self._replace_world(World(layout_seed=layout_seed, map_id=map_id))
+                    self._map_layout_seeds[map_id] = layout_seed
                 else:
                     layout_seed = cmd.seed if cmd.seed is not None else (self._refinery_layout_seed or 0) + 1
                     self._replace_world(World(layout_seed=layout_seed))

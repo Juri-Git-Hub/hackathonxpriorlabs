@@ -153,7 +153,7 @@ def _pipe_route(start, goal, buildings):
     raise ValueError('Could not connect the generated facility pipe network')
 
 
-def generate_layout(building_templates, asset_templates, seed):
+def generate_layout(building_templates, asset_templates, seed, *, preserve_models=False):
     """Relocate equipment with seed-driven archetypes, then connect all nodes with an MST.
 
     Buildings keep their identities and kinds while drawing varied Blender structures
@@ -171,7 +171,7 @@ def generate_layout(building_templates, asset_templates, seed):
         # Prefer unused models first so structures in a generated world look distinct
         unused = [m for m in pool if m not in used_models]
         choices = unused if unused else pool
-        chosen = str(choices[int(rng.integers(len(choices)))])
+        chosen = (template.model or template.kind) if preserve_models else str(choices[int(rng.integers(len(choices)))])
         used_models.add(chosen)
         model_field = None if chosen in ("building", "storage_tank", "pipe_rack") else chosen
 
