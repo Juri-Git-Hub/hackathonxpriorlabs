@@ -44,26 +44,28 @@ pip install -r requirements.txt
 
 ### 2. Configure TabPFN (Pick One)
 
-SeeCH4 uses **Triple-TabPFN** for live leak localization and automatically detects your backend (`TABPFN_BACKEND=auto`):
+SeeCH4 uses **Triple-TabPFN** for live leak localization and automatically detects your backend (`TABPFN_BACKEND=auto`).
 
-- **Option A — Free Prior Labs TabPFN API (no GPU required):**
+> **Performance Recommendation:** Because SeeCH4 runs three TabPFNRegressor models continuously during live flight, **we strongly recommend running locally on a capable PC with a dedicated GPU (e.g. NVIDIA CUDA) or connecting over HTTP to a fast GPU machine** for low-latency, responsive inference. The free hosted API is convenient when no GPU is available, but has higher network/queue latency.
+
+- **Option A — Run locally on your own computer (Recommended with GPU):**
+  ```bash
+  pip install tabpfn
+  ```
+  *(Optional: force a specific device with `export TABPFN_DEVICE=cuda|mps|cpu`.)*
+
+- **Option B — Custom self-hosted HTTP GPU server (Recommended for remote GPU):**
+  ```bash
+  export TABPFN_API_URL=http://<gpu-host>:8001/regress
+  ```
+
+- **Option C — Free Prior Labs TabPFN API (no GPU required, higher latency):**
   ```bash
   pip install tabpfn-client
   # Log in via browser (saves your token locally):
   python -c "from tabpfn_client import interactive_login; interactive_login()"
   ```
   *(Or generate a token at https://platform.priorlabs.ai/account/api-keys and run `export TABPFN_TOKEN="<your-token>"`.)*
-
-- **Option B — Run locally on your own computer (CUDA GPU, Apple Silicon MPS, or CPU):**
-  ```bash
-  pip install tabpfn
-  ```
-  *(Optional: force a specific device with `export TABPFN_DEVICE=cuda|mps|cpu`.)*
-
-- **Option C — Custom self-hosted HTTP endpoint:**
-  ```bash
-  export TABPFN_API_URL=http://127.0.0.1:8001/regress
-  ```
 
 ### 3. Launch SeeCH4
 
