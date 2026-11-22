@@ -62,7 +62,7 @@ class LeakSource(BaseModel):
     id: str
     pos: Vec3
     emission_rate: float = 0.02  # kg/s (20 g/s = 72 kg/h industrial CH4 leak)
-    buoyancy_vz: float = 0.25    # m/s initial buoyant rise (>0 rising CH4, <0 heavy gas)
+    buoyancy_vz: Optional[float] = None  # legacy explicit rise override (m/s); None models methane
 
 
 class GridPointMeta(BaseModel):
@@ -121,6 +121,7 @@ class DroneTickState(BaseModel):
     rot_rpy: Vec3  # roll, pitch, yaw in radians (derived from thrust vector)
     target_pos: Vec3
     ppm: float
+    wind_measured: tuple[Optional[float], Optional[float]] | None = None
     battery_pct: float
     samples_taken: int
     dist_to_nearest_leak: float

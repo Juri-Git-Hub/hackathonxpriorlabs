@@ -215,7 +215,15 @@ def _sample_leak_pos(
     return (float(g_pt[0]), float(g_pt[1]), float(g_pt[2]))
 
 
-def _simulate_post_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], list[float], int, int]:
+def _emission_rate(rng: np.random.Generator, low: float, high: float, weak: bool) -> float:
+    fraction = float(rng.random())
+    if weak:
+        # Cover low-rate SI releases alongside the stronger explicit scenarios.
+        return math.exp(math.log(.008) + fraction * math.log(.18 / .008))
+    return low + fraction * (high - low)
+
+
+def _simulate_post_episode(ep_idx: int, seed: int, calibrated_rates: bool = False, calibrated_physics: bool = False) -> tuple[list[list[Any]], list[float], int, int]:
     """Generate post-contact training samples for TabPFN Model A."""
     rng = np.random.default_rng(seed)
     u_mode = float(rng.random())
@@ -263,11 +271,12 @@ def _simulate_post_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], lis
                 pos = _sample_leak_pos(rng, engine, fac, world_init, ep_idx, asset_frac=0.30, pipe_frac=0.15)
         else:
             pos = _sample_leak_pos(rng, engine, fac, world_init, ep_idx, asset_frac=0.30, pipe_frac=0.15)
+        emission_rate = _emission_rate(rng, .45, 2.2, calibrated_rates and (ep_idx + lk_i) % 2 == 0)
         leaks.append(
             LeakSource(
                 id=f"post_{ep_idx:03d}_{lk_i}",
                 pos=pos,
-                emission_rate=float(rng.uniform(0.45, 2.2)),
+                emission_rate=emission_rate,
                 buoyancy_vz=buoyancy,
             )
         )
@@ -374,7 +383,7 @@ def _simulate_post_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], lis
                     wind_speed=float(rng.uniform(1.5, 6.5)),
                 )
             )
-        engine.step()
+        engine.step(include_puffs=False)
 
         if next_snap_i < len(snapshot_times) and engine.sim_time >= snapshot_times[next_snap_i]:
             next_snap_i += 1
@@ -388,7 +397,9 @@ def _simulate_post_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], lis
 
             wind_now = collector.obs_history.current_wind
             cands, _ = build_post_source_candidates(fac, samples, wind_now, prev_estimate=prev_est, max_candidates=950)
-            feat_rows = build_post_source_feature_rows(fac, cands, samples, wind_now)
+            feat_rows = build_post_source_feature_rows(
+                fac, cands, samples, wind_now, calibrated_physics=calibrated_physics,
+            )
             hits = [r for r in samples if (not r.is_clean and r.ppm_inst >= 2.0) or r.ppm_raw >= 3.5]
 
             # In multi-leak episodes, only label leak(s) with observable gas contact
@@ -467,7 +478,7 @@ def _simulate_post_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], lis
     return rows_out, y_out, snaps_with_contact, snaps_covered
 
 
-def _simulate_pre_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], list[float]]:
+def _simulate_pre_episode(ep_idx: int, seed: int, calibrated_rates: bool = False) -> tuple[list[list[Any]], list[float]]:
     """Generate pre-contact training samples for TabPFN Model B."""
     rng = np.random.default_rng(seed)
     mode = str(rng.choice(["mixed", "lawnmower", "mixed"]))
@@ -485,7 +496,7 @@ def _simulate_pre_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], list
     leaks: list[LeakSource] = []
     if has_leak:
         pos = _sample_leak_pos(rng, engine, fac, world_init, ep_idx, asset_frac=0.45, pipe_frac=0.20)
-        leaks.append(LeakSource(id=f"pre_{ep_idx:03d}_0", pos=pos, emission_rate=float(rng.uniform(0.6, 1.8)), buoyancy_vz=buoyancy))
+        leaks.append(LeakSource(id=f"pre_{ep_idx:03d}_0", pos=pos, emission_rate=_emission_rate(rng, .6, 1.8, calibrated_rates and ep_idx % 2 == 0), buoyancy_vz=buoyancy))
 
     engine.airflow.set_wind(wind_angle, wind_speed)
     engine.sensor_dropout_active = dropout_on
@@ -505,7 +516,7 @@ def _simulate_pre_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], list
     col_dwc = PRE_SOURCE_FEATURE_COLUMNS.index("downwind_clear_score")
 
     for _ in range(int(36.0 / engine.DT)):
-        engine.step()
+        engine.step(include_puffs=False)
         samples = collector.obs_history.samples
         if not samples:
             continue
@@ -554,14 +565,14 @@ def _simulate_pre_episode(ep_idx: int, seed: int) -> tuple[list[list[Any]], list
     return rows_out, y_out
 
 
-def generate_post_dataset(episodes: int = 240, seed: int = 60000, workers: int = 8, max_rows: int = 4096) -> dict[str, Any]:
+def generate_post_dataset(episodes: int = 240, seed: int = 60000, workers: int = 8, max_rows: int = 4096, *, calibrated_rates: bool = False, calibrated_physics: bool = False) -> dict[str, Any]:
     t0 = time.perf_counter()
     all_x: list[list[Any]] = []
     all_y: list[float] = []
     tot_c = 0
     tot_cov = 0
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        futs = {pool.submit(_simulate_post_episode, ep, seed + ep * 41): ep for ep in range(episodes)}
+        futs = {pool.submit(_simulate_post_episode, ep, seed + ep * 41, calibrated_rates, calibrated_physics): ep for ep in range(episodes)}
         results: dict[int, tuple[list[list[Any]], list[float], int, int]] = {}
         for fut in as_completed(futs):
             results[futs[fut]] = fut.result()
@@ -580,7 +591,8 @@ def generate_post_dataset(episodes: int = 240, seed: int = 60000, workers: int =
         all_y = [all_y[int(i)] for i in idx]
 
     return {
-        "version": "dual-tabpfn-post-v8",
+        "version": "dual-tabpfn-post-v8-calibrated" if calibrated_rates else "dual-tabpfn-post-v8",
+        "feature_physics": "si" if calibrated_physics else "legacy",
         "episodes": episodes,
         "seed": seed,
         "rows": len(all_x),
@@ -592,12 +604,12 @@ def generate_post_dataset(episodes: int = 240, seed: int = 60000, workers: int =
     }
 
 
-def generate_pre_dataset(episodes: int = 120, seed: int = 70000, workers: int = 8, max_rows: int = 1600) -> dict[str, Any]:
+def generate_pre_dataset(episodes: int = 120, seed: int = 70000, workers: int = 8, max_rows: int = 1600, *, calibrated_rates: bool = False) -> dict[str, Any]:
     t0 = time.perf_counter()
     all_x: list[list[Any]] = []
     all_y: list[float] = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        futs = {pool.submit(_simulate_pre_episode, ep, seed + ep * 43): ep for ep in range(episodes)}
+        futs = {pool.submit(_simulate_pre_episode, ep, seed + ep * 43, calibrated_rates): ep for ep in range(episodes)}
         results: dict[int, tuple[list[list[Any]], list[float]]] = {}
         for fut in as_completed(futs):
             results[futs[fut]] = fut.result()
@@ -688,13 +700,20 @@ def main() -> int:
     parser.add_argument("--episodes", type=int, default=320)
     parser.add_argument("--pre-episodes", type=int, default=120)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--calibrated-physics", action="store_true", help="Compute post-contact features using SI plume dispersion.")
     parser.add_argument("--post-only", action="store_true")
+    parser.add_argument("--calibrated-rates", action="store_true", help="Include weaker SI leak rates in the post-contact context.")
     parser.add_argument("--post-out", type=Path, default=Path("data/tabpfn_source_post_v8.json.gz"))
     parser.add_argument("--pre-out", type=Path, default=Path("data/tabpfn_source_pre_v4.json.gz"))
     parser.add_argument("--plume-out", type=Path, default=Path("data/tabpfn_plume_prior.json"))
     args = parser.parse_args()
 
-    post_payload = generate_post_dataset(episodes=args.episodes, workers=args.workers)
+    post_payload = generate_post_dataset(
+        episodes=args.episodes,
+        workers=args.workers,
+        calibrated_rates=args.calibrated_rates,
+        calibrated_physics=args.calibrated_physics,
+    )
     args.post_out.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(args.post_out, "wt", encoding="utf-8") as fp:
         json.dump(post_payload, fp, separators=(",", ":"))
@@ -707,7 +726,7 @@ def main() -> int:
     )
 
     if not args.post_only:
-        pre_payload = generate_pre_dataset(episodes=args.pre_episodes, workers=args.workers)
+        pre_payload = generate_pre_dataset(episodes=args.pre_episodes, workers=args.workers, calibrated_rates=args.calibrated_rates)
         args.pre_out.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(args.pre_out, "wt", encoding="utf-8") as fp:
             json.dump(pre_payload, fp, separators=(",", ":"))

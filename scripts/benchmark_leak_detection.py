@@ -5,7 +5,7 @@ judge (180s max per mission, optional measured RPC latency applied to simulated 
 
 Tiers:
 - `val`  (15 cases): Fast iteration & failure diagnosis across all maps & regimes
-- `test` (42 cases): Completely held-out test suite across:
+- `test` (44 cases): Test suite across:
   * All 7 standardized scenarios (`tools/scenarios.py`)
   * All 5 named worlds (`refinery`, `pipe_loop`, `tank_terminal`, `compressor_yard`, `cooling_works`)
   * 10 unseen procedural `generated` layouts (layout seeds 9001..9010)
@@ -25,13 +25,15 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
+import math
 from pathlib import Path
 import time
-from typing import Any, Optional
+from typing import Any, Optional, TextIO
 
 import numpy as np
 
 from agents.reliable_tabpfn import ReliableTabPFNAgent
+from agents.wind_plume import WindPlumeAgent
 from integration.prediction_protocol import TEST_CASES as PRED_CASES
 from integration.wind_protocol import TEST_CASES as WIND_CASES
 from shared.schemas import JudgeCommand, LeakSource, Vec3
@@ -166,12 +168,13 @@ def _build_test_cases() -> list[EvalCase]:
     return cases
 
 
-def run_case(agent: ReliableTabPFNAgent, case: EvalCase) -> dict[str, Any]:
+def run_case(agent: ReliableTabPFNAgent | WindPlumeAgent, case: EvalCase, trace: TextIO | None = None, *, realtime: bool = False) -> dict[str, Any]:
     engine = SimEngine(
         agents={"tabpfn": agent},
         seed=case.seed,
         layout_seed=case.layout_seed,
         map_id=case.map_id,
+        responsive_sensor=isinstance(agent, WindPlumeAgent),
     )
     leaks = (
         [
@@ -201,18 +204,81 @@ def run_case(agent: ReliableTabPFNAgent, case: EvalCase) -> dict[str, Any]:
     last_est: Optional[Vec3] = None
     last_est_err: Optional[float] = None
 
+    traced_calls = 0
+    samples_seen = 0
+    near_gas_samples = 0
+    max_near_gas_samples = 0
+    max_lock_seconds = 0.0
     n_ticks = int(round(case.duration_s / engine.DT))
     for _ in range(n_ticks):
         if next_change is not None and engine.sim_time + 1e-9 >= next_change["time"]:
             engine.airflow.set_wind(float(next_change["angle"]), float(next_change["speed"]))
             next_change = next(changes, None)
 
+        if realtime:
+            delay = t0 + _ * engine.DT - time.perf_counter()
+            if delay > 0:
+                time.sleep(delay)
         tick = engine.step(include_puffs=False)
         for b in engine.pop_belief_updates():
             last_est = b.estimated_source
             last_est_err = engine._dist_to_nearest_leak(last_est)
 
         d = tick.drones[0]
+        if d.samples_taken != samples_seen:
+            samples_seen = d.samples_taken
+            max_lock_seconds = max(max_lock_seconds, engine._lock_timers[d.id])
+            if d.ppm > 15 and d.dist_to_nearest_leak <= engine.LOCK_DISTANCE_M:
+                near_gas_samples += 1
+                max_near_gas_samples = max(max_near_gas_samples, near_gas_samples)
+            else:
+                near_gas_samples = 0
+        calls = getattr(agent, "source_prediction_calls", 0)
+        if trace is not None and (_ % 10 == 0 or traced_calls != calls):
+            position = np.asarray(d.pos)
+            if isinstance(agent, ReliableTabPFNAgent):
+                with agent._data_lock:
+                    wind = np.asarray(agent._obs_hist.current_wind).copy()
+                    candidates = agent._last_src_cands
+                    scores = agent._last_src_score
+                    calls = agent.source_prediction_calls
+                    goal = agent.goal.tolist() if agent.goal is not None else None
+                    phase = agent.search_phase
+                    basis = agent.decision_basis
+            else:
+                wind = np.asarray(agent.wind)
+                candidates = scores = None
+                goal = agent.goal
+                phase = agent.search_phase
+                basis = agent.decision_basis
+            speed = np.linalg.norm(wind)
+            refreshed = traced_calls != calls
+            top = []
+            if refreshed and scores is not None and candidates is not None:
+                top = [
+                    {"pos": candidates[i].tolist(), "score": float(scores[i])}
+                    for i in np.argsort(scores)[-5:][::-1]
+                ]
+            errors = []
+            for leak in engine.leaks:
+                delta = position - leak.pos
+                distances = None if candidates is None else np.linalg.norm(candidates - leak.pos, axis=1)
+                errors.append({
+                    "id": leak.id, "source": leak.pos, "drone_dz": float(delta[2]),
+                    "downwind_m": float(delta[:2] @ wind / speed) if speed >= .2 else None,
+                    "estimate_delta": (np.asarray(last_est) - leak.pos).tolist() if last_est else None,
+                    "candidate_min_error_m": float(distances.min()) if distances is not None and distances.size else None,
+                })
+            belief = engine._latest_agent_beliefs.get(d.id)
+            trace.write(json.dumps({
+                "case": case.name, "sim_time": tick.sim_time, "pos": d.pos,
+                "target": d.target_pos, "goal": goal,
+                "phase": phase, "basis": basis, "ppm": d.ppm,
+                "wind": wind.tolist(), "top_candidates": top, "errors": errors,
+                "belief_age_s": tick.sim_time - belief.sim_time if belief is not None else None,
+                "lock_seconds": engine._lock_timers[d.id],
+            }) + "\n")
+            traced_calls = calls
         closest = min(closest, d.dist_to_nearest_leak)
         max_ppm = max(max_ppm, d.ppm)
         if first_contact_t is None and d.ppm >= 3.5:
@@ -245,8 +311,10 @@ def run_case(agent: ReliableTabPFNAgent, case: EvalCase) -> dict[str, Any]:
         "closest_dist_m": round(closest, 2),
         "final_est_err_m": round(last_est_err, 2) if last_est_err is not None else None,
         "max_ppm": round(max_ppm, 1),
-        "src_calls": agent.source_prediction_calls,
-        "haz_calls": agent.hazard_prediction_calls,
+        "near_source_gas_seconds": round(max_near_gas_samples * engine.OBS_INTERVAL, 2),
+        "best_lock_seconds": round(max_lock_seconds, 2),
+        "src_calls": getattr(agent, "source_prediction_calls", 0),
+        "haz_calls": getattr(agent, "hazard_prediction_calls", 0),
         "est_error_m": round(engine.mission_report.estimated_error_m, 2) if engine.mission_report else None,
         "failure_reason": failure_reason,
     }
@@ -296,8 +364,8 @@ def run_async_smoke() -> list[dict[str, Any]]:
                 "sim_seconds": round(engine.sim_time, 1),
                 "wall_seconds": round(time.monotonic() - start, 1),
                 "est_error_m": round(engine.mission_report.estimated_error_m, 2) if engine.mission_report else None,
-                "src_calls": agent.source_prediction_calls,
-                "haz_calls": agent.hazard_prediction_calls,
+                "src_calls": getattr(agent, "source_prediction_calls", 0),
+                "haz_calls": getattr(agent, "hazard_prediction_calls", 0),
             }
             print(json.dumps(row), flush=True)
             results.append(row)
@@ -311,24 +379,57 @@ def main() -> int:
     parser.add_argument("--tier", choices=["val", "test", "async"], default="val")
     parser.add_argument("--out", type=Path, default=Path("reports/reliable_tabpfn_benchmark.json"))
     parser.add_argument("--no-latency", action="store_true")
+    parser.add_argument("--policy", choices=["tabpfn", "wind"], default="tabpfn")
+    parser.add_argument("--source-pre-data", type=Path, help="Alternate pre-contact TabPFN context.")
+    parser.add_argument("--source-post-data", type=Path, help="Alternate post-contact TabPFN context.")
+    parser.add_argument("--target-rate", type=float, help="Stop once the target fraction is mathematically unreachable.")
+    parser.add_argument("--case", action="append", help="Run only the named case. Repeat for multiple cases.")
+    parser.add_argument("--realtime", action="store_true", help="Replay selected cases using the live async scheduler at 20 Hz.")
+    parser.add_argument("--trace", type=Path, help="Write flight and source-ranking diagnostics to JSONL.")
     args = parser.parse_args()
 
+    if (args.source_post_data is not None or args.source_pre_data is not None) and (
+        args.policy != "tabpfn" or args.tier == "async"
+    ):
+        parser.error("Alternate TabPFN options require --policy tabpfn with --tier val or test")
+    if args.target_rate is not None and (not 0 < args.target_rate <= 1 or args.tier == "async"):
+        parser.error("--target-rate must be in (0, 1] for --tier val or test")
     if args.tier == "async":
+        if args.case or args.trace or args.realtime or args.policy != "tabpfn":
+            parser.error("Use --tier val or test for case selection and flight traces.")
         res = run_async_smoke()
         ok = sum(1 for r in res if r["success"])
         print(f"\nAsync real-time summary: {ok}/{len(res)} ({100.0*ok/len(res):.1f}%)")
         return 0 if ok / len(res) >= 0.8 else 1
 
     cases = _build_val_cases() if args.tier == "val" else _build_test_cases()
-    agent = ReliableTabPFNAgent(sync_mode=True, apply_rpc_latency=not args.no_latency)
-    print(f"Warming up 4090 TabPFN cache before running {len(cases)} {args.tier} cases...", flush=True)
-    agent.warmup_remote()
+    if args.case:
+        known = {case.name for case in cases}
+        if unknown := set(args.case) - known:
+            parser.error(f"Unknown cases for {args.tier}: {', '.join(sorted(unknown))}")
+        cases = [case for case in cases if case.name in args.case]
+    if args.policy == "wind":
+        agent = WindPlumeAgent(synchronous=not args.realtime)
+    else:
+        agent = ReliableTabPFNAgent(
+            sync_mode=not args.realtime,
+            apply_rpc_latency=not args.no_latency,
+            source_post_data_path=args.source_post_data,
+            source_pre_data_path=args.source_pre_data,
+        )
+        print(f"Warming up 4090 TabPFN cache before running {len(cases)} {args.tier} cases...", flush=True)
+        agent.warmup_remote()
 
     results: list[dict[str, Any]] = []
+    trace = None
     try:
+        if args.trace is not None:
+            args.trace.parent.mkdir(parents=True, exist_ok=True)
+            trace = args.trace.open("w")
         for case in cases:
-            row = run_case(agent, case)
+            row = run_case(agent, case, trace=trace, realtime=args.realtime)
             results.append(row)
+            summary = write_checkpoint(args, cases, results)
             status = "PASS" if row["success"] else f"FAIL({row['failure_reason']})"
             print(
                 f"[{len(results):2d}/{len(cases)}] {case.name:28s} {status:28s} "
@@ -336,23 +437,48 @@ def main() -> int:
                 f"est_err={str(row['final_est_err_m']):>5s} ppm={row['max_ppm']:6.1f} wall={row['wall_seconds']:4.1f}s",
                 flush=True,
             )
+            if summary["target_reachable"] is False:
+                print("Target is unreachable even if every remaining case passes.", flush=True)
+                break
     finally:
+        if trace is not None:
+            trace.close()
         agent.close()
 
-    ok = sum(1 for r in results if r["success"])
-    rate = 100.0 * ok / max(1, len(results))
+    print(
+        f"\n=== {args.tier.upper()} SUMMARY: {summary['successes']}/{len(results)} "
+        f"({summary['detection_rate_pct']:.1f}%) -> {args.out} ==="
+    )
+    return 1 if summary["target_reachable"] is False else 0
+
+
+def write_checkpoint(args, cases, results):
+    successes = [row for row in results if row["success"]]
+    required = math.ceil(args.target_rate * len(cases)) if args.target_rate is not None else None
+    max_successes = len(successes) + len(cases) - len(results)
     summary = {
         "tier": args.tier,
+        "realtime": args.realtime,
+        "simulated_rpc_latency": args.policy == "tabpfn" and not (args.no_latency or args.realtime),
+        "policy": args.policy,
+        "source_post_data": str(args.source_post_data) if args.source_post_data else None,
+        "source_pre_data": str(args.source_pre_data) if args.source_pre_data else None,
         "total": len(results),
-        "successes": ok,
-        "detection_rate_pct": round(rate, 2),
-        "mean_sim_seconds_success": round(float(np.mean([r["sim_seconds"] for r in results if r["success"]])) if ok else 0.0, 2),
+        "planned_total": len(cases),
+        "complete": len(results) == len(cases),
+        "target_rate": args.target_rate,
+        "required_successes": required,
+        "target_reachable": max_successes >= required if required is not None else None,
+        "successes": len(successes),
+        "detection_rate_pct": round(100 * len(successes) / len(results), 2),
+        "mean_sim_seconds_success": round(float(np.mean([r["sim_seconds"] for r in successes])), 2) if successes else None,
         "cases": results,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print(f"\n=== {args.tier.upper()} SUMMARY: {ok}/{len(results)} ({rate:.1f}%) -> {args.out} ===")
-    return 0
+    temporary = args.out.with_suffix(args.out.suffix + ".tmp")
+    temporary.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    temporary.replace(args.out)
+    return summary
 
 
 if __name__ == "__main__":

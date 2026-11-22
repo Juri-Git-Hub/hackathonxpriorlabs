@@ -327,3 +327,14 @@ def test_sensor_thermal_no_shortcut_path_tdlas_and_rotor_downwash() -> None:
     pos_fast, dil_fast = drone.sensor_sample_point_and_dilution(np.array([8.0, 0.0, 0.0]))
     assert pos_hover[2] > drone.pos[2] + 0.25
     assert 0.80 <= dil_hover < dil_fast <= 1.0
+
+
+def test_default_methane_buoyancy_depends_on_emission_rate() -> None:
+    world = World()
+    airflow = Airflow(world, base_wind_speed=3.0, sigma_w=0.0, seed=4)
+    heights = []
+    for rate in (0.0, 0.02, 0.08):
+        plume = Plume(world, airflow, d_turb=0.0, seed=5)
+        plume.step(0.25, [LeakSource(id='methane', pos=(-40.0, -40.0, 6.0), emission_rate=rate)])
+        heights.append(plume.pos[0, 2])
+    assert heights[0] < heights[1] < heights[2]

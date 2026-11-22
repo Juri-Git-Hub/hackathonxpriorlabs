@@ -73,7 +73,9 @@ python -m integration.verify_dataset data/datasets/main3d-v3 --workers 8
 python launch_demo.py
 ```
 
-**http://localhost:8501** öffnen. Der Launcher baut das vorhandene Three.js-Frontend, startet bei Bedarf den SSH-Tunnel und serviert UI, `/ws` und `/health` auf demselben Port. Node/npm sind für den Build erforderlich; bei fehlenden node_modules wird `npm ci` ausgeführt. Port 8000 wird lokal nicht verwendet, da dort bereits ein anderer Dienst läuft.
+Für die reproduzierbare Demo `python launch_demo.py --mvp` verwenden. Die Simulation startet beim Öffnen der Seite. Der Modus verwendet die feste Raffinerie mit einem Leck, gleichbleibender Windrichtung und dem lokalen Methansensor. Mit `python launch_demo.py --mvp --randomized-layout` startet sie auf einem von drei geprüften prozeduralen Raffinerie-Layouts. Im MVP wählt **Randomize Layout** auf der Raffinerie eines der anderen geprüften Layouts.
+
+**http://localhost:8501** öffnen. Standardmäßig fliegt die Drohne mit einem schneller reagierenden Methansensor und gemessenem Wind. Das HUD zeigt den Methanwert und den lokal an der Drohne gemessenen Wind. TabPFN und der GPU-Tunnel werden mit `python launch_demo.py --tabpfn` aktiviert. Der Launcher baut das vorhandene Three.js-Frontend, startet bei Bedarf den SSH-Tunnel und serviert UI, `/ws` und `/health` auf demselben Port. Node/npm sind für den Build erforderlich; bei fehlenden node_modules wird `npm ci` ausgeführt. Port 8000 wird lokal nicht verwendet, da dort bereits ein anderer Dienst läuft.
 
 ```bash
 # Ohne GPU/Trainingsdaten, expliziter Mock-Modus:
@@ -129,6 +131,15 @@ npm run dev
 
 Vite auf Port 5173 leitet `/ws` und `/health` zum Backend auf 8501 weiter. Das Backend liefert gebaute Frontend-Dateien aus `frontend/dist`; der Build wird nicht versioniert. `?mock=true` bleibt für die eigenständige Three.js-Entwicklung erhalten.
 ### 5. Physics Audit, Headless Evals & CLI Control (For AI Agents & Humans)
+
+Für Vergleichsläufe auf der RTX 4090 speichert der Benchmark nach jedem Fall einen Zwischenstand. Mit `--target-rate 0.95` endet ein Lauf, sobald 42 von 44 Funden nicht mehr erreichbar sind.
+
+```bash
+python -m scripts.benchmark_leak_detection --tier test --policy tabpfn \
+  --target-rate 0.95 --out reports/tabpfn_current_physics.json
+```
+
+`--source-pre-data` und `--source-post-data` wählen alternative TabPFN-Kontexte. `--clearance-confirmation` aktiviert Messpunkte auf der erreichbaren Abwindseite verdeckter Quellenhypothesen. Dieselben Optionen werden von `launch_demo.py --tabpfn` unterstützt.
 See [tools/README.md](tools/README.md) for full CLI docs and JSON schemas:
 ```bash
 # 10-check quantitative physics realism audit (returns JSON & exit code 0/1)
@@ -221,9 +232,9 @@ Sieben danach eingefrorene neue Wind-/Quellenszenarien (Seeds 301–307) ergeben
 
 ```bash
 # Explizit experimentell aktivieren; normaler Start behält die bisherige Suche:
-python launch_demo.py --adaptive-wind
+python launch_demo.py --tabpfn --adaptive-wind
 # Bisherige Suche explizit wählen:
-python launch_demo.py --no-adaptive-wind
+python launch_demo.py --tabpfn --no-adaptive-wind
 # Sieben vorab definierte neue Wind-/Quellenfälle:
 python -m integration.closed_loop --adaptive-wind --suite --output reports/wind_search_final_tests.json
 # Vergleich mit identischen Kontextdaten und Seeds (benötigt die echte API):
@@ -283,7 +294,7 @@ Der Benchmark vergleicht konstanten Prior, ExtraTrees und optional echte TabPFN-
 Der Live-Loader verwendet jetzt standardmäßig den geprüften V3-Ordner. Ein anderer geprüfter V3-Ordner kann explizit gewählt werden:
 
 ```bash
-PLUMESENSE_DATASET="$PWD/data/datasets/main3d-v3" python launch_demo.py
+PLUMESENSE_DATASET="$PWD/data/datasets/main3d-v3" python launch_demo.py --tabpfn
 ```
 
 Der Loader verlangt passende Featureversion und bestandene Integritäts-/Abdeckungsgates, verwendet ausschließlich Trainingsshards und im validierten Profil **4096 Kontextzeilen pro Modell**. Validierung und Test werden nie als Modellkontext geladen. Ein neues Dataset wird nicht allein wegen seiner Größe automatisch als besseres Live-Modell eingesetzt.

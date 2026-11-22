@@ -52,7 +52,7 @@ class SimEngine:
     """
 
     DT: float = 0.05  # 20 Hz fixed physics step
-    OBS_INTERVAL: float = 0.5  # 2 Hz agent observation callback
+    OBS_INTERVAL: float = 0.1  # 10 Hz agent observation callback
     LOCK_DISTANCE_M: float = 5.0
     LOCK_SUSTAIN_S: float = 2.0
 
@@ -63,6 +63,7 @@ class SimEngine:
         layout_seed: int | None = None,
         map_id: str = "refinery",
         rotor_downwash_enabled: bool = True,
+        responsive_sensor: bool = False,
     ) -> None:
         self._lock = threading.RLock()
         self._seed = seed
@@ -74,6 +75,7 @@ class SimEngine:
             else {}
         )
         self.rotor_downwash_enabled = bool(rotor_downwash_enabled)
+        self.responsive_sensor = responsive_sensor
 
         self.world = World(layout_seed=layout_seed, map_id=map_id)
         self.airflow = Airflow(self.world, seed=seed)
@@ -99,10 +101,15 @@ class SimEngine:
         self.reset_race()
 
     def _init_drones(self) -> None:
+        # The demo analyzer settles faster while retaining the simulated
+        # sampling point, downwash dilution, drift and measurement noise.
+        sensor_options = {}
+        if self.responsive_sensor:
+            sensor_options = {"tau_rise": 0.2, "tau_decay": 0.55, "noise_std_frac": 0.04}
         for i, drone_id in enumerate(self.agents):
             start = DEFAULT_START_POSITIONS.get(drone_id, (-48.0, -45.0 + 5.0 * i, 5.0))
             self.drones[drone_id] = Drone(drone_id, start)
-            self.sensors[drone_id] = GasSensor(seed=self._seed + 200 + i)
+            self.sensors[drone_id] = GasSensor(seed=self._seed + 200 + i, **sensor_options)
         self._drone_items = list(self.drones.items())
         self._drone_pos_buf = np.zeros((len(self._drone_items), 3), dtype=np.float64)
 
@@ -122,7 +129,6 @@ class SimEngine:
                 id="leak_01",
                 pos=self.world.default_leak_pos,
                 emission_rate=0.02,
-                buoyancy_vz=0.25,
             )
         ]
 
@@ -131,6 +137,7 @@ class SimEngine:
         with self._lock:
             self.sim_time = 0.0
             self.mission_report=None
+            self._measured_wind = {}
             self._mission_wall_start=time.monotonic()
             self._latest_agent_beliefs={}
             self._obs_accum = 0.0
@@ -296,6 +303,7 @@ class SimEngine:
                             dropout_active=self.sensor_dropout_active,
                             drone_tilt_rad=drone.tilt_rad,
                         )
+                        self._measured_wind[drone_id] = wind_meas
                         drone.last_ppm = ppm_meas
                         drone.samples_taken += 1
 
@@ -367,6 +375,7 @@ class SimEngine:
                     rot_rpy=d.rot_rpy_tuple,
                     target_pos=d.target_pos_tuple,
                     ppm=d.last_ppm,
+                    wind_measured=self._measured_wind.get(d.id),
                     battery_pct=d.battery_pct,
                     samples_taken=d.samples_taken,
                     dist_to_nearest_leak=self._dist_to_nearest_leak(d.pos_tuple),

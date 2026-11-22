@@ -65,7 +65,7 @@
     <div id="scoreboard" class="hud-panel">
       <div class="panel-header-row">
         <span class="panel-title">Live Drone Telemetry</span>
-        <span id="tabpfn-metric" class="metric-pill">TabPFN Est: —</span>
+        <span id="tabpfn-metric" class="metric-pill">Source Est: —</span>
       </div>
       <table>
         <thead>
@@ -80,9 +80,10 @@
         </thead>
         <tbody id="scoreboard-body"></tbody>
       </table>
+      <div id="onboard-sensors" class="callout-strip">Onboard sensors awaiting samples</div>
       <div id="tabpfn-callout" class="callout-strip">
         <span class="callout-dot"></span>
-        <span id="tabpfn-callout-text">TabPFN active spatial search — quantile UCB over 3D facility priors</span>
+        <span id="tabpfn-callout-text">Gas and wind measurements guide the search</span>
       </div>
     </div>
 
@@ -116,7 +117,7 @@
 
       <div class="button-grid">
         <button id="btn-reveal-plume" class="btn">Reveal True Plume</button>
-        <button id="btn-toggle-belief" class="btn btn-active">TabPFN Belief Field</button>
+        <button id="btn-toggle-belief" class="btn btn-active">Source Estimate Field</button>
         <button id="btn-toggle-wind" class="btn btn-active" aria-pressed="true">Wind Flow</button>
         <button id="btn-dropout" class="btn">NaN Sensor Faults</button>
         <button id="btn-place-leak" class="btn">Place Leak</button>
@@ -181,7 +182,7 @@
             <div class="shortcut-row"><kbd>Q</kbd> / <kbd>E</kbd><span>Move camera down / up</span></div>
             <div class="shortcut-row"><kbd>Shift</kbd> / <kbd>Alt</kbd><span>Hold for fast (2.4×) or slow (0.35×) fly</span></div>
             <div class="shortcut-row"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd><span>Overview / Top-Down / Low Pipe Rack</span></div>
-            <div class="shortcut-row"><kbd>Tab</kbd><span>Cycle Follow Drone (TabPFN → Gradient → Lawnmower)</span></div>
+            <div class="shortcut-row"><kbd>Tab</kbd><span>Cycle Follow Drone</span></div>
             <div class="shortcut-row"><kbd>O</kbd><span>Toggle cinematic Auto-Orbit turntable</span></div>
             <div class="shortcut-row"><kbd>0</kbd> / <kbd>Home</kbd><span>Reset camera to Overview</span></div>
           </div>
@@ -191,7 +192,7 @@
             <div class="shortcut-row"><kbd>F</kbd><span>Capture instant PNG screenshot</span></div>
             <div class="shortcut-row"><kbd>Space</kbd><span>Pause / Resume simulation</span></div>
             <div class="shortcut-row"><kbd>V</kbd><span>Toggle True Gas Plume visibility</span></div>
-            <div class="shortcut-row"><kbd>B</kbd><span>Toggle TabPFN Belief Field</span></div>
+            <div class="shortcut-row"><kbd>B</kbd><span>Toggle Source Estimate Field</span></div>
             <div class="shortcut-row"><kbd>P</kbd><span>Toggle Presentation Mode (hide controls)</span></div>
             <div class="shortcut-row"><kbd>H</kbd><span>Hide / Restore entire HUD</span></div>
             <div class="shortcut-row"><kbd>?</kbd> / <kbd>Esc</kbd><span>Toggle this help / cancel selection</span></div>
@@ -214,11 +215,11 @@
         </svg>
         <div class="legend-items">
           <div class="legend-row">
-            <span><span class="swatch" style="background:#22d3ee"></span>TabPFN</span>
+            <span><span class="swatch" style="background:#22d3ee"></span>Search drone</span>
           </div>
           <div class="colorbar-block">
             <div class="colorbar-labels">
-              <span>TabPFN Belief (q50)</span>
+              <span>Source estimate field</span>
               <span>Low → High</span>
             </div>
             <div class="colorbar-grad"></div>

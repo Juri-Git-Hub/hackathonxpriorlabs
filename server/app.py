@@ -3,7 +3,7 @@
 Run locally in mock mode (no TabPFN weights required):
     python -m server.app --mock-agents
 
-Run with real TabPFN agent:
+Run with the wind-sensor agent:
     python -m server.app
 """
 
@@ -14,6 +14,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 import os
+import random
 import time
 from typing import Any
 
@@ -31,24 +32,77 @@ from sim.engine import SimEngine
 
 logger = logging.getLogger("gas_leak_server")
 
+# With the fixed MVP wind and sensor, each layout confirms within 75 seconds.
+MVP_LAYOUT_SEEDS = (42, 110, 114)
 
-def build_agents(mock_agents: bool = True,adaptive_wind: bool = DEFAULT_ADAPTIVE_WIND) -> dict[str, BaseAgent]:
-    """Instantiate only the TabPFN drone for the live demo."""
+
+def _mvp_layout_seed(current: int | None = None) -> int:
+    return random.choice([seed for seed in MVP_LAYOUT_SEEDS if seed != current])
+
+
+def build_agents(
+    mock_agents: bool = False,
+    adaptive_wind: bool = DEFAULT_ADAPTIVE_WIND,
+    *,
+    tabpfn: bool = False,
+    source_pre_data: Path | None = None,
+    source_post_data: Path | None = None,
+) -> dict[str, BaseAgent]:
+    """Instantiate the single mission drone."""
     if mock_agents:
         primary: BaseAgent = MockTabPFNAgent(drone_id="tabpfn")
+    elif tabpfn:
+        from agents.reliable_tabpfn import ReliableTabPFNAgent
+
+        primary = ReliableTabPFNAgent(
+            drone_id="tabpfn",
+            adaptive_wind=adaptive_wind,
+            source_pre_data_path=source_pre_data,
+            source_post_data_path=source_post_data,
+        )
     else:
-        from agents.plumesense_agent import PlumeSenseAgent
-        primary = PlumeSenseAgent(drone_id="tabpfn",adaptive_wind=adaptive_wind)
+        from agents.wind_plume import WindPlumeAgent
 
-    return {
-        "tabpfn": primary,
-    }
+        primary = WindPlumeAgent()
+    return {"tabpfn": primary}
 
 
-def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DEFAULT_ADAPTIVE_WIND,layout_seed: int | None = None) -> FastAPI:
+def create_app(
+    mock_agents: bool = False,
+    seed: int = 42,
+    adaptive_wind: bool = DEFAULT_ADAPTIVE_WIND,
+    layout_seed: int | None = None,
+    *,
+    tabpfn: bool = False,
+    mvp: bool = False,
+    randomized_layout: bool = False,
+    source_pre_data: Path | None = None,
+    source_post_data: Path | None = None,
+) -> FastAPI:
     """Create and configure the FastAPI application."""
-    agents = build_agents(mock_agents=mock_agents,adaptive_wind=adaptive_wind)
-    engine = SimEngine(agents=agents, seed=seed,layout_seed=layout_seed)
+    if randomized_layout and not mvp:
+        raise ValueError("The randomized preset requires MVP mode.")
+    if mvp:
+        if mock_agents or tabpfn:
+            raise ValueError("The MVP preset uses the wind-sensor agent.")
+        seed = 42
+        layout_seed = _mvp_layout_seed() if randomized_layout else None
+        from agents.wind_plume import WindPlumeAgent
+
+        # Process every observation in order for the repeatable demo.
+        agents = {"tabpfn": WindPlumeAgent(synchronous=True)}
+    else:
+        agents = build_agents(
+            mock_agents=mock_agents,
+            adaptive_wind=adaptive_wind,
+            tabpfn=tabpfn,
+            source_pre_data=source_pre_data,
+            source_post_data=source_post_data,
+        )
+    engine = SimEngine(
+        agents=agents, seed=seed, layout_seed=layout_seed,
+        responsive_sensor=not (mock_agents or tabpfn),
+    )
     clients: set[WebSocket] = set()
     latest_beliefs = {}
     stream_lock = asyncio.Lock()
@@ -90,9 +144,11 @@ def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DE
             t0 = time.perf_counter()
             async with stream_lock:
                 has_clients = bool(clients)
-                tick = engine.step(dt, include_puffs=has_clients)
+                if has_clients or not mvp:
+                    tick = engine.step(dt, include_puffs=has_clients)
+                    if has_clients:
+                        await broadcast_json(tick.model_dump_json())
                 if has_clients:
-                    await broadcast_json(tick.model_dump_json())
                     for belief in engine.pop_belief_updates():
                         latest_beliefs[belief.drone_id]=belief
                         await broadcast_json(belief.model_dump_json())
@@ -138,7 +194,7 @@ def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DE
     def backend_status():
         agent=agents['tabpfn'];error=getattr(agent,'error',None)
         models=getattr(agent,'models',None)
-        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api',state='mock' if mock_agents else 'error' if error else 'ready' if getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused,active_leaks=len(engine.leaks),battery_pct=engine.drones['tabpfn'].battery_pct,mission_report=engine.mission_report,mission_state='found' if engine.mission_report is not None else 'no_leak' if not engine.leaks else 'depleted' if engine.drones['tabpfn'].status=='depleted' else 'paused' if engine.paused else 'searching',search_phase=getattr(agent,'search_phase','search'),completed_probes=getattr(agent,'completed_probes',0),source_features=len(models[0].columns) if models else 0,hazard_features=len(models[1].columns) if models else 0,navigation_basis=getattr(agent,'decision_basis','unspecified'),prediction_decisions=getattr(agent,'prediction_decisions',0),source_prediction_calls=getattr(agent,'source_prediction_calls',0),hazard_prediction_calls=getattr(agent,'hazard_prediction_calls',0),adaptive_wind=getattr(agent,'adaptive_wind',False),wind_replans=getattr(agent,'wind_replans',0),plan_state=getattr(agent,'plan_state','mock' if mock_agents else 'preparing'),plan_revision=getattr(agent,'plan_revision',0),search_candidate_count=getattr(agent,'search_candidate_count',0),planned_route=getattr(agent,'planned_route',[]))
+        return BackendStatusPayload(sim_time=engine.sim_time,mode='mock' if mock_agents else 'tabpfn-api' if tabpfn else 'wind-sensor',state='mock' if mock_agents else 'error' if error else 'ready' if not tabpfn or getattr(agent,'source_scores',None) is not None else 'pending',error=error,inference_seconds=getattr(agent,'latency',0),measurement_count=len(getattr(agent,'history',[])),exposure_ppm_seconds=getattr(agent,'exposure',0),paused=engine.paused,active_leaks=len(engine.leaks),battery_pct=engine.drones['tabpfn'].battery_pct,mission_report=engine.mission_report,mission_state='found' if engine.mission_report is not None else 'no_leak' if not engine.leaks else 'depleted' if engine.drones['tabpfn'].status=='depleted' else 'paused' if engine.paused else 'searching',search_phase=getattr(agent,'search_phase','search'),completed_probes=getattr(agent,'completed_probes',0),source_features=len(models[0].columns) if models else 0,hazard_features=len(models[1].columns) if models else 0,navigation_basis=getattr(agent,'decision_basis','unspecified'),prediction_decisions=getattr(agent,'prediction_decisions',0),source_prediction_calls=getattr(agent,'source_prediction_calls',0),hazard_prediction_calls=getattr(agent,'hazard_prediction_calls',0),adaptive_wind=getattr(agent,'adaptive_wind',False),wind_replans=getattr(agent,'wind_replans',0),plan_state=getattr(agent,'plan_state','mock' if mock_agents else 'preparing'),plan_revision=getattr(agent,'plan_revision',0),search_candidate_count=getattr(agent,'search_candidate_count',0),planned_route=getattr(agent,'planned_route',[]))
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -174,6 +230,10 @@ def create_app(mock_agents: bool = True, seed: int = 42,adaptive_wind: bool = DE
                     continue
                 async with stream_lock:
                     previous_world = engine.world
+                    if mvp and cmd.action == "randomize_layout" and cmd.seed is None and (
+                        cmd.map_id == "refinery" or (cmd.map_id is None and previous_world.map_id == "refinery")
+                    ):
+                        cmd = cmd.model_copy(update={"seed": _mvp_layout_seed(previous_world.layout_seed)})
                     try:
                         engine.apply_command(cmd)
                     except ValueError as exc:
@@ -207,18 +267,42 @@ def _parse_args() -> argparse.Namespace:
         default=os.environ.get("MOCK_AGENTS", "0") == "1",
         help="Use fast MockTabPFNAgent instead of loading TabPFN weights.",
     )
+    parser.add_argument("--randomized-layout", action="store_true", help="Start the MVP on a verified procedural refinery layout.")
+    parser.add_argument("--mvp", action="store_true", help="Run the fixed, local wind-sensor demo.")
+    parser.add_argument("--tabpfn", action="store_true", help="Use the TabPFN flight policy and GPU backend.")
+    parser.add_argument("--source-pre-data", type=Path, help="Alternate pre-contact TabPFN context.")
+    parser.add_argument("--source-post-data", type=Path, help="Alternate post-contact TabPFN context.")
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
     parser.add_argument("--seed", type=int, default=42, help="Simulation RNG seed")
     parser.add_argument("--layout-seed", type=int, default=42, help="Seed for connected procedural facility layout")
     parser.add_argument("--classic-layout", action="store_true", help="Use the original fixed facility map")
     parser.add_argument("--adaptive-wind",action=argparse.BooleanOptionalAction,default=DEFAULT_ADAPTIVE_WIND,help="Refresh acquisition targets after sustained changes in measured wind")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.randomized_layout and not args.mvp:
+        parser.error("--randomized-layout requires --mvp")
+    if args.mvp and (args.mock_agents or args.tabpfn):
+        parser.error("--mvp requires the wind-sensor agent")
+    if (args.source_pre_data or args.source_post_data) and (
+        args.mock_agents or not args.tabpfn
+    ):
+        parser.error("Alternate TabPFN options require --tabpfn without --mock-agents")
+    return args
 
 
 if __name__ == "__main__":
     import uvicorn
 
     args = _parse_args()
-    app = create_app(mock_agents=args.mock_agents, seed=args.seed,adaptive_wind=args.adaptive_wind,layout_seed=None if args.classic_layout else args.layout_seed)
+    app = create_app(
+        mock_agents=args.mock_agents,
+        seed=args.seed,
+        adaptive_wind=args.adaptive_wind,
+        layout_seed=None if args.classic_layout else args.layout_seed,
+        tabpfn=args.tabpfn,
+        mvp=args.mvp,
+        randomized_layout=args.randomized_layout,
+        source_pre_data=args.source_pre_data,
+        source_post_data=args.source_post_data,
+    )
     uvicorn.run(app, host=args.host, port=args.port)

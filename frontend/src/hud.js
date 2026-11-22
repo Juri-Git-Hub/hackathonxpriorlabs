@@ -421,7 +421,7 @@ export class HudController {
 
   _refreshTabpfnSummary() {
     if (!this._latestBelief || this._latestLeaks.length === 0) {
-      this.elTabpfnMetric.textContent = "TabPFN Est: —";
+      this.elTabpfnMetric.textContent = "Source Est: —";
       return;
     }
     const [ex, ey, ez] = this._latestBelief.estimated_source;
@@ -430,7 +430,7 @@ export class HudController {
       const d = Math.hypot(ex - lk.pos[0], ey - lk.pos[1], ez - lk.pos[2]);
       if (d < bestErr) bestErr = d;
     }
-    this.elTabpfnMetric.textContent = `TabPFN Est Err: ${bestErr.toFixed(1)}m`;
+    this.elTabpfnMetric.textContent = `Source Est Err: ${bestErr.toFixed(1)}m`;
   }
 
   _renderInspector(rebuildActions = false) {
@@ -548,7 +548,7 @@ export class HudController {
     this.modelMode=status.mode;
     this.updateReport(status.mission_report);
     const mission=document.getElementById("mission-status");
-    const phases={tabpfn_source_prediction:"TabPFN bestimmt das 3D-Messziel",waiting_for_tabpfn:"Messung bereit · warte auf TabPFN",sensor_settling:"Gaskontakt · Sensor beruhigt sich",wind_adapted_acquisition:"Wind geändert · Suchziel angepasst"};
+    const phases={downwind_transect:"Querwind-Suche hinter den Anlagen",upwind:"Gaskontakt · gegen den Wind",revisit:"Gaskontakt · starken Treffer erneut messen",downwind_confirmation:"Gaskontakt · erreichbaren Abwindpunkt prüfen",probe:"Gaskontakt · Querwind- oder Höhenmessung",center:"Gaskontakt · Messung am letzten Treffer",tabpfn_source_prediction:"TabPFN bestimmt das 3D-Messziel",waiting_for_tabpfn:"Messung bereit · warte auf TabPFN",sensor_settling:"Gaskontakt · Sensor beruhigt sich",wind_adapted_acquisition:"Wind geändert · Suchziel angepasst"};
     const states={found:"Leck gefunden — Suche beendet",no_leak:"No active leak — restart mission or place a leak",depleted:"Battery empty — restart mission",paused:"Paused",searching:phases[status.navigation_basis] || (status.search_phase==="track" ? "Gaskontakt · lokale 3D-Quellensuche" : "Suche nach Gaskontakt")};
     if (mission) {
       mission.textContent=states[status.mission_state] || (status.mode==="mock" ? "Mock mission" : "Searching");
@@ -557,12 +557,14 @@ export class HudController {
     const features=status.source_features ? ` · ${status.source_features} source / ${status.hazard_features} risk inputs` : "";
     const modelEl = document.getElementById("model-status");
     if (modelEl) modelEl.textContent = `${status.mode} · ${status.state}${features}${status.error ? ": " + status.error : ""}`;
-    const plans={preparing:"Map plan: preparing before flight",coverage_fallback:"Map coverage route · TabPFN map dataset pending",tabpfn_map:"Map route scored by TabPFN",injected_test_model:"Map route · test model",mock:"Mock stream · no map-search model",error:"Map planning failed · holding position"};
+    const plans={wind_plume:"Windrelative Messroute",preparing:"Map plan: preparing before flight",coverage_fallback:"Map coverage route · TabPFN map dataset pending",tabpfn_map:"Map route scored by TabPFN",injected_test_model:"Map route · test model",mock:"Mock stream · no map-search model",error:"Map planning failed · holding position"};
     const planEl = document.getElementById("map-plan-status");
     if (planEl) planEl.textContent=`${plans[status.plan_state] || "Map plan: unavailable"}${status.search_candidate_count ? ` · ${status.search_candidate_count} cells · revision ${status.plan_revision || 0}` : ""}`;
     const wind=status.adaptive_wind ? ` · ${status.wind_replans || 0} Windanpassungen` : "";
     const metricsEl = document.getElementById("model-metrics");
-    if (metricsEl) metricsEl.textContent = `${(status.inference_seconds || 0).toFixed(2)} s inference · ${status.measurement_count || 0} measurements · ${status.completed_probes || 0} Messstopps · ${status.prediction_decisions || 0} TabPFN-Ziele${wind} · ${(status.exposure_ppm_seconds || 0).toFixed(1)} ppm·s exposure`;
+    if (metricsEl) metricsEl.textContent = status.mode === "wind-sensor"
+      ? `${status.measurement_count || 0} Messungen · ${status.completed_probes || 0} Messstopps`
+      : `${(status.inference_seconds || 0).toFixed(2)} s inference · ${status.measurement_count || 0} measurements · ${status.completed_probes || 0} Messstopps · ${status.prediction_decisions || 0} TabPFN-Ziele${wind} · ${(status.exposure_ppm_seconds || 0).toFixed(1)} ppm·s exposure`;
   }
 
   updateBelief(belief) {
@@ -673,12 +675,26 @@ export class HudController {
       if (tick.sensor_dropout_active) {
         this.elTabpfnCallout.classList.add("warn");
         this.elTabpfnCalloutText.textContent =
-          "30% NaN Faults Active — TabPFN handles missing wind/temp natively";
+          "Sensor dropouts active";
       } else {
         this.elTabpfnCallout.classList.remove("warn");
         this.elTabpfnCalloutText.textContent =
-          "TabPFN active spatial search — quantile UCB over 3D facility priors";
+          "Gas and wind measurements guide the search";
       }
+    }
+
+    const sensor = tick.drones.find((drone) => drone.id === "tabpfn");
+    const sensorReadout = document.getElementById("onboard-sensors");
+    if (sensor && sensorReadout) {
+      const gas = sensor.samples_taken ? `${sensor.ppm.toFixed(1)} ppm CH₄` : "waiting for sample";
+      const [vx, vy] = sensor.wind_measured || [];
+      let wind = "unavailable";
+      if (Number.isFinite(vx) && Number.isFinite(vy)) {
+        const speed = Math.hypot(vx, vy);
+        const bearing = Math.round(Math.atan2(vy, vx) * 180 / Math.PI + 360) % 360;
+        wind = speed < 0.2 ? "calm" : `${speed.toFixed(1)} m/s toward ${bearing}°`;
+      }
+      sensorReadout.textContent = `Onboard gas: ${gas} · Local wind: ${wind}`;
     }
 
     for (const d of tick.drones) {

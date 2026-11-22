@@ -5,7 +5,7 @@ Features:
 - Briggs (1973) urban/industrial Pasquill-Gifford stability classes (A-F)
 - RK2 (midpoint) streamline advection around buildings and cylindrical tanks
 - Wake-enhanced turbulent dispersion without double-counting resolved eddies
-- Briggs R^(-1/3) entrainment-diluted buoyancy plume rise
+- Briggs neutral-atmosphere buoyant plume rise for methane
 - Specular ground reflection + configurable atmospheric mixing-lid reflection
 - Vectorized building-wall occlusion so gas cannot teleport through solid walls
 - Decoupled physics puff capacity (1200) and WebGL render cap (<= 400)
@@ -96,6 +96,7 @@ class Plume:
         self.wake_var = np.zeros(self.MAX_PUFFS, dtype=np.float64)
         self.mass = np.zeros(self.MAX_PUFFS, dtype=np.float64)
         self.buoyancy_vz = np.zeros(self.MAX_PUFFS, dtype=np.float64)
+        self.buoyancy_flux = np.zeros(self.MAX_PUFFS, dtype=np.float64)
         self.active = np.zeros(self.MAX_PUFFS, dtype=bool)
 
         self._write_idx = 0
@@ -150,7 +151,12 @@ class Plume:
         self.eff_dist[idx] = 0.0
         self.wake_var[idx] = 0.0
         self.mass[idx] = leak.emission_rate * self.spawn_interval
-        self.buoyancy_vz[idx] = leak.buoyancy_vz
+        self.buoyancy_vz[idx] = float("nan") if leak.buoyancy_vz is None else leak.buoyancy_vz
+        # Briggs F = g Q (rho_air - rho_gas) / (4 pi rho_air).
+        # Assume pure methane at ambient temperature and pressure.
+        rho_ch4 = self.ambient_pressure_pa * self.molar_mass_kg / (self.R_UNIVERSAL * self.ambient_temp_k)
+        rho_air = self.ambient_pressure_pa * 0.028965 / (self.R_UNIVERSAL * self.ambient_temp_k)
+        self.buoyancy_flux[idx] = max(0.0, 9.81 * (leak.emission_rate / rho_ch4) * (rho_air - rho_ch4) / (4 * math.pi * rho_air))
         self.active[idx] = True
         self._write_idx = (self._write_idx + 1) % self.MAX_PUFFS
         self._cache_dirty = True
@@ -174,10 +180,23 @@ class Plume:
         active_eff_dist = self.eff_dist[mask]
         active_wake_var = self.wake_var[mask]
 
-        # Briggs entrainment buoyancy: rise speed decays as R_eff^(-1/3) (~ t^(-1/3))
-        sxy_cur, sz_cur = self._sigmas(active_eff_dist, active_eff_age, active_wake_var)
-        r_eff = np.cbrt(sxy_cur * sxy_cur * sz_cur)
-        vz_buoy = self.buoyancy_vz[mask] * np.cbrt(1.0 / np.maximum(r_eff, 1.0))
+        # Briggs neutral crosswind rise: h = 1.6 F^(1/3) x^(2/3) / U,
+        # capped at the empirical final rise 21.425 F^(3/4) / U.
+        # Use age and ambient speed for x, with a 1 m/s floor: this is an
+        # approximation in calm winds, not a vertical plume model.
+        amb_wx, amb_wy = self.airflow.current_wind_vec()
+        speed = max(math.hypot(amb_wx, amb_wy), 1.0)
+        flux = self.buoyancy_flux[mask]
+        def rise(t):
+            return np.minimum(1.6 * np.cbrt(flux) * np.power(speed * t, 2.0 / 3.0) / speed,
+                              21.425 * np.power(flux, 0.75) / speed)
+        vz_buoy = (rise(active_age + dt) - rise(active_age)) / dt
+        override = self.buoyancy_vz[mask]
+        explicit = np.isfinite(override)
+        if explicit.any():
+            sxy_cur, sz_cur = self._sigmas(active_eff_dist, active_eff_age, active_wake_var)
+            r_eff = np.cbrt(sxy_cur * sxy_cur * sz_cur)
+            vz_buoy[explicit] = override[explicit] * np.cbrt(1.0 / np.maximum(r_eff[explicit], 1.0))
 
         # RK2 (Midpoint) advection so puffs follow curved streamlines around tanks/buildings
         w1, turb_mult = self.airflow.sample_wind_and_turbulence(active_pos, compute_turb=True)

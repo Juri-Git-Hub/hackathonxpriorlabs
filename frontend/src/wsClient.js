@@ -160,7 +160,7 @@ export class SimWsClient {
             pos: [
               lk.pos[0] + wx * age * 0.7 + Math.sin(age + i) * 1.2,
               lk.pos[1] + wy * age * 0.7 + Math.cos(age + i) * 1.2,
-              lk.pos[2] + 0.2 * age,
+              lk.pos[2] + Math.min(1.6 * Math.cbrt(0.01) * Math.pow(Math.max(s.windSpeed, 1) * age, 2 / 3) / Math.max(s.windSpeed, 1), 21.425 * Math.pow(0.01, 0.75) / Math.max(s.windSpeed, 1)),
             ],
             radius_xy: 0.8 + 0.35 * Math.pow(age, 0.85),
             radius_z: 0.5 + 0.2 * Math.pow(age, 0.75),
@@ -255,7 +255,7 @@ export class SimWsClient {
         id: `leak_${s.leaks.length + 1}`,
         pos: cmd.leak_pos,
         emission_rate: 1.0,
-        buoyancy_vz: 0.25,
+        buoyancy_vz: null,
       });
     } else if (cmd.action === "clear_leaks") {
       s.leaks = [];
@@ -269,7 +269,7 @@ export class SimWsClient {
       s.simTime = 0;
       s.paused = false;
       if (!cmd.keep_leaks || s.leaks.length === 0) {
-        s.leaks = [{ id: "leak_01", pos: this._mockDefaultLeak, emission_rate: 1, buoyancy_vz: 0.25 }];
+        s.leaks = [{ id: "leak_01", pos: this._mockDefaultLeak, emission_rate: 1, buoyancy_vz: null }];
       }
     }
   }

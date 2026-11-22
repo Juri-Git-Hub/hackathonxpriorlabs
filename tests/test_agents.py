@@ -145,3 +145,5 @@ def test_headless_three_drone_race() -> None:
     for d in last_tick.drones:
         assert d.samples_taken >= 15
         assert d.battery_pct < 100.0
+
+
