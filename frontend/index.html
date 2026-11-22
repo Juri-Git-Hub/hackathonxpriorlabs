@@ -165,7 +165,11 @@
           <button id="btn-clear-leaks" class="btn" disabled>Clear leaks</button>
           <button id="btn-dropout" class="btn" aria-pressed="false" disabled>Sensor faults off</button>
         </div>
-        <p id="hint-text" class="settings-note" hidden>Click a pipe, valve, or ground point to place the leak.</p>
+        <label class="settings-note">
+          <input id="keep-existing-leaks" type="checkbox" disabled />
+          Keep existing leaks when placing another
+        </label>
+        <p id="hint-text" class="settings-note" hidden>Click a pipe, valve, or ground point to place a leak.</p>
       </details>
 
       <details class="settings-group">

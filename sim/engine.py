@@ -390,9 +390,13 @@ class SimEngine:
         # A high gas reading alone is not a TabPFN source localization.
         fresh=belief is not None and 0<=self.sim_time-belief.sim_time<=5
         estimate=belief.estimated_source if belief is not None else drone.pos_tuple
-        error=self._dist_to_nearest_leak(estimate)
-        close=self._dist_to_nearest_leak(drone.pos_tuple)<=self.LOCK_DISTANCE_M
-        if fresh and error<=self.LOCK_DISTANCE_M and close and ppm>15:
+        # The drone and the estimate must agree on the same leak.
+        local_error = min(
+            (math.dist(estimate, leak.pos) for leak in self.leaks
+             if math.dist(drone.pos_tuple, leak.pos) <= self.LOCK_DISTANCE_M),
+            default=math.inf,
+        ) if fresh else math.inf
+        if local_error <= self.LOCK_DISTANCE_M and ppm > 15:
             self._lock_timers[drone_id]+=self.OBS_INTERVAL
             drone.status='tracking'
             if self._lock_timers[drone_id]+1e-9>=self.LOCK_SUSTAIN_S:
@@ -405,14 +409,14 @@ class SimEngine:
                         estimated_source=estimate,
                         model_score=belief.source_model_score,
                         regional_score_mass=belief.regional_score_mass,
-                        estimated_error_m=error,
+                        estimated_error_m=local_error,
                         measurement_count=drone.samples_taken,
                         ppm_at_detection=ppm,
                         estimate_age_seconds=self.sim_time - belief.sim_time,
                     )
                     drone.set_target(drone.pos_tuple)
                     self.paused=True
-        elif fresh and error<=self.LOCK_DISTANCE_M and close:
+        elif local_error <= self.LOCK_DISTANCE_M:
             # Tolerate brief turbulent puff dips while hovering on the source.
             self._lock_timers[drone_id]=max(0.0,self._lock_timers[drone_id]-self.OBS_INTERVAL)
             drone.status='tracking' if ppm>5 else 'searching'

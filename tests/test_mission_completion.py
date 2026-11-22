@@ -1,7 +1,7 @@
 import numpy as np
 from agents.mock_agent import MockTabPFNAgent
 from sim.engine import SimEngine
-from shared.schemas import BeliefUpdatePayload,JudgeCommand
+from shared.schemas import BeliefUpdatePayload,JudgeCommand,LeakSource
 
 
 def fixture():
@@ -45,3 +45,24 @@ def test_wrong_model_location_does_not_complete_at_true_source():
     e._latest_agent_beliefs['tabpfn']=b.model_copy(update={'estimated_source':(-50,50,28)})
     for _ in range(8):e._check_completion('tabpfn',100)
     assert e.mission_report is None
+
+
+
+def test_estimate_and_drone_must_match_the_same_leak():
+    engine, belief = fixture()
+    drone_pos = engine.leaks[0].pos
+    other_pos = (drone_pos[0], drone_pos[1], drone_pos[2] + 12)
+    engine.leaks.append(LeakSource(id="other_leak", pos=other_pos))
+    engine.sim_time = belief.sim_time
+    engine._latest_agent_beliefs["tabpfn"] = belief.model_copy(
+        update={"estimated_source": other_pos}
+    )
+    for _ in range(round(engine.LOCK_SUSTAIN_S / engine.OBS_INTERVAL)):
+        engine._check_completion("tabpfn", 30)
+    assert engine.mission_report is None
+    assert engine._lock_timers["tabpfn"] == 0
+
+    engine._latest_agent_beliefs["tabpfn"] = belief
+    for _ in range(round(engine.LOCK_SUSTAIN_S / engine.OBS_INTERVAL)):
+        engine._check_completion("tabpfn", 30)
+    assert engine.mission_report is not None

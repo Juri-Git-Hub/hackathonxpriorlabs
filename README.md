@@ -71,6 +71,8 @@ python launch_demo.py
 
 Choose the scenario in **Situation settings**, then select **Start mission**. Three drones launch from separate positions and split their search targets into west, center, and east sectors at every altitude. After gas contact, a drone can follow the plume beyond its sector. The simulator stops the mission when any drone confirms the source.
 
+For multiple leaks, enable **Keep existing leaks when placing another** in **Situation settings**, then use **Place leak** for each source. Use **Clear leaks** first to start with an empty map. The mission stops at the first confirmed leak.
+
 The **Flight map** shows all three trails and identifies which drone produced the displayed source estimate. **Models** shows the lead drone's search, source, and plume heatmaps.
 
 Run the same layout and simulation seeds in both modes, keeping the leak location and wind settings identical. Compare the confirmed detection times and record any runs that end without confirmation.
@@ -78,6 +80,13 @@ Run the same layout and simulation seeds in both modes, keeping the leak locatio
 ```bash
 python launch_demo.py --drones 3 --port 8502 --seed 99 --layout-seed 73
 python launch_demo.py --drones 1 --port 8503 --seed 99 --layout-seed 73
+```
+
+The headless fleet benchmark measures first gas contact (3.5 ppm), first confirmation, and total team samples on paired, seeded pipe-leak scenarios:
+
+```bash
+python -m scripts.benchmark_drone_fleet --mock
+python -m scripts.benchmark_drone_fleet  # configured TabPFN backend, real-time inference
 ```
 
 ### 4. Frontend Hot-Reload Development

@@ -229,10 +229,11 @@ async function bootstrap() {
       Number(simPos[1].toFixed(2)),
       Math.max(1.0, Number(simPos[2].toFixed(2))),
     ];
+    const keepExisting = document.getElementById("keep-existing-leaks").checked;
     wsClient.sendCommand({
       action: "place_leak",
       leak_pos: pos,
-      replace_existing: true,
+      replace_existing: !keepExisting,
     });
     spawnLeakPulse(pos);
     // Automatically reveal plume if hidden so the user immediately sees the new leak

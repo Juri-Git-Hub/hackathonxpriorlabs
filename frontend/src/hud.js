@@ -101,6 +101,7 @@ export class HudController {
     this.btnDropout = document.getElementById("btn-dropout");
     this.btnPlaceLeak = document.getElementById("btn-place-leak");
     this.btnClearLeaks = document.getElementById("btn-clear-leaks");
+    this.keepExistingLeaks = document.getElementById("keep-existing-leaks");
     this.btnPause = document.getElementById("btn-pause");
     this.btnStartMission = document.getElementById("btn-start-mission");
     this.elMissionSettingsLabel = document.getElementById("mission-settings-label");
@@ -689,7 +690,7 @@ export class HudController {
         : "Open the updated simulation server to use mission setup.";
     }
     this.btnPause.disabled = setup || this.completed;
-    for (const control of [this.elWindAngle, this.elWindSpeed, this.btnPlaceLeak, this.btnClearLeaks, this.btnDropout]) {
+    for (const control of [this.elWindAngle, this.elWindSpeed, this.btnPlaceLeak, this.btnClearLeaks, this.btnDropout, this.keepExistingLeaks]) {
       control.disabled = !setup;
     }
     if (!setup && this.placeLeakMode) this.setPlaceLeakMode(false);
