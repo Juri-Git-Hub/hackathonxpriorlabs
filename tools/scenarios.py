@@ -37,7 +37,7 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         wind_angle_deg=15.0,
         wind_speed=3.5,
         leaks=[
-            LeakSource(id="leak_01", pos=(-6.0, -7.2, 4.0), emission_rate=1.0, buoyancy_vz=0.25),
+            LeakSource(id="leak_01", pos=(-6.0, -7.2, 4.0), emission_rate=0.020, buoyancy_vz=0.25),
         ],
     ),
     "wake_trap": ScenarioSpec(
@@ -46,7 +46,7 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         wind_angle_deg=0.0,
         wind_speed=4.2,
         leaks=[
-            LeakSource(id="leak_wake", pos=(11.5, 24.0, 6.0), emission_rate=1.1, buoyancy_vz=0.08),
+            LeakSource(id="leak_wake", pos=(11.5, 24.0, 6.0), emission_rate=0.022, buoyancy_vz=0.08),
         ],
     ),
     "wind_shift_90": ScenarioSpec(
@@ -55,7 +55,7 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         wind_angle_deg=0.0,
         wind_speed=4.0,
         leaks=[
-            LeakSource(id="leak_01", pos=(-6.0, -7.2, 4.0), emission_rate=1.0, buoyancy_vz=0.20),
+            LeakSource(id="leak_01", pos=(-6.0, -7.2, 4.0), emission_rate=0.020, buoyancy_vz=0.20),
         ],
         events=[
             ScheduledEvent(
@@ -70,8 +70,8 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         wind_angle_deg=25.0,
         wind_speed=3.8,
         leaks=[
-            LeakSource(id="leak_01", pos=(-17.5, -2.0, 3.5), emission_rate=0.9, buoyancy_vz=0.25),
-            LeakSource(id="leak_02", pos=(20.5, -7.0, 6.0), emission_rate=1.0, buoyancy_vz=0.20),
+            LeakSource(id="leak_01", pos=(-17.5, -2.0, 3.5), emission_rate=0.018, buoyancy_vz=0.25),
+            LeakSource(id="leak_02", pos=(20.5, -7.0, 6.0), emission_rate=0.020, buoyancy_vz=0.20),
         ],
     ),
     "sensor_dropouts": ScenarioSpec(
@@ -80,7 +80,7 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         wind_angle_deg=15.0,
         wind_speed=3.5,
         leaks=[
-            LeakSource(id="leak_01", pos=(-6.0, -7.2, 4.0), emission_rate=1.0, buoyancy_vz=0.25),
+            LeakSource(id="leak_01", pos=(-6.0, -7.2, 4.0), emission_rate=0.020, buoyancy_vz=0.25),
         ],
         dropout_enabled=True,
     ),
@@ -90,7 +90,7 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         wind_angle_deg=-20.0,
         wind_speed=3.0,
         leaks=[
-            LeakSource(id="leak_heavy", pos=(4.0, -7.2, 5.0), emission_rate=1.1, buoyancy_vz=-0.22),
+            LeakSource(id="leak_heavy", pos=(4.0, -7.2, 5.0), emission_rate=0.022, buoyancy_vz=-0.22),
         ],
     ),
     "high_wind_stress": ScenarioSpec(
@@ -99,7 +99,7 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         wind_angle_deg=40.0,
         wind_speed=7.5,
         leaks=[
-            LeakSource(id="leak_01", pos=(-10.0, 5.5, 4.0), emission_rate=1.3, buoyancy_vz=0.15),
+            LeakSource(id="leak_01", pos=(-10.0, 5.5, 4.0), emission_rate=0.026, buoyancy_vz=0.15),
         ],
     ),
 }

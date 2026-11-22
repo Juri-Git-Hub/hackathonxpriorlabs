@@ -61,8 +61,8 @@ class PipeRun(BaseModel):
 class LeakSource(BaseModel):
     id: str
     pos: Vec3
-    emission_rate: float = 1.0  # kg/s equivalent scale
-    buoyancy_vz: float = 0.25   # >0 rising (methane), <0 heavy gas
+    emission_rate: float = 0.02  # kg/s (20 g/s = 72 kg/h industrial CH4 leak)
+    buoyancy_vz: float = 0.25    # m/s initial buoyant rise (>0 rising CH4, <0 heavy gas)
 
 
 class GridPointMeta(BaseModel):
