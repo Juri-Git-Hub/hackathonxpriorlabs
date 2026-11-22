@@ -56,7 +56,7 @@ export class HudController {
     this.onToggleAutoOrbit = onToggleAutoOrbit;
     this.onCycleFollowDrone = onCycleFollowDrone;
 
-    this.plumeVisible = false;
+    this.plumeVisible = true;
     this.beliefVisible = true;
     this.windVisible = true;
     this.placeLeakMode = false;

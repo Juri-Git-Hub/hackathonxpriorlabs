@@ -44,7 +44,7 @@ function createLeakBadge(labelText) {
 export class PlumeView {
   constructor(scene) {
     this.scene = scene;
-    this.visible = false;
+    this.visible = true;
 
     // 3D Volume grid dimensions (48 x 16 x 48 = 36,864 voxels -> <0.3 ms GPU upload)
     this.nx = 48;
