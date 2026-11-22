@@ -11,6 +11,21 @@
   </head>
   <body>
     <div id="canvas-container"></div>
+    <section id="flight-map" aria-label="Flight map" hidden>
+      <div class="flight-map-card">
+        <header class="flight-map-header">
+          <h2>Flight map</h2>
+          <span id="flight-map-estimate">Waiting for a leak estimate</span>
+        </header>
+        <canvas id="flight-map-canvas" role="img" aria-label="Top-down facility map with the drone position, flight trail, estimated leak, and actual leaks"></canvas>
+        <div class="flight-map-legend">
+          <span><i class="flight-key-trail" aria-hidden="true"></i>Flight trail</span>
+          <span><i class="flight-key-drone" aria-hidden="true"></i>Drone</span>
+          <span><i class="flight-key-estimate" aria-hidden="true"></i>Estimated leak</span>
+          <span><i class="flight-key-leak" aria-hidden="true"></i>Actual leak</span>
+        </div>
+      </div>
+    </section>
 
     <!-- Top-left title & live telemetry status -->
     <div id="header-bar" class="hud-panel">
@@ -18,6 +33,7 @@
         <span class="dot" id="conn-dot"></span>
         <h1>Drone Gas Leak Detection</h1>
         <span id="conn-label" class="badge">Connecting...</span>
+        <button id="btn-tabpfn-models" class="mini-btn" type="button" aria-expanded="false" aria-controls="tabpfn-models">Models</button>
         <button id="btn-present" class="mini-btn" title="Toggle Clean Presentation View (P)">Present</button>
       </div>
       <div class="header-meta">
@@ -28,24 +44,36 @@
       </div>
     </div>
 
-    <!-- Top-center World Selector Pill (5 preset worlds + Randomize button) -->
-    <nav id="world-switcher-pill" class="hud-panel" aria-label="World Selector">
-      <div id="world-buttons" class="world-pill-group" role="group" aria-label="Worlds">
-        <span class="world-pill-sep" aria-hidden="true"></span>
-        <button id="btn-new-layout" type="button" class="world-pill-btn world-pill-random" disabled title="Generate a randomized industrial world">
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M16 3h1.5v1.5M16 15.5h1.5V17"/>
-            <path d="M2.5 5.5h3.2c1.6 0 2.6.8 3.6 2.5l1.4 2.5c1 1.7 2 2.5 3.6 2.5h3.2"/>
-            <path d="M15 11l2.5 2-2.5 2"/>
-            <path d="M2.5 14.5h3.2c1.2 0 2.1-.5 2.9-1.5"/>
-            <path d="M10.8 7.6c.8-1.4 1.8-2.1 3.5-2.1h3.2"/>
-            <path d="M15 3.5l2.5 2-2.5 2"/>
-          </svg>
-          <span>Randomize</span>
-        </button>
+    <div id="model-panel-divider" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize TabPFN panel" aria-controls="tabpfn-models" title="Drag to resize. Double-click for default size." hidden></div>
+    <aside id="tabpfn-models" aria-labelledby="tabpfn-models-title" hidden>
+      <header class="model-panel-heading">
+        <div><h2 id="tabpfn-models-title">TabPFN models</h2><p id="tabpfn-models-status">Connecting to the simulation</p></div>
+        <button id="btn-close-models" type="button" class="mini-btn">Close</button>
+      </header>
+      <div id="tabpfn-model-charts">
+        <p class="model-projection-note">Smoothed top-down view · strongest value across heights</p>
+        <figure class="model-card model-search" data-model="search">
+          <div class="model-card-heading"><h3>Where to search</h3><span class="model-time"></span></div>
+          <p class="model-phase" hidden></p>
+          <div class="model-plot"><canvas width="520" height="300" role="img" aria-label="TabPFN search-prior heatmap"></canvas><span class="model-empty"></span></div>
+          <div class="model-scale"><span>Low score</span><i aria-hidden="true"></i><span>High score</span></div>
+          <figcaption>Uses the facility map, wind and clean-air readings to prioritize areas for the next search pass.</figcaption>
+        </figure>
+        <figure class="model-card model-source" data-model="source">
+          <div class="model-card-heading"><h3>Estimated source</h3><span class="model-time"></span></div>
+          <p class="model-phase" hidden></p>
+          <div class="model-plot"><canvas width="520" height="300" role="img" aria-label="TabPFN source-candidate heatmap with the estimated source position"></canvas><span class="model-empty"></span></div>
+          <div class="model-scale"><span>Low score</span><i aria-hidden="true"></i><span>High score</span></div>
+          <figcaption>Ranks candidate leak locations after gas contact. The diamond marks the model’s estimate.</figcaption>
+        </figure>
+        <figure class="model-card model-hazard" data-model="hazard">
+          <div class="model-card-heading"><h3>Plume forecast</h3><span class="model-time"></span></div>
+          <div class="model-plot"><canvas width="520" height="300" role="img" aria-label="TabPFN forecast for methane above 10 parts per million"></canvas><span class="model-empty"></span></div>
+          <div class="model-scale"><span>0%</span><i aria-hidden="true"></i><span>100%</span></div>
+          <figcaption>Shows the estimated chance of methane exceeding 10 ppm four seconds after the forecast was made.</figcaption>
+        </figure>
       </div>
-      <span id="layout-status" class="world-seed-badge" role="status"></span>
-    </nav>
+    </aside>
 
     <section id="mission-report" class="hud-panel hidden" role="status" aria-live="polite">
       <div class="panel-title">Leck gefunden · Suche beendet</div>
@@ -98,41 +126,65 @@
       <div id="inspector-actions" class="inspector-actions"></div>
     </div>
 
-    <!-- Bottom-left judge controls (collapsible in Presentation Mode) -->
-    <div id="controls" class="hud-panel">
-      <div class="panel-header-row">
-        <span class="panel-title">Judge Controls — Base Wind Setpoint</span>
-      </div>
+    <aside id="controls" class="hud-panel" aria-label="Mission and situation">
+      <section class="mission-panel" aria-label="Mission">
+        <div class="mission-panel-heading">
+          <h2>Mission</h2>
+          <span id="mission-phase" class="mission-phase" role="status">Connecting</span>
+        </div>
+        <div class="mission-actions">
+          <button id="btn-start-mission" class="btn btn-accent" disabled>Start mission</button>
+          <button id="btn-pause" class="btn" disabled hidden>Pause</button>
+          <button id="btn-reset" class="btn" title="End this run and edit the situation" disabled hidden>Back to setup</button>
+        </div>
+      </section>
 
-      <div class="control-row">
-        <label>
-          <div>Setpoint Dir (<span id="wind-angle-val">15</span>°)</div>
-          <input type="range" id="wind-angle" min="0" max="360" step="5" value="15" />
-        </label>
-        <label>
-          <div>Setpoint Speed (<span id="wind-speed-val">3.5</span> m/s)</div>
-          <input type="range" id="wind-speed" min="0.5" max="8.0" step="0.5" value="3.5" />
-        </label>
-      </div>
+      <details id="situation-settings" class="settings-group" open>
+        <summary>Situation settings <span id="mission-settings-label"></span></summary>
+        <p id="situation-lock-note" class="settings-note" hidden>Return to setup to edit these settings. This ends the current run.</p>
+        <div class="situation-layout">
+          <label for="facility-map">Facility layout</label>
+          <span id="layout-status" role="status"></span>
+          <select id="facility-map" disabled></select>
+          <button id="btn-new-layout" type="button" class="btn" disabled>Randomize</button>
+        </div>
 
-      <div class="button-grid">
-        <button id="btn-reveal-plume" class="btn">Reveal True Plume</button>
-        <button id="btn-toggle-belief" class="btn btn-active">Source Estimate Field</button>
-        <button id="btn-toggle-wind" class="btn btn-active" aria-pressed="true">Wind Flow</button>
-        <button id="btn-dropout" class="btn">NaN Sensor Faults</button>
-        <button id="btn-place-leak" class="btn">Place Leak</button>
-        <button id="btn-clear-leaks" class="btn">Clear Leaks</button>
-        <button id="btn-pause" class="btn">Pause</button>
-        <button id="btn-reset" class="btn btn-accent">Restart Mission</button>
-      </div>
+        <div class="control-row">
+          <label>
+            <span>Wind direction · <span id="wind-angle-val">15</span>°</span>
+            <input type="range" id="wind-angle" min="0" max="360" step="5" value="15" disabled />
+          </label>
+          <label>
+            <span>Wind speed · <span id="wind-speed-val">3.5</span> m/s</span>
+            <input type="range" id="wind-speed" min="0.5" max="8.0" step="0.5" value="3.5" disabled />
+          </label>
+        </div>
 
-      <div id="hint-text" class="hint">
-        WASD/QE fly (+Shift fast) · Drag orbit · R record · F snap · ? shortcuts
-      </div>
-    </div>
+        <div class="button-grid">
+          <button id="btn-place-leak" class="btn" disabled>Place leak</button>
+          <button id="btn-clear-leaks" class="btn" disabled>Clear leaks</button>
+          <button id="btn-dropout" class="btn" aria-pressed="false" disabled>Sensor faults off</button>
+        </div>
+        <p id="hint-text" class="settings-note" hidden>Click a pipe, valve, or ground point to place the leak.</p>
+      </details>
+
+      <details class="settings-group">
+        <summary>Display layers</summary>
+        <div class="button-grid">
+          <button id="btn-reveal-plume" class="btn">True plume</button>
+          <button id="btn-toggle-belief" class="btn btn-active">Source Estimate Field</button>
+          <button id="btn-toggle-wind" class="btn btn-active" aria-pressed="true">Wind flow</button>
+        </div>
+      </details>
+    </aside>
 
     <!-- Bottom-center Viewer Tools Dock (Recording, Snapshot, Camera Presets, Auto-Orbit, Shortcuts) -->
     <div id="viewer-toolbar" class="hud-panel" role="toolbar" aria-label="Viewer Tools">
+      <div class="view-switch" role="group" aria-label="Simulation view">
+        <button id="btn-view-3d" class="tool-btn" aria-pressed="true" aria-controls="canvas-container">3D</button>
+        <button id="btn-view-map" class="tool-btn" aria-pressed="false" aria-controls="flight-map">Flight map</button>
+      </div>
+      <span class="toolbar-sep" aria-hidden="true"></span>
       <button id="btn-record" class="tool-btn" title="Start / Stop 3D Video Recording (R)">
         <span class="rec-dot" id="rec-dot"></span>
         <span id="btn-record-label">Rec</span>

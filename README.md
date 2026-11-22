@@ -69,6 +69,8 @@ python launch_demo.py
 
 `launch_demo.py` installs frontend dependencies if needed, builds `frontend/dist`, verifies your TabPFN backend, and serves the Three.js UI, `/ws`, and `/health` on **http://localhost:8501**.
 
+Choose the scenario in **Situation settings**, then select **Start mission**. Use **Flight map** to compare the trail, estimated source and actual leak, or open **Models** for the search, source and plume heatmaps.
+
 Optional flags:
 
 ```bash

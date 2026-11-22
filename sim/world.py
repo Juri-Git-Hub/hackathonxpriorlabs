@@ -9,6 +9,7 @@ from typing import Literal
 
 import numpy as np
 
+from shared.flight_geometry import flight_bounds
 from shared.schemas import (
     BuildingBox,
     FacilityAsset,
@@ -263,6 +264,8 @@ class World:
         else:
             self.default_leak_pos = next(asset.pos for asset in self.assets if asset.id == "flange_01")
         self.pipes = self.pipe_runs
+        flight_lo, flight_hi = flight_bounds(self.buildings, self.pipes)
+        self.flight_bounds = tuple(zip(map(tuple, flight_lo.tolist()), map(tuple, flight_hi.tolist())))
 
         # Precompute flattened pipe segments for fast vectorized distance & drag queries
         seg_a: list[Vec3] = []

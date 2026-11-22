@@ -9,10 +9,11 @@ import threading
 import numpy as np
 
 from agents.base import AsyncInferenceAgent
+from shared.flight_geometry import FLIGHT_CLEARANCE, flight_bounds
 
 
 class Planner3D:
-    CLEARANCE = 2.0
+    CLEARANCE = FLIGHT_CLEARANCE
 
     def __init__(self, world):
         self.world = world
@@ -20,16 +21,7 @@ class Planner3D:
         self.bounds_hi = np.array(
             [world.bounds_max[0] - 2, world.bounds_max[1] - 2, min(28.0, world.bounds_max[2] - 1.5)]
         )
-        self.lo = (
-            np.array([b.min_xyz for b in world.buildings], dtype=float).reshape(-1, 3)
-            - self.CLEARANCE
-            + 1e-6
-        )
-        self.hi = (
-            np.array([b.max_xyz for b in world.buildings], dtype=float).reshape(-1, 3)
-            + self.CLEARANCE
-            - 1e-6
-        )
+        self.lo, self.hi = flight_bounds(world.buildings, world.pipe_runs or world.pipes, self.CLEARANCE)
         self.axes = [
             np.linspace(-52, 52, 12),
             np.linspace(-52, 52, 12),
@@ -47,6 +39,9 @@ class Planner3D:
         self.offsets.remove((0, 0, 0))
 
     def free(self, p):
+        p = np.asarray(p, dtype=float)
+        if not np.isfinite(p).all():
+            return False
         if np.any(p < self.bounds_lo) or np.any(p > self.bounds_hi):
             return False
         return not np.any(np.all((p >= self.lo) & (p <= self.hi), axis=1))
@@ -175,6 +170,7 @@ class RoutedAgent(AsyncInferenceAgent):
     def update(self, obs):
         super().update(obs)
         with self.nav_lock:
-            while len(self.path) > 1 and np.linalg.norm(np.array(self.path[0]) - obs.pos) < 2:
+            while (len(self.path) > 1 and np.linalg.norm(np.array(self.path[0]) - obs.pos) < 2
+                   and self.planner.visible(obs.pos, self.path[1])):
                 self.path.pop(0)
             return self.path[0] if self.path else obs.pos

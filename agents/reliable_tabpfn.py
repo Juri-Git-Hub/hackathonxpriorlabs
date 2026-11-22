@@ -41,6 +41,7 @@ from agents.tabpfn_remote import RemoteTabPFNRegressor
 from shared.schemas import (
     BeliefUpdatePayload,
     DroneObservation,
+    TabPFNMapPayload,
     Vec2,
     Vec3,
     WorldInitPayload,
@@ -143,6 +144,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         self.exposure: float = 0.0
         self.hazard: Optional[np.ndarray] = None
         self.source_scores: Optional[np.ndarray] = None
+        self._tabpfn_search_map: Optional[TabPFNMapPayload] = None
+        self._tabpfn_source_map: Optional[TabPFNMapPayload] = None
         self.search_phase: str = "search"
         self.completed_probes: int = 0
         self.source_prediction_calls: int = 0
@@ -343,6 +346,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
             self.exposure = 0.0
             self.hazard = None
             self.source_scores = None
+            self._tabpfn_search_map = None
+            self._tabpfn_source_map = None
             self.search_phase = "search"
             self.completed_probes = 0
             self.source_prediction_calls = 0
@@ -407,9 +412,6 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
             rec = self._obs_hist.append(obs)
             self._visited_search.append((rec.sim_time, rec.pos.copy(), rec.wind_est.copy()))
 
-            while len(self.route) > 1 and math.dist(obs.pos, self.route[0]) < 2.2:
-                self.route.pop(0)
-
             if self.source_prediction_calls == 0 and self.goal is None:
                 wx, wy = self._obs_hist.current_wind
                 spd = math.hypot(wx, wy)
@@ -421,27 +423,35 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                 else:
                     probe = safe_goal_3d(self._planner, (0.0, 0.0, 6.0))
                 path = self._planner.route(obs.pos, probe)
+                if len(path) < 2:
+                    return obs.pos
                 self.goal = np.array(probe, dtype=np.float64)
                 self.goal_at = obs.sim_time
                 self.goal_timeout = 18.0
                 self.goal_wind = np.array([wx, wy], dtype=np.float64)
-                self.route = path[1:] if len(path) >= 2 else [probe]
+                self.route = path[1:]
                 self.waypoint = probe
                 self.planned_route = [obs.pos, *self.route]
                 return self.route[0]
 
             return None
 
+    def _follow_route(self, obs: DroneObservation) -> Vec3:
+        planner = self._planner
+        while (len(self.route) > 1 and math.dist(obs.pos, self.route[0]) < 2.2
+               and planner.visible(obs.pos, self.route[1])):
+            self.route.pop(0)
+        if self.route and planner.free(np.asarray(obs.pos)) and not planner.visible(obs.pos, self.route[0]):
+            self.route.clear()
+        self.planned_route = [obs.pos, *self.route]
+        return self.route[0] if self.route else obs.pos
+
     def update(self, obs: DroneObservation) -> Vec3:
         """Non-blocking in live/async mode; deterministic optional latency in sync_mode."""
         if not self.sync_mode:
             super().update(obs)
             with self._data_lock:
-                while len(self.route) > 1 and math.dist(obs.pos, self.route[0]) < 2.2:
-                    self.route.pop(0)
-                if self.route:
-                    return self.route[0]
-                return tuple(map(float, self.goal)) if self.goal is not None else obs.pos  # type: ignore[return-value]
+                return self._follow_route(obs)
 
         self._record_observation(obs)
         with self._data_lock:
@@ -474,11 +484,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                         self._current_target = target
 
         with self._data_lock:
-            while len(self.route) > 1 and math.dist(obs.pos, self.route[0]) < 2.2:
-                self.route.pop(0)
-            if self.route:
-                return self.route[0]
-            return tuple(map(float, self.goal)) if self.goal is not None else obs.pos  # type: ignore[return-value]
+            return self._follow_route(obs)
 
     def _should_infer(self, obs: DroneObservation) -> bool:
         with self._data_lock:
@@ -707,7 +713,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
 
         fallback = safe_goal_3d(planner, (0.0, 0.0, 6.0))
         path = planner.route(obs.pos, fallback)
-        return fallback, (path[1:] if len(path) >= 2 else [fallback]), True
+        return (fallback, path[1:], True) if len(path) >= 2 else (obs.pos, [], False)
 
     def _select_phase2_target(
         self,
@@ -752,9 +758,12 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
             if dist_drone_est <= 4.2 or dist_drone_goal <= 3.0:
                 hold_pt = safe_goal_3d(planner, obs.pos)
                 if math.dist(hold_pt, obs.pos) <= 1.5:
-                    return hold_pt, [hold_pt], "tabpfn_source_prediction"
+                    path = planner.route(obs.pos, hold_pt)
+                    if path:
+                        return hold_pt, path[1:], "tabpfn_source_prediction"
             path = planner.route(obs.pos, goal_est)
-            return goal_est, (path[1:] if len(path) >= 2 else [goal_est]), "tabpfn_source_prediction"
+            if path:
+                return goal_est, path[1:], "tabpfn_source_prediction"
 
         wx, wy = float(wind_now[0]), float(wind_now[1])
         spd = math.hypot(wx, wy)
@@ -939,7 +948,9 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                 return probe, path[1:], "tabpfn_source_prediction"
 
         path = planner.route(obs.pos, goal_est)
-        return goal_est, (path[1:] if len(path) >= 2 else [goal_est]), "tabpfn_source_prediction"
+        if path:
+            return goal_est, path[1:], "tabpfn_source_prediction"
+        return obs.pos, [], "holding_for_clear_route"
 
     def _run_inference(self, obs: DroneObservation) -> tuple[Vec3, Optional[BeliefUpdatePayload]]:
         with self._data_lock:
@@ -972,6 +983,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
             remote = self._get_remote()
             n_grid = fac.grid_np.shape[0]
             mode_phase = "search"
+            search_map = source_map = None
 
             if has_contact:
                 # TabPFN Model A: Pure-physics Post-Contact 3D Source Inversion (mean expectation + quantiles)
@@ -1021,6 +1033,10 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                 if grid_idx.size > 0:
                     grid_src[grid_idx] = src_score[:grid_idx.size]
                     grid_unc[grid_idx] = src_unc[:grid_idx.size]
+                scored_cells = [None] * n_grid
+                for i in grid_idx:
+                    scored_cells[int(i)] = round(float(grid_src[i]), 4)
+                source_map = TabPFNMapPayload(sim_time=obs.sim_time, scores=scored_cells, estimate=est_src)
 
                 # Check if gas signal expired & confidence collapsed -> drop back to search
                 last_hit_t = max(
@@ -1054,6 +1070,7 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                     data_hash=self._pre_hash,
                 )
                 src_score = np.clip(sq50, 0.0, 1.0)
+                search_map = TabPFNMapPayload(sim_time=obs.sim_time, scores=np.round(src_score[:n_grid], 4).tolist())
                 src_unc = np.maximum(0.0, sq90 - sq10)
                 best_idx = int(np.argmax(src_score))
                 best_s = float(src_score[best_idx])
@@ -1095,6 +1112,12 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                 haz_called = False
 
             with self._data_lock:
+                if fac is not self._fac:
+                    return obs.pos, None
+                if search_map is not None:
+                    self._tabpfn_search_map = search_map
+                if source_map is not None:
+                    self._tabpfn_source_map = source_map
                 if mode_phase == "track":
                     self.search_phase = "track"
                     next_goal, next_route, basis = self._select_phase2_target(
@@ -1179,6 +1202,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
                     source_model_score=best_s,
                     source_evidence=has_contact,
                     regional_score_mass=regional_mass,
+                    tabpfn_search_map=self._tabpfn_search_map,
+                    tabpfn_source_map=self._tabpfn_source_map,
                 )
                 return (self.route[0] if self.route else next_goal), belief
 

@@ -67,6 +67,7 @@ class SimEngine:
         rotor_downwash_enabled: bool = True,
         responsive_sensor: bool = False,
         randomize_initial_maps: bool = False,
+        require_start: bool = False,
     ) -> None:
         self._lock = threading.RLock()
         self._seed = seed
@@ -80,6 +81,7 @@ class SimEngine:
         )
         self.rotor_downwash_enabled = bool(rotor_downwash_enabled)
         self.responsive_sensor = responsive_sensor
+        self.require_start = require_start
 
         self.world = World(layout_seed=layout_seed, map_id=map_id)
         self.airflow = Airflow(self.world, seed=seed)
@@ -144,7 +146,9 @@ class SimEngine:
             self._measured_wind = {}
             self._latest_agent_beliefs={}
             self._obs_accum = 0.0
-            self.paused = False
+            self.setup_mode = self.require_start
+            self.paused = self.setup_mode
+            self._setup_plume_dirty = False
             self._pending_beliefs.clear()
 
             self.airflow.reset(seed=self._seed)
@@ -180,6 +184,21 @@ class SimEngine:
     def apply_command(self, cmd: JudgeCommand) -> None:
         """Apply a JudgeCommand thread-safely."""
         with self._lock:
+            if cmd.action == "start_mission":
+                if self.setup_mode:
+                    if self._setup_plume_dirty:
+                        self.reset_race(list(self.leaks))
+                    self._mission_wall_start = time.monotonic()
+                    self.setup_mode = False
+                    self.paused = False
+                return
+            if self.require_start:
+                if not self.setup_mode and cmd.action in (
+                    "select_map", "randomize_layout", "set_wind", "place_leak", "clear_leaks", "toggle_dropout",
+                ):
+                    raise ValueError("Mission settings are locked. Return to setup to make changes.")
+                if self.setup_mode and cmd.action in ("pause", "step"):
+                    raise ValueError("Start the mission before advancing the simulation.")
             if cmd.action == "select_map":
                 if cmd.map_id is None:
                     raise ValueError("Choose a valid facility map.")
@@ -260,10 +279,12 @@ class SimEngine:
                 if self.paused:
                     self.paused=False
                     try:
-                        for _ in range(10):self.step()
+                        for _ in range(10):self.advance()
                     finally:self.paused=True
             elif cmd.action == "pause":
                 self.paused = not self.paused
+            if self.setup_mode and cmd.action in ("set_wind", "place_leak", "clear_leaks"):
+                self._setup_plume_dirty = True
 
     def _dist_to_nearest_leak(self, pos: Vec3) -> float:
         if not self.leaks:
@@ -276,6 +297,12 @@ class SimEngine:
 
     def step(self, dt: float | None = None, include_puffs: bool = True) -> SimTickPayload:
         """Advance simulation by one fixed physics step (default 0.05s = 20 Hz)."""
+        with self._lock:
+            self.advance(dt)
+            return self.get_tick_payload(include_puffs=include_puffs)
+
+    def advance(self, dt: float | None = None) -> None:
+        """Run physics and controllers without constructing a display snapshot."""
         step_dt = self.DT if dt is None else dt
 
         with self._lock:
@@ -351,8 +378,6 @@ class SimEngine:
                         self._check_completion(drone_id,ppm_meas)
 
 
-            return self.get_tick_payload(include_puffs=include_puffs)
-
     def _check_completion(self,drone_id,ppm):
         """Simulator judge only: never feed truth or this decision into TabPFN."""
         if self.mission_report is not None:return
@@ -408,6 +433,11 @@ class SimEngine:
                 puffs=self.plume.get_puff_states() if include_puffs else [],
                 sensor_dropout_active=self.sensor_dropout_active,
                 paused=self.paused,
+                setup_mode=self.setup_mode,
+                wind_setpoint=(
+                    math.degrees(math.atan2(self.airflow.w0[1], self.airflow.w0[0])) % 360,
+                    float(np.linalg.norm(self.airflow.w0)),
+                ),
                 mission_report=self.mission_report,
             )
 

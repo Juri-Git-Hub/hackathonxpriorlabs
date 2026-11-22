@@ -19,10 +19,37 @@ import { HudController } from "./hud.js";
 import { CameraRig } from "./cameraRig.js";
 import { CanvasRecorder } from "./recorder.js";
 import { SelectionHighlighter } from "./selectionHighlight.js";
+import { FlightMap } from "./flightMap.js";
+import { ModelPanel } from "./modelPanel.js";
+
+const renderPixelRatio = (width, height) => Math.min(
+  window.devicePixelRatio || 1,
+  1.5,
+  Math.sqrt(1_600_000 / (width * height)),
+);
 
 async function bootstrap() {
   // 1. Scene, camera, renderer
   const container = document.getElementById("canvas-container");
+  const modelPanel = new ModelPanel(document.getElementById("tabpfn-models"),
+    document.getElementById("btn-tabpfn-models"), document.getElementById("btn-close-models"),
+    document.getElementById("model-panel-divider"));
+  const mapPanel = document.getElementById("flight-map");
+  const view3d = document.getElementById("btn-view-3d");
+  const viewMap = document.getElementById("btn-view-map");
+  const flightMap = new FlightMap(
+    document.getElementById("flight-map-canvas"),
+    document.getElementById("flight-map-estimate"),
+  );
+  const showFlightMap = (show) => {
+    mapPanel.hidden = !show;
+    container.inert = show;
+    view3d.setAttribute("aria-pressed", String(!show));
+    viewMap.setAttribute("aria-pressed", String(show));
+    if (show) flightMap.draw();
+  };
+  view3d.addEventListener("click", () => showFlightMap(false));
+  viewMap.addEventListener("click", () => showFlightMap(true));
   const scene = new THREE.Scene();
 
   const camera = new THREE.PerspectiveCamera(
@@ -34,11 +61,12 @@ async function bootstrap() {
   camera.position.set(-64, 46, 68);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(renderPixelRatio(window.innerWidth, window.innerHeight));
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
 
   const envController = setupEnvironment(scene, renderer);
+  renderer.shadowMap.autoUpdate = false;
 
   // Create WebGLRenderTarget with a DepthTexture so the 3D volumetric gas cloud raymarcher
   // occludes pixel-perfectly around every tank, pipe, building, and drone!
@@ -53,6 +81,7 @@ async function bootstrap() {
 
   // Subtle cinema bloom (high threshold so only lights, windows, flare, & neon LEDs glow)
   const composer = new EffectComposer(renderer, composerTarget);
+  composer.setSize(window.innerWidth, window.innerHeight);
   // Give renderTarget2 its own DepthTexture so ping-pong passes never hit a WebGL2 depth feedback loop!
   composer.renderTarget2.depthTexture = new THREE.DepthTexture(
     rtWidth,
@@ -89,6 +118,7 @@ async function bootstrap() {
     0.90
   );
   composer.addPass(bloomPass);
+  bloomPass.setSize(rtWidth * 0.65, rtHeight * 0.65);
 
   // Whole-object hover & selection silhouette + subtle surface highlight
   const selectionHighlighter = new SelectionHighlighter(scene, camera, rtWidth, rtHeight);
@@ -214,25 +244,21 @@ async function bootstrap() {
     );
   }
 
-  const worldButtons = document.getElementById("world-buttons");
+  const mapSelect = document.getElementById("facility-map");
   const generateWorld = document.getElementById("btn-new-layout");
-  const worldSep = worldButtons.querySelector(".world-pill-sep") ?? generateWorld;
-  const mapButtons = new Map();
   for (const [id, { name }] of Object.entries(industrialMaps)) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "world-pill-btn";
-    button.textContent = name;
-    button.disabled = true;
-    button.setAttribute("aria-pressed", "false");
-    button.addEventListener("click", () => {
-      if (id !== currentMap) wsClient.sendCommand({ action: "select_map", map_id: id });
-    });
-    worldButtons.insertBefore(button, worldSep);
-    mapButtons.set(id, button);
+    mapSelect.add(new Option(name, id));
   }
+  const generatedOption = new Option("Generated layout", "generated");
+  generatedOption.hidden = true;
+  generatedOption.disabled = true;
+  mapSelect.add(generatedOption);
+  mapSelect.addEventListener("change", () => {
+    if (mapSelect.value !== currentMap) wsClient.sendCommand({ action: "select_map", map_id: mapSelect.value });
+  });
   let currentMap = null;
   let currentLayoutSeed = null;
+  let pendingPlume = null;
 
   // 4. WebSocket client & HUD
   const wsClient = new SimWsClient({
@@ -273,19 +299,16 @@ async function bootstrap() {
           mesh.material.dispose();
         }
         plumeView.update([], [], [0, 0]);
+        pendingPlume = null;
+        renderer.shadowMap.needsUpdate = true;
         currentMap = mapId;
         currentLayoutSeed = layoutSeed;
       }
-      for (const [id, button] of mapButtons) {
-        const selected = id === mapId;
-        button.disabled = false;
-        button.classList.toggle("btn-active", selected);
-        button.setAttribute("aria-pressed", String(selected));
-      }
-      generateWorld.disabled = wsClient.mockMode;
-      generateWorld.classList.toggle("btn-active", mapId === "generated");
-      generateWorld.setAttribute("aria-pressed", String(mapId === "generated"));
+      generatedOption.hidden = mapId !== "generated";
+      mapSelect.value = mapId;
       beliefView.initGrid(worldInit.grid_coords);
+      flightMap.setWorld(worldInit);
+      modelPanel.setWorld(worldInit);
       droneView.clearTrails();
       const srcEstEl = document.getElementById("source-estimate");
       if (srcEstEl) srcEstEl.textContent="Source estimate: —";
@@ -297,21 +320,31 @@ async function bootstrap() {
       plumeView.setWindField(windField);
     },
     onSimTick: (tick) => {
-      plumeView.update(tick.puffs, tick.leaks, tick.wind_vec);
+      const setup = tick.setup_mode === true;
+      mapSelect.disabled = !setup;
+      generateWorld.disabled = !setup || wsClient.mockMode;
+      flightMap.updateTick(tick);
+      pendingPlume = tick;
       windView.setAmbientWind(tick.wind_vec);
       droneView.update(tick.drones);
       hud.updateTick(tick);
     },
     onBeliefUpdate: (belief) => {
+      flightMap.updateBelief(belief);
+      modelPanel.updateBelief(belief);
       beliefView.update(belief);
       hud.updateBelief(belief);
     },
-    onBackendStatus: status => { hud.updateBackendStatus(status);if(status.planned_route)beliefView.setRoute(status.planned_route); },
+    onBackendStatus: (status) => {
+      modelPanel.updateBackend(status);
+      hud.updateBackendStatus(status);
+      if (status.planned_route) beliefView.setRoute(status.planned_route);
+    },
     onError: (error) => hud.showToast(error.detail),
     onStatus: (state, label) => {
       hud.setConnectionStatus(state, label);
       if (state !== "mock" && state !== "connected") {
-        for (const button of mapButtons.values()) button.disabled = true;
+        mapSelect.disabled = true;
         generateWorld.disabled = true;
       }
     },
@@ -326,11 +359,15 @@ async function bootstrap() {
     onToggleWind: (visible) => windView.setVisible(visible),
     onTogglePlaceLeakMode: (active) => {
       placeLeakMode = active;
+      if (active) showFlightMap(false);
       reticle.visible = false;
       if (active) selectionHighlighter.setHovered(null);
       renderer.domElement.style.cursor = active ? "crosshair" : "default";
     },
-    onResetTrails: () => droneView.clearTrails(),
+    onResetTrails: () => {
+      droneView.clearTrails();
+      flightMap.clearTrail();
+    },
     onSelectDrone: (droneId) => {
       selectDroneById(droneId, true);
     },
@@ -539,13 +576,27 @@ async function bootstrap() {
   });
 
   // 6. Resize & render loop
-  window.addEventListener("resize", () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+  let previousSize = "";
+  const resizeScene = () => {
+    if (document.body.classList.contains("model-panel-resizing")) return;
+    const width = Math.max(1, container.clientWidth);
+    const height = Math.max(1, container.clientHeight);
+    const ratio = renderPixelRatio(width, height);
+    const size = `${width}:${height}:${ratio}`;
+    if (size === previousSize) return;
+    previousSize = size;
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    composer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(ratio);
+    renderer.setSize(width, height);
+    composer.setPixelRatio(ratio);
+    composer.setSize(width, height);
+    bloomPass.setSize(width * ratio * 0.65, height * ratio * 0.65);
     cachedCanvasRect = renderer.domElement.getBoundingClientRect();
-  });
+  };
+  const sceneResize = new ResizeObserver(resizeScene);
+  sceneResize.observe(container);
+  modelPanel.panel.addEventListener("resize", resizeScene);
 
   generateWorld.addEventListener("click", () => {
     wsClient.sendCommand({ action: "randomize_layout" });
@@ -612,11 +663,23 @@ async function bootstrap() {
 
   const clock = new THREE.Clock();
   const tmpFollow = new THREE.Vector3();
+  let lastShadowAt = -Infinity;
 
   function animate() {
     requestAnimationFrame(animate);
     const dt = Math.min(clock.getDelta(), 0.05);
     const elapsed = clock.elapsedTime;
+    if (!mapPanel.hidden && !recorder.recording) return;
+
+    if (pendingPlume) {
+      const { puffs, leaks, wind_vec } = pendingPlume;
+      pendingPlume = null;
+      plumeView.update(puffs, leaks, wind_vec);
+    }
+    if (elapsed - lastShadowAt >= 0.1) {
+      lastShadowAt = elapsed;
+      renderer.shadowMap.needsUpdate = true;
+    }
 
     cameraRig.update(dt, (id, out) => droneView.getDroneWorldPos(id, out));
 

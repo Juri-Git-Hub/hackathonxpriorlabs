@@ -7,6 +7,7 @@ import itertools
 
 import numpy as np
 
+from shared.flight_geometry import FLIGHT_CLEARANCE, flight_bounds
 from shared.schemas import Vec3, WorldInitPayload
 
 # Dense 0.75m local lattice offsets for exact narrow-corridor safe goal escape
@@ -31,21 +32,15 @@ def _axis_points(low: float, high: float, spacing: float) -> np.ndarray:
 class FastPlanner3D:
     """Obstacle-aware 3D A* planner derived from WorldInitPayload bounds and buildings."""
 
-    CLEARANCE: float = 2.02
+    CLEARANCE: float = FLIGHT_CLEARANCE + 0.5
 
     def __init__(self, world_init: WorldInitPayload, spacing_xy: float = 10.0) -> None:
         self.world = world_init
         self.bounds_lo = np.asarray(world_init.bounds_min, dtype=np.float64) + np.array([2.0, 2.0, 1.5])
         self.bounds_hi = np.asarray(world_init.bounds_max, dtype=np.float64) - np.array([2.0, 2.0, 1.5])
 
-        if world_init.buildings:
-            b_min = np.array([b.min_xyz for b in world_init.buildings], dtype=np.float64)
-            b_max = np.array([b.max_xyz for b in world_init.buildings], dtype=np.float64)
-            self.lo = b_min - self.CLEARANCE + 1e-6
-            self.hi = b_max + self.CLEARANCE - 1e-6
-        else:
-            self.lo = np.zeros((0, 3), dtype=np.float64)
-            self.hi = np.zeros((0, 3), dtype=np.float64)
+        self.bounds_hi[2] = min(self.bounds_hi[2], 28.0)
+        self.lo, self.hi = flight_bounds(world_init.buildings, world_init.pipe_runs or world_init.pipes, self.CLEARANCE)
 
         # Build Z layers including rooftop clearances for elevated leaks
         z_base = _axis_points(float(self.bounds_lo[2]), float(self.bounds_hi[2]), 5.0)
@@ -187,6 +182,14 @@ class FastPlanner3D:
             entry = np.array(safe_goal_3d(self, start_arr), dtype=np.float64)
             if not self.free(entry):
                 return []
+            escape = entry - start_arr
+            escape_distance = float(np.linalg.norm(escape))
+            if 0.0 < escape_distance < 1.5:
+                # A sub-metre projection can sit inside the flight controller's
+                # position tolerance while the drone is still in the margin.
+                farther_entry = start_arr + escape * (1.5 / escape_distance)
+                if self.free(farther_entry) and self.visible(entry, farther_entry):
+                    entry = farther_entry
             prefix = [(float(start_arr[0]), float(start_arr[1]), float(start_arr[2]))]
             start_arr = entry
 

@@ -100,6 +100,11 @@ export class HudController {
     this.btnPlaceLeak = document.getElementById("btn-place-leak");
     this.btnClearLeaks = document.getElementById("btn-clear-leaks");
     this.btnPause = document.getElementById("btn-pause");
+    this.btnStartMission = document.getElementById("btn-start-mission");
+    this.elMissionSettingsLabel = document.getElementById("mission-settings-label");
+    this.elMissionPhase = document.getElementById("mission-phase");
+    this.elSituationSettings = document.getElementById("situation-settings");
+    this.elSituationLockNote = document.getElementById("situation-lock-note");
     this.btnReset = document.getElementById("btn-reset");
 
     // Viewer toolbar & overlays
@@ -146,22 +151,23 @@ export class HudController {
       if (Number.isInteger(seed) && seed>=0) this.onSendCommand({action:"reset_race",seed});
     });
 
-    // Keep wind direction and wind speed sliders independent so changing speed NEVER turns the wind
     this.elWindAngle.addEventListener("input", () => {
-      const angle = Number(this.elWindAngle.value);
-      this.elWindAngleVal.textContent = String(angle);
+      this.elWindAngleVal.textContent = this.elWindAngle.value;
+    });
+    this.elWindAngle.addEventListener("change", () => {
       this.onSendCommand({
         action: "set_wind",
-        wind_angle_deg: angle,
+        wind_angle_deg: Number(this.elWindAngle.value),
       });
     });
 
     this.elWindSpeed.addEventListener("input", () => {
-      const speed = Number(this.elWindSpeed.value);
-      this.elWindSpeedVal.textContent = speed.toFixed(1);
+      this.elWindSpeedVal.textContent = Number(this.elWindSpeed.value).toFixed(1);
+    });
+    this.elWindSpeed.addEventListener("change", () => {
       this.onSendCommand({
         action: "set_wind",
-        wind_speed: speed,
+        wind_speed: Number(this.elWindSpeed.value),
       });
     });
 
@@ -198,13 +204,16 @@ export class HudController {
       this.togglePause();
     });
 
+    this.btnStartMission.addEventListener("click", () => {
+      this.onSendCommand({ action: "start_mission" });
+    });
+
     this.btnReset.addEventListener("click", () => {
       this.paused = false;
       this.btnPause.textContent = "Pause";
       this.btnPause.classList.remove("btn-active");
       this.onResetTrails();
       this.onSendCommand({ action: "reset_race" });
-      this.showToast("Race reset");
     });
 
     this.btnInspectorClose.addEventListener("click", () => {
@@ -257,6 +266,7 @@ export class HudController {
   }
 
   togglePause() {
+    if (this.btnPause.disabled) return;
     this.paused = !this.paused;
     this.btnPause.textContent = this.paused ? "Resume" : "Pause";
     this.btnPause.classList.toggle("btn-active", this.paused);
@@ -386,11 +396,9 @@ export class HudController {
     this.placeLeakMode = Boolean(active);
     this.btnPlaceLeak.classList.toggle("btn-danger-active", this.placeLeakMode);
     this.btnPlaceLeak.textContent = this.placeLeakMode
-      ? "Click Pipe/Ground (Cancel)"
-      : "Place Leak";
-    this.elHint.textContent = this.placeLeakMode
-      ? "Click any pipe, valve, or ground point to place a leak (Esc to cancel)"
-      : "WASD/QE fly (+Shift fast) · Drag orbit · R record · F snap · ? shortcuts";
+      ? "Cancel placement"
+      : "Place leak";
+    this.elHint.hidden = !this.placeLeakMode;
     this.onTogglePlaceLeakMode(this.placeLeakMode);
   }
 
@@ -653,7 +661,41 @@ export class HudController {
       this.btnPause.textContent=this.paused ? "Resume" : "Pause";
       this.btnPause.classList.toggle("btn-active",this.paused);
     }
-    if (this.elBtnStep) this.elBtnStep.disabled = this.completed || !this.paused;
+    const setup = tick.setup_mode === true;
+    const supportsSetup = tick.setup_mode !== undefined;
+    this.btnStartMission.hidden = !setup;
+    this.btnStartMission.disabled = !setup;
+    this.btnReset.hidden = setup;
+    this.btnReset.disabled = setup;
+    this.btnReset.textContent = supportsSetup ? "Back to setup" : "Restart mission";
+    const phase = setup ? "Setup" : this.completed ? "Leak confirmed"
+      : tick.drones.length && tick.drones.every((drone) => drone.status === "depleted") ? "Battery depleted"
+      : !tick.leaks.length ? "No active leak" : tick.paused ? "Paused" : "In flight";
+    if (this.elMissionPhase.textContent !== phase) {
+      this.elMissionPhase.textContent = phase;
+      this.elMissionPhase.dataset.phase = phase;
+    }
+    this.btnPause.hidden = setup || this.completed || phase === "Battery depleted";
+    const settingsState = supportsSetup ? (setup ? "setup" : "locked") : "unavailable";
+    if (settingsState !== this._settingsState) {
+      this._settingsState = settingsState;
+      this.elSituationSettings.open = setup || !supportsSetup;
+      this.elMissionSettingsLabel.textContent = setup ? "" : supportsSetup ? "Read-only" : "Older server";
+      this.elSituationLockNote.hidden = setup;
+      this.elSituationLockNote.textContent = supportsSetup
+        ? "Return to setup to edit these settings. This ends the current run."
+        : "Open the updated simulation server to use mission setup.";
+    }
+    this.btnPause.disabled = setup || this.completed;
+    for (const control of [this.elWindAngle, this.elWindSpeed, this.btnPlaceLeak, this.btnClearLeaks, this.btnDropout]) {
+      control.disabled = !setup;
+    }
+    if (!setup && this.placeLeakMode) this.setPlaceLeakMode(false);
+    if (tick.wind_setpoint && tick.wind_setpoint.join() !== this._windSetpoint) {
+      this._windSetpoint = tick.wind_setpoint.join();
+      this.syncWindSetpoint(...tick.wind_setpoint);
+    }
+    if (this.elBtnStep) this.elBtnStep.disabled = setup || this.completed || !this.paused;
 
     this.elSimTime.textContent = `${tick.sim_time.toFixed(1)}s`;
     this.elLeakCount.textContent = String(tick.leaks.length);
@@ -672,6 +714,8 @@ export class HudController {
       this._lastDropoutState = tick.sensor_dropout_active;
       this.elDropoutBadge.classList.toggle("hidden", !tick.sensor_dropout_active);
       this.btnDropout.classList.toggle("btn-danger-active", tick.sensor_dropout_active);
+      this.btnDropout.setAttribute("aria-pressed", String(tick.sensor_dropout_active));
+      this.btnDropout.textContent = tick.sensor_dropout_active ? "Sensor faults on" : "Sensor faults off";
       if (tick.sensor_dropout_active) {
         this.elTabpfnCallout.classList.add("warn");
         this.elTabpfnCalloutText.textContent =

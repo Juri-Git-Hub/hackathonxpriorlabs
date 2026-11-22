@@ -76,10 +76,12 @@ def create_app(
         layout_seed=layout_seed,
         responsive_sensor=False,
         randomize_initial_maps=True,
+        require_start=True,
     )
     clients: set[WebSocket] = set()
     latest_beliefs = {}
     stream_lock = asyncio.Lock()
+    tick_dirty = True
 
     cached_wind_key: tuple[int, int] = (-1, -1)
     cached_wind_json = ""
@@ -112,15 +114,24 @@ def create_app(
                 clients.discard(ws)
 
     async def sim_loop() -> None:
+        nonlocal tick_dirty
         dt = engine.DT
+        tick_at = 0.0
         status_at = 0.0
         while True:
             t0 = time.perf_counter()
             async with stream_lock:
                 has_clients = bool(clients)
-                tick = engine.step(dt, include_puffs=has_clients)
+                was_paused = engine.paused
+                if not was_paused:
+                    engine.advance(dt)
+                if has_clients and (tick_dirty or (
+                    not was_paused and (engine.paused or t0 >= tick_at)
+                )):
+                    await broadcast_json(engine.get_tick_payload().model_dump_json())
+                    tick_at = t0 + engine.OBS_INTERVAL
+                    tick_dirty = False
                 if has_clients:
-                    await broadcast_json(tick.model_dump_json())
                     for belief in engine.pop_belief_updates():
                         latest_beliefs[belief.drone_id] = belief
                         await broadcast_json(belief.model_dump_json())
@@ -227,6 +238,7 @@ def create_app(
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
+        nonlocal tick_dirty
         await websocket.accept()
         try:
             async with stream_lock:
@@ -236,6 +248,7 @@ def create_app(
                     await websocket.send_text(belief.model_dump_json())
                 await websocket.send_text(get_cached_wind_field_json())
                 clients.add(websocket)
+                tick_dirty = True
 
             while True:
                 raw_text = await websocket.receive_text()
@@ -253,6 +266,7 @@ def create_app(
                     except ValueError as exc:
                         await websocket.send_json({"type": "error", "detail": str(exc)})
                         continue
+                    tick_dirty = True
                     if (
                         engine.world is not previous_world
                         or cmd.action == "reset_race"

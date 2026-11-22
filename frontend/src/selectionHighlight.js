@@ -30,7 +30,6 @@ export class SelectionHighlighter {
     // Subtle hover silhouette pass (disabled when idle so EffectComposer skips it)
     this.hoverPass = new OutlinePass(res, scene, camera);
     this.hoverPass.enabled = false;
-    this.hoverPass.downSampleRatio = 1;
     this.hoverPass.edgeStrength = 2.6;
     this.hoverPass.edgeGlow = 0.25;
     this.hoverPass.edgeThickness = 1.0;
@@ -41,7 +40,6 @@ export class SelectionHighlighter {
     // Prominent selection silhouette pass (disabled when idle so EffectComposer skips it)
     this.selectPass = new OutlinePass(res, scene, camera);
     this.selectPass.enabled = false;
-    this.selectPass.downSampleRatio = 1;
     this.selectPass.edgeStrength = 4.6;
     this.selectPass.edgeGlow = 0.6;
     this.selectPass.edgeThickness = 1.6;

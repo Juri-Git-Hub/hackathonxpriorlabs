@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 from server.app import create_app
@@ -59,6 +60,7 @@ def test_websocket_emits_world_init_sim_tick_and_belief_and_handles_commands() -
                     action="place_leak", leak_pos=(15.0, 10.0, 4.0)
                 ).model_dump_json()
             )
+            ws.send_text(JudgeCommand(action="start_mission").model_dump_json())
 
             # 3. Collect messages until we see WindFieldPayload, SimTickPayload, and BeliefUpdatePayload
             seen_ticks = 0
@@ -107,12 +109,29 @@ def test_live_status_and_manual_step_contract():
             status=BackendStatusPayload.model_validate_json(ws.receive_text())
             assert status.state=='mock'
             engine=app.state.engine
+            assert engine.get_tick_payload().setup_mode and engine.sim_time == 0
+            with pytest.raises(ValueError, match="Start the mission"):
+                engine.apply_command(JudgeCommand(action='step'))
+            engine.apply_command(JudgeCommand(action='set_wind', wind_angle_deg=90, wind_speed=4.5))
+            engine.apply_command(JudgeCommand(action='start_mission'))
+            assert engine.get_tick_payload().wind_setpoint == pytest.approx((90, 4.5))
             engine.apply_command(JudgeCommand(action='pause'))
+            for cmd in (
+                JudgeCommand(action='set_wind', wind_speed=3),
+                JudgeCommand(action='select_map', map_id='cooling_works'),
+                JudgeCommand(action='randomize_layout'),
+                JudgeCommand(action='toggle_dropout'),
+                JudgeCommand(action='clear_leaks'),
+            ):
+                with pytest.raises(ValueError, match="Mission settings are locked"):
+                    engine.apply_command(cmd)
             t=engine.sim_time
             engine.apply_command(JudgeCommand(action='step'))
             assert engine.paused and abs(engine.sim_time-t-.5)<1e-6
             engine.apply_command(JudgeCommand(action='reset_race',seed=99))
-            assert engine.sim_time==0 and engine._seed==99
+            assert engine.sim_time==0 and engine._seed==99 and engine.setup_mode
+            engine.apply_command(JudgeCommand(action='set_wind', wind_speed=3))
+            assert engine.get_tick_payload().wind_setpoint == pytest.approx((90, 3))
 
 
 def test_extended_belief_payload_preserves_legacy_fields():

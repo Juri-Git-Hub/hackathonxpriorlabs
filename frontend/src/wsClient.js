@@ -112,7 +112,8 @@ export class SimWsClient {
       windAngle: 15,
       windSpeed: 3.5,
       dropout: false,
-      paused: false,
+      paused: true,
+      setup: true,
       leaks: [],
     };
 
@@ -173,6 +174,8 @@ export class SimWsClient {
         type: "sim_tick",
         sim_time: t,
         paused: s.paused,
+        setup_mode: s.setup,
+        wind_setpoint: [s.windAngle, s.windSpeed],
         wind_vec: [wx, wy],
         leaks: s.leaks,
         sensor_dropout_active: s.dropout,
@@ -192,7 +195,7 @@ export class SimWsClient {
         ],
       });
 
-      if (tickCount % 20 === 0) {
+      if (!s.setup && tickCount % 20 === 0) {
         const grid = this._mockWorld.grid_coords;
         const q50 = grid.map(([x, y, z]) => {
           const d = Math.hypot(x - sourceX, y - sourceY, z - sourceZ);
@@ -206,6 +209,7 @@ export class SimWsClient {
           q50,
           uncertainty,
           estimated_source: [sourceX, sourceY, sourceZ],
+          source_evidence: Boolean(source),
           next_waypoint: [sourceX + 2, sourceY + 2, sourceZ + 1],
         });
       }
@@ -242,7 +246,15 @@ export class SimWsClient {
   _handleMockCommand(cmd) {
     const s = this._mockState;
     if (!s) return;
-    if (cmd.action === "select_map") {
+    const settings = ["select_map", "randomize_layout", "set_wind", "place_leak", "clear_leaks", "toggle_dropout"];
+    if (!s.setup && settings.includes(cmd.action)) {
+      this.onError?.({ detail: "Mission settings are locked. Return to setup to make changes." });
+      return;
+    }
+    if (cmd.action === "start_mission") {
+      s.setup = false;
+      s.paused = false;
+    } else if (cmd.action === "select_map") {
       this._selectMockMap(cmd.map_id);
     } else if (cmd.action === "randomize_layout") {
       this.onError?.({ detail: "Random layouts need the Python backend. Start launch_demo.py (or launch_demo.py --mock-agents)." });
@@ -250,7 +262,7 @@ export class SimWsClient {
       if (cmd.wind_angle_deg != null) s.windAngle = cmd.wind_angle_deg;
       if (cmd.wind_speed != null) s.windSpeed = cmd.wind_speed;
     } else if (cmd.action === "place_leak" && cmd.leak_pos) {
-      if (cmd.replace_existing) { s.leaks=[];s.simTime=0;s.paused=false; }
+      if (cmd.replace_existing) { s.leaks = []; }
       s.leaks.push({
         id: `leak_${s.leaks.length + 1}`,
         pos: cmd.leak_pos,
@@ -261,13 +273,14 @@ export class SimWsClient {
       s.leaks = [];
     } else if (cmd.action === "toggle_dropout") {
       s.dropout = cmd.dropout_enabled ?? !s.dropout;
-    } else if (cmd.action === "pause") {
+    } else if (cmd.action === "pause" && !s.setup) {
       s.paused = !s.paused;
-    } else if (cmd.action === "step" && s.paused) {
+    } else if (cmd.action === "step" && s.paused && !s.setup) {
       s.simTime += 0.5;
     } else if (cmd.action === "reset_race") {
       s.simTime = 0;
-      s.paused = false;
+      s.paused = true;
+      s.setup = true;
       if (!cmd.keep_leaks || s.leaks.length === 0) {
         s.leaks = [{ id: "leak_01", pos: this._mockDefaultLeak, emission_rate: 1, buoyancy_vz: null }];
       }

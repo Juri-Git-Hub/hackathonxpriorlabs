@@ -74,7 +74,8 @@ class SearchController:
         return True
 
     def waypoint(self, obs):
-        while len(self.route) > 1 and np.linalg.norm(np.array(self.route[0]) - obs.pos) < 1.2:
+        while (len(self.route) > 1 and np.linalg.norm(np.array(self.route[0]) - obs.pos) < 1.2
+               and self.planner.visible(obs.pos, self.route[1])):
             self.route.pop(0)
         return self.route[0] if self.route else obs.pos
 

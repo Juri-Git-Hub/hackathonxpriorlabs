@@ -7,12 +7,16 @@ soft-penalty contact physics, and physical power/battery model.
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
+from shared.flight_geometry import FLIGHT_CLEARANCE, motion_candidates, sweep_motion
 from shared.schemas import Vec3
 from sim.world import World
+
+if TYPE_CHECKING:
+    from agents.navigation import Planner3D
 
 DroneStatus = Literal["searching", "tracking", "locked", "depleted"]
 
@@ -56,7 +60,7 @@ class Drone:
     MAX_SPEED_Z = 3.0         # m/s
     MAX_TILT_RAD = math.radians(28.0)
     MIN_ALTITUDE = 1.5        # m
-    BUILDING_CLEARANCE = 2.0  # m
+    BUILDING_CLEARANCE = FLIGHT_CLEARANCE  # m
     SUBSTEPS = 8              # 8x sub-stepping => 160 Hz rigid-body integration at 20 Hz tick
 
     # Geometric SE(3) attitude controller gains (critically damped for J)
@@ -79,6 +83,11 @@ class Drone:
         self.vel = np.zeros(3, dtype=np.float64)
         self.rot_rpy = np.zeros(3, dtype=np.float64)
         self.target_pos = np.array(start_pos, dtype=np.float64)
+        self._route_world: World | None = None
+        self._planner: Planner3D | None = None
+        self._route: list[Vec3] = []
+        self._route_goal: Vec3 | None = None
+        self._route_origin: Vec3 | None = None
 
         # Full 6-DOF internal state
         self.quat = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)  # [w, x, y, z]
@@ -90,6 +99,7 @@ class Drone:
 
         self.battery_pct: float = 100.0
         self.samples_taken: int = 0
+        self.clearance_contacts: int = 0
         self.last_ppm: float = 0.0
         self.status: DroneStatus = "searching"
 
@@ -100,6 +110,9 @@ class Drone:
         self.vel[:] = 0.0
         self.rot_rpy[:] = 0.0
         self.target_pos = np.array(self.start_pos, dtype=np.float64)
+        self._route.clear()
+        self._route_goal = None
+        self._route_origin = None
         self.quat[:] = (1.0, 0.0, 0.0, 0.0)
         self.omega[:] = 0.0
         self.rotor_speeds[:] = self.OMEGA_HOVER
@@ -108,13 +121,60 @@ class Drone:
         self._desired_yaw = 0.0
         self.battery_pct = 100.0
         self.samples_taken = 0
+        self.clearance_contacts = 0
         self.last_ppm = 0.0
         self.status = "searching"
 
     def set_target(self, target_pos: Vec3) -> None:
+        if not np.isfinite(target_pos).all():
+            return
         self.target_pos[0] = float(np.clip(target_pos[0], -58.0, 58.0))
         self.target_pos[1] = float(np.clip(target_pos[1], -58.0, 58.0))
         self.target_pos[2] = float(np.clip(target_pos[2], self.MIN_ALTITUDE, 28.0))
+
+    def _navigation_target(self, world: World, start: Vec3) -> Vec3:
+        """Follow a cached detour when a direct command meets an obstacle."""
+        goal = self.target_pos_tuple
+        if start == goal or sweep_motion(world.flight_bounds, start, goal)[1] == -1:
+            self._route_goal = None
+            return goal
+
+        if world is not self._route_world:
+            from agents.navigation import Planner3D
+
+            self._planner = Planner3D(world.to_world_init())
+            self._route_world = world
+            self._route_goal = None
+
+        if goal == self._route_goal:
+            while (
+                len(self._route) > 1 and math.dist(start, self._route[0]) < 1.2
+                and sweep_motion(world.flight_bounds, start, self._route[1])[1] == -1
+            ):
+                self._route.pop(0)
+            if self._route and sweep_motion(world.flight_bounds, start, self._route[0])[1] == -1:
+                return self._route[0]
+            if not self._route and math.dist(start, self._route_origin) < 1.0:
+                return start
+
+        from agents.search_control import safe_goal
+
+        planner = self._planner
+        path = planner.route(start, safe_goal(planner, goal))
+        self._route = path[1:]
+        self._route_goal, self._route_origin = goal, start
+        return self._route[0] if self._route else start
+
+    @staticmethod
+    def _braking_axis(world: World, start: Vec3, velocity: Vec3) -> int:
+        speed = math.hypot(*velocity)
+        if speed < 0.75:
+            return -1
+        # Allow for attitude response, then estimate distance under braking.
+        horizon = 0.45 + speed / (2.0 * 2.0)
+        end = tuple(p + v * horizon for p, v in zip(start, velocity))
+        _, axis = sweep_motion(world.flight_bounds, start, end)
+        return axis
 
     def _repulsive_and_contact(
         self,
@@ -228,9 +288,11 @@ class Drone:
         w2 = float(self.rotor_speeds[2])
         w3 = float(self.rotor_speeds[3])
 
-        tx = float(self.target_pos[0])
-        ty = float(self.target_pos[1])
-        tz = float(self.target_pos[2])
+        tx, ty, tz = self._navigation_target(world, (px, py, pz))
+        braking_axis = self._braking_axis(world, (px, py, pz), (vx, vy, vz))
+        braking_velocity = (vx, vy, vz)[braking_axis] if braking_axis >= 0 else 0.0
+        brake_target = -math.copysign(1.0, braking_velocity)
+        clearance_contact = False
 
         ie_x = float(self._int_err[0])
         ie_y = float(self._int_err[1])
@@ -315,6 +377,10 @@ class Drone:
         last_ax = 0.0
         last_ay = 0.0
         last_az = 0.0
+
+        obstacles = motion_candidates(
+            world.flight_bounds, (px, py, pz), (max_vxy * dt, max_vxy * dt, max_vz * dt),
+        )
 
         for _ in range(self.SUBSTEPS):
             # 1) Body-to-world rotation matrix R from unit quaternion (qw, qx, qy, qz)
@@ -427,6 +493,13 @@ class Drone:
                     vdz = max_speed_z
                 elif vdz < -max_speed_z:
                     vdz = -max_speed_z
+                # Brake toward the threatened face while leaving room to steer around it.
+                if braking_axis == 0 and (vdx - brake_target) * braking_velocity > 0.0:
+                    vdx = brake_target
+                elif braking_axis == 1 and (vdy - brake_target) * braking_velocity > 0.0:
+                    vdy = brake_target
+                elif braking_axis == 2 and (vdz - brake_target) * braking_velocity > 0.0:
+                    vdz = brake_target
 
                 # Integral wind-drag rejection (clamped anti-windup)
                 ie_x += 0.35 * (vdx - vx) * sub_dt
@@ -638,9 +711,22 @@ class Drone:
             elif vz < -max_vz:
                 vz = -max_vz
 
-            px += vx * sub_dt
-            py += vy * sub_dt
-            pz += vz * sub_dt
+            end = (px + vx * sub_dt, py + vy * sub_dt, pz + vz * sub_dt)
+            if obstacles:
+                fraction, axis = sweep_motion(obstacles, (px, py, pz), end)
+                if axis >= 0:
+                    clearance_contact = True
+                    # Stop just outside the contact face and remove inward
+                    # velocity. Tangential velocity is retained for sliding.
+                    fraction = max(0.0, fraction - 1e-4 / (abs((vx, vy, vz)[axis]) * sub_dt))
+                    end = (px + vx * sub_dt * fraction, py + vy * sub_dt * fraction, pz + vz * sub_dt * fraction)
+                    if axis == 0:
+                        vx = 0.0
+                    elif axis == 1:
+                        vy = 0.0
+                    else:
+                        vz = 0.0
+            px, py, pz = end
 
             # Floor landing contact at MIN_ALTITUDE
             if pz < min_alt:
@@ -657,6 +743,7 @@ class Drone:
                 energy_j += power * sub_dt
 
         # Hard facility bounds & safety clearance backstop
+        self.clearance_contacts += int(clearance_contact)
         px = max(world.bounds_min[0] + 1.5, min(world.bounds_max[0] - 1.5, px))
         py = max(world.bounds_min[1] + 1.5, min(world.bounds_max[1] - 1.5, py))
         pz = max(self.MIN_ALTITUDE, min(world.bounds_max[2] - 1.5, pz))
@@ -684,18 +771,6 @@ class Drone:
         self._int_err[0] = ie_x
         self._int_err[1] = ie_y
         self._int_err[2] = ie_z
-
-        if world.is_inside_building(self.pos_tuple, margin=self.BUILDING_CLEARANCE):
-            pushed = world.push_outside_buildings(self.pos[None, :], margin=self.BUILDING_CLEARANCE)[0]
-            normal = pushed - self.pos
-            n_norm = float(np.linalg.norm(normal))
-            self.pos = pushed
-            if n_norm > 1e-6:
-                n_hat = normal / n_norm
-                v_into = float(np.dot(self.vel, n_hat))
-                if v_into < 0.0:
-                    # Restitution 0.2 bounce + tangential sliding
-                    self.vel -= 1.2 * v_into * n_hat
 
         # Extract true physical ZYX Euler angles (roll, pitch, yaw) from quaternion
         sinr_cosp = 2.0 * (qw * qx + qy * qz)

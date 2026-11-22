@@ -26,14 +26,17 @@ def test_completion_stops_and_freezes_report_until_reset():
     e.apply_command(JudgeCommand(action='reset_race'))
     assert e.mission_report is None and not e.paused and e._latest_agent_beliefs=={}
 
-def test_needs_fresh_model_estimate_and_continuous_positive_measurements():
+def test_needs_fresh_model_estimate_and_tolerates_brief_gas_dips():
     e,b=fixture();e.sim_time=1;e._latest_agent_beliefs.clear();e._check_completion('tabpfn',100)
     assert e.mission_report is None and e._lock_timers['tabpfn']==0
     e._latest_agent_beliefs['tabpfn']=b
     e.sim_time=8;e._check_completion('tabpfn',100)
     assert e._lock_timers['tabpfn']==0
     e.sim_time=1;e._check_completion('tabpfn',100)
-    assert np.isclose(e._lock_timers['tabpfn'],e.OBS_INTERVAL)
+    assert e._lock_timers['tabpfn'] == e.OBS_INTERVAL
+    e._check_completion('tabpfn',100)
+    e._check_completion('tabpfn',.5)
+    assert e._lock_timers['tabpfn'] == e.OBS_INTERVAL
     e._check_completion('tabpfn',.5)
     assert e._lock_timers['tabpfn']==0
 

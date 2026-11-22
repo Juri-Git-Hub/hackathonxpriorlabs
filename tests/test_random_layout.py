@@ -146,11 +146,13 @@ def test_layout_reset_rebuilds_physics_and_keeps_wind_but_clears_the_mission():
     assert engine.airflow.world is engine.world and engine.plume.world is engine.world
     assert np.allclose(engine.airflow.w0, (0, 4))
     assert len(engine.leaks) == 1
-    assert not engine.world.is_inside_building(engine.leaks[0].pos, margin=0.0)
+    leak = engine.leaks[0]
+    assert not engine.world.is_inside_building(leak.pos, margin=0.0)
     assert engine.get_world_init().pipe_runs == engine.world.pipe_runs
     old = engine.get_world_init()
     engine.apply_command(JudgeCommand(action='reset_race', keep_leaks=True))
     assert engine.get_world_init() == old
+    assert engine.leaks == [leak]
     engine.apply_command(JudgeCommand(action='randomize_layout'))
     assert engine.world.layout_seed == 72
 

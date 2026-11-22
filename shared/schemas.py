@@ -158,7 +158,15 @@ class SimTickPayload(BaseModel):
     puffs: list[PuffState]  # Capped at <= 400 active puffs for 60 FPS rendering
     sensor_dropout_active: bool
     paused: bool = False
+    setup_mode: bool = False
+    wind_setpoint: Optional[tuple[float, float]] = None  # direction in degrees, speed in m/s
     mission_report: Optional[MissionReport] = None
+
+
+class TabPFNMapPayload(BaseModel):
+    sim_time: float
+    scores: list[Optional[float]]  # World grid order. None means the model did not score the cell.
+    estimate: Optional[Vec3] = None
 
 
 class BeliefUpdatePayload(BaseModel):
@@ -185,6 +193,8 @@ class BeliefUpdatePayload(BaseModel):
     source_model_score: Optional[float] = None
     source_evidence: Optional[bool] = None
     regional_score_mass: Optional[float] = None
+    tabpfn_search_map: Optional[TabPFNMapPayload] = None
+    tabpfn_source_map: Optional[TabPFNMapPayload] = None
 
 
 class BackendStatusPayload(BaseModel):
@@ -225,6 +235,7 @@ class JudgeCommand(BaseModel):
         "clear_leaks",
         "toggle_dropout",
         "reset_race",
+        "start_mission",
         "select_map",
         "randomize_layout",
         "pause",
