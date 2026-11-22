@@ -1,4 +1,4 @@
-"""Build the Three.js frontend and launch the TabPFN simulation server."""
+"""Build the Three.js frontend and launch the SeeCH4 Triple-TabPFN simulation server."""
 
 import argparse
 import subprocess
@@ -12,7 +12,7 @@ DEFAULT_ADAPTIVE_WIND = False
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build the Three.js frontend and start the TabPFN gas-leak simulator."
+        description="Build the Three.js frontend and start the SeeCH4 Triple-TabPFN gas-leak simulator."
     )
     parser.add_argument("--port", type=int, default=8501, help="HTTP/WebSocket port (default: 8501)")
     parser.add_argument("--seed", type=int, default=42, help="Simulation RNG seed")

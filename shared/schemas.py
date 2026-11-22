@@ -238,6 +238,7 @@ class JudgeCommand(BaseModel):
         "start_mission",
         "select_map",
         "randomize_layout",
+        "set_comparison_drones",
         "pause",
         "step",
     ]
@@ -249,3 +250,4 @@ class JudgeCommand(BaseModel):
     keep_leaks: bool = False
     dropout_enabled: Optional[bool] = None
     seed: Optional[int] = Field(default=None, ge=0)
+    comparison_drones: Optional[list[Literal["wind_plume", "gradient", "lawnmower"]]] = None

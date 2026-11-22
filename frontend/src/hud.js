@@ -1,8 +1,16 @@
 const DRONE_HEX = {
   tabpfn: "#22d3ee",
+  wind_plume: "#a78bfa",
   gradient: "#fb923c",
   lawnmower: "#e2e8f0",
   manual: "#a3e635",
+};
+
+const DRONE_DISPLAY_NAMES = {
+  tabpfn: "SeeCH4 (Triple-TabPFN)",
+  wind_plume: "Wind-Plume (Baseline)",
+  gradient: "Gradient (Baseline)",
+  lawnmower: "Lawnmower (Baseline)",
 };
 
 /**
@@ -133,6 +141,8 @@ export class HudController {
       this.elWindAngle,
       this.elWindSpeed,
     ];
+    this.btnCompareDrones = Array.from(document.querySelectorAll("[data-compare-drone]"));
+    this._activeComparisonDrones = new Set();
     this._scoreRows = new Map();
     this._lastReportRef = undefined;
     this._lastDropoutState = null;
@@ -141,6 +151,21 @@ export class HudController {
   }
 
   _bindEvents() {
+    for (const btn of this.btnCompareDrones) {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.compareDrone;
+        if (!id) return;
+        const next = new Set(this._activeComparisonDrones);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        this._activeComparisonDrones = next;
+        this._syncCompareButtons();
+        this.onSendCommand({
+          action: "set_comparison_drones",
+          comparison_drones: Array.from(next),
+        });
+      });
+    }
     document.getElementById("btn-new-mission")?.addEventListener("click",()=>{this.onResetTrails();this.onSendCommand({action:"reset_race"});});
     document.getElementById("prediction-layer")?.addEventListener("change", e => this.onLayer(e.target.value));
     document.getElementById("show-route")?.addEventListener("change", e => this.onRoute(e.target.checked));
@@ -441,6 +466,14 @@ export class HudController {
     this.elTabpfnMetric.textContent = `Source Est Err: ${bestErr.toFixed(1)}m`;
   }
 
+  _syncCompareButtons() {
+    for (const btn of this.btnCompareDrones ?? []) {
+      const active = this._activeComparisonDrones.has(btn.dataset.compareDrone);
+      btn.classList.toggle("btn-active", active);
+      btn.setAttribute("aria-pressed", String(active));
+    }
+  }
+
   _renderInspector(rebuildActions = false) {
     const m = this._selectedMeta;
     if (!m) return;
@@ -452,8 +485,8 @@ export class HudController {
 
     if (m.kind === "drone") {
       const d = this._latestDrones.get(m.id);
-      this.elInspectorType.textContent = "DRONE";
-      this.elInspectorTitle.textContent = m.id.toUpperCase();
+      this.elInspectorType.textContent = m.id === "tabpfn" ? "SEECH4 FLAGSHIP" : "BASELINE DRONE";
+      this.elInspectorTitle.textContent = DRONE_DISPLAY_NAMES[m.id] ?? m.id.toUpperCase();
       if (d) {
         rows.push(["Status", d.status.toUpperCase()]);
         rows.push(["Gas Reading", `${d.ppm.toFixed(1)} ppm`]);
@@ -614,11 +647,12 @@ export class HudController {
     const col = DRONE_HEX[id] ?? "#e2e8f0";
     const tr = document.createElement("tr");
     if (id === "tabpfn") tr.className = "row-tabpfn";
+    const displayName = DRONE_DISPLAY_NAMES[id] ?? id;
     tr.dataset.droneId = id;
     tr.style.cursor = "pointer";
-    tr.title = `Click to inspect ${id}`;
+    tr.title = `Click to inspect ${displayName}`;
     tr.innerHTML = `
-      <td><span class="drone-name"><span class="swatch" style="background:${col}"></span>${id}<span class="leader-tag" style="display:none">LEAD</span></span></td>
+      <td><span class="drone-name"><span class="swatch" style="background:${col}"></span>${displayName}<span class="leader-tag" style="display:none">LEAD</span></span></td>
       <td><span class="status-pill"></span></td>
       <td></td>
       <td>
@@ -741,6 +775,20 @@ export class HudController {
       sensorReadout.textContent = `Onboard gas: ${gas} · Local wind: ${wind}`;
     }
 
+    const activeDroneIds = new Set(tick.drones.map((d) => d.id));
+    for (const [id, row] of this._scoreRows) {
+      if (!activeDroneIds.has(id)) {
+        row.tr.remove();
+        this._scoreRows.delete(id);
+        this._latestDrones.delete(id);
+      }
+    }
+    if (this.btnCompareDrones?.length) {
+      this._activeComparisonDrones = new Set(
+        tick.drones.map((d) => d.id).filter((id) => id !== "tabpfn")
+      );
+      this._syncCompareButtons();
+    }
     for (const d of tick.drones) {
       this._latestDrones.set(d.id, d);
     }

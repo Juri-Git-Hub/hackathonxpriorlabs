@@ -230,3 +230,61 @@ def test_select_map_broadcasts_new_geometry_before_the_next_mission_tick():
                     break
             else:
                 raise AssertionError(f"No mission tick for {map_id}")
+
+
+def test_set_comparison_drones_toggles_baselines_live():
+    app = create_app(mock_agents=True, layout_seed=42)
+    with TestClient(app) as client, client.websocket_connect("/ws") as ws:
+        ws.receive_text()  # world_init
+        ws.receive_text()  # backend_status
+
+        # Enable all three comparison baselines while in setup mode
+        ws.send_json(
+            {
+                "type": "judge_cmd",
+                "action": "set_comparison_drones",
+                "comparison_drones": ["wind_plume", "gradient", "lawnmower"],
+            }
+        )
+        for _ in range(30):
+            msg = ws.receive_json()
+            if msg["type"] == "sim_tick" and len(msg["drones"]) == 4:
+                ids = {d["id"] for d in msg["drones"]}
+                assert ids == {"tabpfn", "wind_plume", "gradient", "lawnmower"}
+                break
+        else:
+            raise AssertionError("Comparison drones were not activated in sim_tick")
+
+        # Start mission, then toggle down to only gradient + tabpfn live in flight
+        ws.send_json({"type": "judge_cmd", "action": "start_mission"})
+        ws.send_json(
+            {
+                "type": "judge_cmd",
+                "action": "set_comparison_drones",
+                "comparison_drones": ["gradient"],
+            }
+        )
+        for _ in range(40):
+            msg = ws.receive_json()
+            if msg["type"] == "sim_tick" and len(msg["drones"]) == 2:
+                ids = {d["id"] for d in msg["drones"]}
+                assert ids == {"tabpfn", "gradient"}
+                break
+        else:
+            raise AssertionError("Comparison drones were not updated live during flight")
+
+        # Turn off all baselines
+        ws.send_json(
+            {
+                "type": "judge_cmd",
+                "action": "set_comparison_drones",
+                "comparison_drones": [],
+            }
+        )
+        for _ in range(40):
+            msg = ws.receive_json()
+            if msg["type"] == "sim_tick" and len(msg["drones"]) == 1:
+                assert msg["drones"][0]["id"] == "tabpfn"
+                break
+        else:
+            raise AssertionError("Comparison drones were not removed")

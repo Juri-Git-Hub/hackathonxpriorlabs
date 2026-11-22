@@ -1,4 +1,9 @@
-const TRAIL_COLOR = "#22d3ee";
+const DRONE_COLORS = {
+  tabpfn: "#22d3ee",
+  wind_plume: "#a78bfa",
+  gradient: "#fb923c",
+  lawnmower: "#e2e8f0",
+};
 const ESTIMATE_COLOR = "#fbbf24";
 const LEAK_COLOR = "#fb7185";
 
@@ -26,13 +31,14 @@ export class FlightMap {
     this.world = world;
     this.time = -Infinity;
     this.drone = null;
+    this.drones = [];
     this.leaks = [];
-    this.trail = [];
+    this.trails = new Map();
     this.updateBelief(null);
   }
 
   clearTrail() {
-    this.trail = [];
+    this.trails.clear();
     this.draw();
   }
 
@@ -40,13 +46,25 @@ export class FlightMap {
     if (tick.sim_time < this.time) this.setWorld(this.world);
     this.time = tick.sim_time;
     this.leaks = tick.leaks ?? [];
-    this.drone = tick.drones.find((drone) => drone.id === "tabpfn") ?? tick.drones[0];
-    if (this.drone) {
-      const point = this.drone.pos;
-      const last = this.trail.at(-1);
+    this.drones = tick.drones ?? [];
+    this.drone = this.drones.find((drone) => drone.id === "tabpfn") ?? this.drones[0];
+    const activeIds = new Set(this.drones.map((d) => d.id));
+    for (const id of this.trails.keys()) {
+      if (!activeIds.has(id)) this.trails.delete(id);
+    }
+    for (const d of this.drones) {
+      let trail = this.trails.get(d.id);
+      if (!trail) {
+        trail = [];
+        this.trails.set(d.id, trail);
+      }
+      const point = d.pos;
+      const last = trail.at(-1);
       if (!last || Math.hypot(point[0] - last[0], point[1] - last[1]) >= 0.25) {
-        this.trail.push(point);
-        if (this.trail.length > 5000) this.trail = this.trail.filter((_, index) => index % 2 === 0);
+        trail.push(point);
+        if (trail.length > 5000) {
+          this.trails.set(d.id, trail.filter((_, index) => index % 2 === 0));
+        }
       }
     }
     this.draw();
@@ -119,8 +137,10 @@ export class FlightMap {
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.lineWidth = 2;
-    ctx.strokeStyle = TRAIL_COLOR;
-    polyline(ctx, this.trail, project);
+    for (const [id, trail] of this.trails) {
+      ctx.strokeStyle = DRONE_COLORS[id] ?? "#38bdf8";
+      polyline(ctx, trail, project);
+    }
     ctx.strokeStyle = LEAK_COLOR;
     for (const leak of this.leaks) {
       const [x, y] = project(leak.pos);
@@ -128,13 +148,13 @@ export class FlightMap {
       ctx.arc(x, y, 14, 0, Math.PI * 2);
       ctx.stroke();
     }
-    if (this.drone) {
-      const [x, y] = project(this.drone.pos);
+    for (const d of this.drones) {
+      const [x, y] = project(d.pos);
       ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fillStyle = "#e6fbff";
+      ctx.arc(x, y, d.id === "tabpfn" ? 5 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = d.id === "tabpfn" ? "#e6fbff" : (DRONE_COLORS[d.id] ?? "#38bdf8");
       ctx.fill();
-      ctx.strokeStyle = TRAIL_COLOR;
+      ctx.strokeStyle = DRONE_COLORS[d.id] ?? "#38bdf8";
       ctx.stroke();
     }
     if (this.estimate) {

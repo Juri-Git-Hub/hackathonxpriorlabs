@@ -1,6 +1,6 @@
-# Autonomous 3D Industrial Gas-Leak Detection Simulator
+# SeeCH4 — Autonomous 3D Industrial Gas-Leak Detection Simulator
 
-A real-time, physically grounded **3D drone gas-leak detection simulator** for complex industrial facilities. It couples a mass-consistent 3D airflow solver, Lagrangian Gaussian puff dispersion, 6-DOF rigid-body quadrotor dynamics, and realistic chemical/anemometer sensors with an interactive **Three.js** 3D visualization and pluggable autonomous search agents.
+**SeeCH4** is a real-time, physically grounded **3D drone methane (CH₄) leak detection simulator** for complex industrial facilities. It couples a mass-consistent 3D airflow solver, Lagrangian Gaussian puff dispersion, 6-DOF rigid-body quadrotor dynamics, and realistic chemical/anemometer sensors with an interactive **Three.js** 3D visualization and our flagship **SeeCH4 Triple-TabPFN** search agent — plus live side-by-side comparison against classical baseline agents.
 
 ---
 
@@ -12,15 +12,18 @@ A real-time, physically grounded **3D drone gas-leak detection simulator** for c
   - **6-DOF Rigid-Body Quadrotor (`sim/drone.py`):** 160 Hz internal sub-stepping (`8×` per 20 Hz tick), 4-motor ESC lag (`35 ms`), Lee et al. geometric `SE(3)` attitude controller, gyroscopic precession, anisotropic body + blade-flapping drag, Cheeseman–Bennett ground effect, rotor downwash dilution, soft-penalty obstacle contact physics, and a physical power/battery model.
   - **Realistic Sensor Suite (`sim/sensor.py`):** Asymmetric 1st-order chemical rise/decay lag (`τ_rise = 0.6 s`, `τ_decay = 1.8 s`), `1.9 ppm` atmospheric CH₄ baseline, multiplicative noise, slow zero-drift, `5000 ppm` saturation, tilt-coupled ultrasonic anemometer noise, and toggleable 30% `NaN` sensor-fault injection.
   - **Procedural & Preset Industrial Worlds (`sim/world.py`, `sim/layout.py`):** Five industrial facility presets (`refinery`, `pipe_loop`, `tank_terminal`, `compressor_yard`, `cooling_works`) plus deterministic procedural facility generation with orthogonal A*-routed connected pipe networks and guaranteed obstacle/launch-pad clearance.
-- **Interactive 3D Frontend (`frontend/`):**
-  - Built with **Three.js** + **Vite**, streaming live 20 Hz simulation ticks, 3D wind vector fields, plume puffs, drone telemetry, and belief clouds over WebSocket.
-  - Live judge controls: adjust wind speed/angle, click to place or relocate leaks at configurable heights, inject 30% `NaN` sensor dropouts, pause/single-step/reset missions, switch worlds or generate randomized layouts, inspect buildings/pipes/valves/drones, and toggle clean presentation mode (`P`).
-- **Pluggable Autonomous Agents (`agents/`):**
-  - Strict non-blocking async architecture (`AsyncInferenceAgent`) so the 20 Hz physics loop never blocks on inference or 3D A* path planning.
-  - Live simulation runs the **Dual-TabPFN** agent (`agents/tabpfn_agent.py` / `agents/reliable_tabpfn.py`) via either the free Prior Labs TabPFN API or local TabPFN on your own computer.
-  - Also includes offline benchmark baselines: **Wind-Plume** (`agents/wind_plume.py`), **Bio-Inspired Gradient / Surge-Cast** (`agents/gradient.py`), **3D Volumetric Lawnmower** (`agents/lawnmower.py`), and a fast **Mock** agent (`agents/mock_agent.py`) for unit tests.
+- **SeeCH4 Triple-TabPFN Agent (`agents/reliable_tabpfn.py`):**
+  - Runs three specialized **TabPFNRegressor** models asynchronously off the 20 Hz physics loop:
+    1. **Model A (Post-Contact 3D Source Inversion):** 29 pure-physics features ranking 3D source hypotheses after gas contact.
+    2. **Model B (Pre-Contact Spatial Prior):** 12 features combining facility geometry, wind, and clean-air falsification to guide initial 3D downwind catchment.
+    3. **Model C (Online 3D Plume & Hazard Mapper):** Predicts `q10`, `q50`, `q90` in `log1p(ppm)` and 4-second `>10 ppm` hazard fields.
+  - Works out of the box with the **free Prior Labs TabPFN API** (`tabpfn-client`, no GPU needed) or **locally on your own computer** (`tabpfn`, CUDA/MPS/CPU).
+- **Interactive 3D Frontend & Live Agent Comparison (`frontend/`):**
+  - Built with **Three.js** + **Vite**, streaming live 20 Hz ticks, 3D wind vector fields, volumetric plume puffs, drone telemetry, a 2D Flight Map, and live Triple-TabPFN model heatmaps over WebSocket.
+  - **Live Compare Agents:** Toggle **Wind-Plume (Baseline)**, **Gradient (Baseline)**, and **Lawnmower (Baseline)** drones on or off directly in the UI to race them side-by-side against **SeeCH4 (Triple-TabPFN)** in real time.
+  - **Mission Setup & Judge Controls:** Choose worlds or randomize layouts, adjust wind direction/speed, click to place leaks on pipes/valves/ground, inject 30% `NaN` sensor faults, inspect any object, record video, and toggle clean presentation mode (`P`).
 - **Headless Benchmarking & CLI Control (`tools/`):**
-  - Quantitative 10-check physics realism audit (`tools/physics_audit.py`), standardized multi-scenario evaluation (`tools/eval_runner.py`), and a unified CLI (`tools/sim_ctl.py`) for inspecting and steering both headless and live simulations.
+  - Quantitative physics realism audit (`tools/physics_audit.py`), standardized multi-scenario evaluation (`tools/eval_runner.py`), and a unified CLI (`tools/sim_ctl.py`) for inspecting and steering both headless and live simulations.
 
 ---
 
@@ -41,7 +44,7 @@ pip install -r requirements.txt
 
 ### 2. Configure TabPFN (Pick One)
 
-The simulator uses **TabPFN** for live leak localization and automatically detects your backend (`TABPFN_BACKEND=auto`):
+SeeCH4 uses **Triple-TabPFN** for live leak localization and automatically detects your backend (`TABPFN_BACKEND=auto`):
 
 - **Option A — Free Prior Labs TabPFN API (no GPU required):**
   ```bash
@@ -61,15 +64,13 @@ The simulator uses **TabPFN** for live leak localization and automatically detec
   export TABPFN_API_URL=http://127.0.0.1:8001/regress
   ```
 
-### 3. Launch the Interactive 3D Simulation
+### 3. Launch SeeCH4
 
 ```bash
 python launch_demo.py
 ```
 
 `launch_demo.py` installs frontend dependencies if needed, builds `frontend/dist`, verifies your TabPFN backend, and serves the Three.js UI, `/ws`, and `/health` on **http://localhost:8501**.
-
-Choose the scenario in **Situation settings**, then select **Start mission**. Use **Flight map** to compare the trail, estimated source and actual leak, or open **Models** for the search, source and plume heatmaps.
 
 Optional flags:
 
@@ -104,10 +105,10 @@ All cross-module payloads are Pydantic v2 models defined in [shared/schemas.py](
 
 - `WorldInitPayload` (`world_init`) — facility bounds, buildings, storage tanks, equipment assets, connected pipe runs, and 3D candidate grid.
 - `WindFieldPayload` (`wind_field`) — coarse 3D mass-consistent wind velocity grid for flow visualization.
-- `SimTickPayload` (`sim_tick`) — 20 Hz simulation state: drone 6-DOF poses, telemetry, active leaks, Gaussian puffs, live wind vector, pause state, and completion report.
-- `BeliefUpdatePayload` (`belief_update`) — agent source estimate, belief/uncertainty cloud, planned 3D route, and diagnostics.
+- `SimTickPayload` (`sim_tick`) — 20 Hz simulation state: drone 6-DOF poses, telemetry, active leaks, Gaussian puffs, live wind vector, setup/pause state, and completion report.
+- `BeliefUpdatePayload` (`belief_update`) — agent source estimate, Triple-TabPFN heatmaps (`tabpfn_search_map`, `tabpfn_source_map`, `hazard_probabilities`), planned 3D route, and diagnostics.
 - `BackendStatusPayload` (`backend_status`) — agent mode, readiness, mission state, battery, and latency.
-- `JudgeCommand` (`judge_cmd`) — interactive WebSocket commands (`set_wind`, `place_leak`, `clear_leaks`, `toggle_dropout`, `pause`, `step`, `reset_race`, `select_map`, `randomize_layout`).
+- `JudgeCommand` (`judge_cmd`) — interactive WebSocket commands (`start_mission`, `set_wind`, `place_leak`, `clear_leaks`, `toggle_dropout`, `set_comparison_drones`, `pause`, `step`, `reset_race`, `select_map`, `randomize_layout`).
 
 ### Coordinate System
 
@@ -119,19 +120,19 @@ All cross-module payloads are Pydantic v2 models defined in [shared/schemas.py](
 
 ### Decoupled Headless Engine
 
-`sim/` and `agents/` have **zero dependency** on FastAPI, WebSockets, Three.js, or serial hardware. `SimEngine` runs deterministically at a fixed `dt = 0.05 s` (20 Hz) with 10 Hz agent observations (`OBS_INTERVAL = 0.1 s`) and verifies mission completion independently from agent internals: a leak is confirmed when the drone and its fresh source estimate remain within `5.0 m` of a true leak with `> 15 ppm` measured concentration for `2.0 s` continuously.
+`sim/` and `agents/` have **zero dependency** on FastAPI, WebSockets, or Three.js. `SimEngine` runs deterministically at a fixed `dt = 0.05 s` (20 Hz) with 10 Hz agent observations (`OBS_INTERVAL = 0.1 s`) and verifies mission completion independently from agent internals: a leak is confirmed when the drone and its fresh source estimate remain within `5.0 m` of a true leak with `> 15 ppm` measured concentration for `2.0 s` continuously.
 
 ---
 
 ## Autonomous Agents (`agents/`)
 
-| Agent | Module | Description |
-| :--- | :--- | :--- |
-| **Dual-TabPFN** *(live standard)* | [agents/tabpfn_agent.py](agents/tabpfn_agent.py), [agents/reliable_tabpfn.py](agents/reliable_tabpfn.py) | Non-blocking TabPFN spatial localization & plume mapping using pre-contact and post-contact physics contexts (`data/`) via the free Prior Labs TabPFN API, local TabPFN, or a custom HTTP endpoint. |
-| **Wind-Plume** *(baseline)* | [agents/wind_plume.py](agents/wind_plume.py) | Onboard wind-relative downwind transect search with 3D A* routing and upwind/crosswind/vertical localization. |
-| **Gradient / Surge-Cast** *(baseline)* | [agents/gradient.py](agents/gradient.py) | Bio-inspired anemotactic upwind surge and crosswind cast baseline. |
-| **3D Lawnmower** *(baseline)* | [agents/lawnmower.py](agents/lawnmower.py) | Deterministic 3D volumetric serpentine raster sweep baseline. |
-| **Mock Agent** *(tests)* | [agents/mock_agent.py](agents/mock_agent.py) | Sub-millisecond mock belief generator for headless unit tests without ML weights. |
+| Agent | Role | Module | Description |
+| :--- | :--- | :--- | :--- |
+| **SeeCH4 (Triple-TabPFN)** | **Flagship (always active)** | [agents/tabpfn_agent.py](agents/tabpfn_agent.py), [agents/reliable_tabpfn.py](agents/reliable_tabpfn.py) | Three specialized TabPFN regressors (post-contact 3D source inversion, pre-contact spatial prior, online 3D plume/hazard mapper) + obstacle-aware 3D A* navigation. |
+| **Wind-Plume (Baseline)** | Live UI toggle / benchmark | [agents/wind_plume.py](agents/wind_plume.py) | Onboard wind-relative downwind transect search with 3D A* routing and upwind/crosswind/vertical probing. |
+| **Gradient (Baseline)** | Live UI toggle / benchmark | [agents/gradient.py](agents/gradient.py) | Bio-inspired anemotactic upwind surge and crosswind cast baseline. |
+| **Lawnmower (Baseline)** | Live UI toggle / benchmark | [agents/lawnmower.py](agents/lawnmower.py) | Deterministic 3D volumetric serpentine raster sweep baseline. |
+| **Mock Agent** | Unit tests only | [agents/mock_agent.py](agents/mock_agent.py) | Sub-millisecond mock belief generator for headless unit tests without ML weights. |
 
 You can force a specific TabPFN backend at any time with `TABPFN_BACKEND=client|local|http`.
 
@@ -142,7 +143,7 @@ You can force a specific TabPFN backend at any time with `TABPFN_BACKEND=client|
 See [tools/README.md](tools/README.md) for full CLI documentation and JSON output schemas.
 
 ```bash
-# 10-check quantitative physics realism scorecard (exit code 0 on pass)
+# Quantitative physics realism scorecard (exit code 0 on pass)
 python -m tools.physics_audit
 python -m tools.sim_ctl audit --json
 
@@ -168,9 +169,10 @@ python -m tools.sim_ctl live cmd set-wind --angle 90 --speed 5.5
 
 ```text
 .
-├── launch_demo.py              # One-command frontend build + FastAPI server launcher
+├── launch_demo.py              # One-command frontend build + SeeCH4 server launcher
 ├── shared/
-│   └── schemas.py              # Pydantic v2 WebSocket & simulation data contracts
+│   ├── schemas.py              # Pydantic v2 WebSocket & simulation data contracts
+│   └── flight_geometry.py      # Shared 3D flight clearance & collision geometry
 ├── sim/                        # Headless 3D physics engine (zero web/UI dependencies)
 │   ├── world.py                # 120×120×30 m facility geometry, assets, occlusion & grid
 │   ├── layout.py               # Procedural facility layout & orthogonal A* pipe router
@@ -179,16 +181,16 @@ python -m tools.sim_ctl live cmd set-wind --angle 90 --speed 5.5
 │   ├── drone.py                # 6-DOF rigid-body quadrotor dynamics & SE(3) control
 │   ├── sensor.py               # Asymmetric chemical lag, anemometer & fault injection
 │   └── engine.py               # 20 Hz master loop, multi-drone coordinator & judge
-├── agents/                     # Pluggable autonomous search agents & 3D A* navigation
+├── agents/                     # SeeCH4 Triple-TabPFN agent & comparison baselines
 │   ├── base.py                 # BaseAgent ABC & non-blocking AsyncInferenceAgent
-│   ├── wind_plume.py           # Default wind-relative plume tracking agent
-│   ├── search_control.py       # Observation-only 3D plume acquisition controller
-│   ├── navigation.py           # Swept-segment 3D A* planner & RoutedAgent wrapper
-│   ├── tabpfn_agent.py         # TabPFN agent entry point
-│   ├── reliable_tabpfn.py      # Dual-TabPFN spatial localization & mapping policy
+│   ├── tabpfn_agent.py         # SeeCH4 Triple-TabPFN entry point
+│   ├── reliable_tabpfn.py      # Triple-TabPFN spatial localization & mapping policy
 │   ├── tabpfn_features.py      # Physics & spatial feature builders for TabPFN
 │   ├── tabpfn_nav.py           # Fast 3D navigation helper for TabPFN
 │   ├── tabpfn_remote.py        # Unified TabPFN backend (Prior Labs API, local, or HTTP)
+│   ├── wind_plume.py           # Wind-Plume baseline agent
+│   ├── search_control.py       # Observation-only 3D plume acquisition controller
+│   ├── navigation.py           # Swept-segment 3D A* planner & RoutedAgent wrapper
 │   ├── gradient.py             # Bio-inspired surge-cast baseline
 │   ├── lawnmower.py            # 3D volumetric raster sweep baseline
 │   └── mock_agent.py           # Fast mock agent for headless unit tests
@@ -197,9 +199,7 @@ python -m tools.sim_ctl live cmd set-wind --angle 90 --speed 5.5
 ├── frontend/                   # Interactive Three.js + Vite 3D visualization
 ├── tools/                      # Physics realism audit, scenario benchmarks & sim_ctl CLI
 ├── scripts/                    # 3D asset generator, TabPFN dataset builder & benchmarks
-├── hardware/
-│   └── drone_bridge.py         # Optional isolated WebSocket → serial/ESP32 bridge
-├── data/                       # Active TabPFN context datasets
+├── data/                       # Active Triple-TabPFN context datasets
 └── tests/                      # Physics, agent, layout, WebSocket & CLI test suites
 ```
 
@@ -217,13 +217,3 @@ npm --prefix frontend run build
 ```
 
 > **Note:** `tests/test_physics.py::test_headless_engine_speed_over_500_steps_per_sec` is a hardware-dependent throughput benchmark; on slower CPUs you can run the functional suite with `pytest -q -k "not test_headless_engine_speed_over_500_steps_per_sec"`.
-
----
-
-## Optional Hardware Bridge (`hardware/drone_bridge.py`)
-
-An isolated WebSocket client forwards live telemetry (`PPM` and drone status) over serial to an external microcontroller (e.g., ESP32) without ever blocking or affecting the simulation:
-
-```bash
-python hardware/drone_bridge.py --ws-url ws://localhost:8501/ws --port /dev/ttyUSB0
-```

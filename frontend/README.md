@@ -1,6 +1,6 @@
-# Frontend (Three.js + Vite)
+# SeeCH4 Frontend (Three.js + Vite)
 
-Interactive 3D visualization for the Drone Gas Leak Detection simulator.
+Interactive 3D visualization for the **SeeCH4** autonomous industrial gas-leak detection simulator.
 
 ## Running
 

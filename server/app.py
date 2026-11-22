@@ -157,12 +157,12 @@ def create_app(
                 await task
             except asyncio.CancelledError:
                 pass
-            for agent in agents.values():
+            for agent in list(engine.agents.values()):
                 close_fn = getattr(agent, "close", None)
                 if callable(close_fn):
                     close_fn()
 
-    app = FastAPI(title="Drone Gas Leak Detection Server", lifespan=lifespan)
+    app = FastAPI(title="SeeCH4 Simulation Server", lifespan=lifespan)
     app.state.engine = engine
     app.state.mock_agents = mock_agents
 
@@ -289,7 +289,7 @@ def create_app(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Drone Gas Leak Detection WebSocket Server")
+    parser = argparse.ArgumentParser(description="SeeCH4 Simulation WebSocket Server")
     parser.add_argument("--source-pre-data", type=Path, help="Alternate pre-contact TabPFN context.")
     parser.add_argument("--source-post-data", type=Path, help="Alternate post-contact TabPFN context.")
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")

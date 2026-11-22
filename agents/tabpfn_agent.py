@@ -1,6 +1,6 @@
-"""TabPFN leak detection agent interface.
+"""SeeCH4 Triple-TabPFN leak detection agent interface.
 
-Uses `ReliableTabPFNAgent` (Dual-TabPFN regressor + 3D A* navigation) as the
+Uses `ReliableTabPFNAgent` (Triple-TabPFN regressors + 3D A* navigation) as the
 active spatial leak search agent for `tools/eval_runner.py --real-tabpfn` and
 `server/app.py`.
 """
@@ -12,7 +12,7 @@ from agents.tabpfn_features import SOURCE_FEATURE_COLUMNS as FEATURE_COLUMNS
 
 
 class TabPFNAgent(ReliableTabPFNAgent):
-    """Dual-TabPFN agent backed by Prior Labs' TabPFN API, local TabPFN, or HTTP."""
+    """SeeCH4 Triple-TabPFN agent backed by Prior Labs' TabPFN API, local TabPFN, or HTTP."""
 
     def __init__(
         self,

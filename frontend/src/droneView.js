@@ -3,13 +3,15 @@ import { simToThree } from "./coords.js";
 
 const DRONE_COLORS = {
   tabpfn: 0x22d3ee,
+  wind_plume: 0xa78bfa,
   gradient: 0xfb923c,
   lawnmower: 0xe2e8f0,
   manual: 0xa3e635,
 };
 
 const DRONE_LABELS = {
-  tabpfn: "TABPFN",
+  tabpfn: "SEECH4 · TABPFN",
+  wind_plume: "WIND-PLUME",
   gradient: "GRADIENT",
   lawnmower: "LAWNMOWER",
 };
@@ -203,6 +205,7 @@ export class DroneView {
       bodyRig,
       rotors,
       scanMat,
+      hitSphere,
       groundRing,
       dropLine,
       ribbonMesh,
@@ -283,12 +286,23 @@ export class DroneView {
   }
 
   update(droneStates) {
-    const active=new Set(droneStates.map(d=>d.id));
-    for (const [id,entry] of this.drones) {
+    const active = new Set(droneStates.map((d) => d.id));
+    for (const [id, entry] of this.drones) {
       if (!active.has(id)) {
-        this.scene.remove(entry.root,entry.trailLine);
-        entry.root.traverse(obj=>{obj.geometry?.dispose();if(obj.material) obj.material.dispose();});
-        entry.trailLine.geometry.dispose();entry.trailLine.material.dispose();
+        this.scene.remove(entry.root, entry.groundRing, entry.dropLine, entry.ribbonMesh);
+        entry.root.traverse((obj) => {
+          obj.geometry?.dispose();
+          if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
+          else obj.material?.dispose();
+        });
+        entry.groundRing.geometry.dispose();
+        entry.groundRing.material.dispose();
+        entry.dropLine.geometry.dispose();
+        entry.dropLine.material.dispose();
+        entry.ribbonMesh.geometry.dispose();
+        entry.ribbonMesh.material.dispose();
+        const hitIdx = this.interactiveObjects.indexOf(entry.hitSphere);
+        if (hitIdx !== -1) this.interactiveObjects.splice(hitIdx, 1);
         this.drones.delete(id);
       }
     }

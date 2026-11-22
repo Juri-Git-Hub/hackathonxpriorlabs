@@ -41,15 +41,18 @@ class AgentProtocol(Protocol):
 
 DEFAULT_START_POSITIONS: dict[str, Vec3] = {
     "tabpfn": (-48.0, -45.0, 5.0),
+    "wind_plume": (-48.0, -42.5, 5.0),
     "gradient": (-48.0, -40.0, 5.0),
     "lawnmower": (-48.0, -35.0, 5.0),
 }
+
+COMPARISON_DRONE_IDS = ("wind_plume", "gradient", "lawnmower")
 
 
 class SimEngine:
     """Headless 20 Hz physics engine & multi-drone race coordinator.
 
-    Has zero dependency on FastAPI, WebSockets, Three.js, or serial hardware.
+    Has zero dependency on FastAPI, WebSockets, or Three.js.
     """
 
     DT: float = 0.05  # 20 Hz fixed physics step
@@ -181,9 +184,69 @@ class SimEngine:
         self.plume = Plume(world, self.airflow, seed=self._seed + 100)
         self.reset_race()
 
+    def _build_comparison_agent(self, drone_id: str) -> AgentProtocol:
+        if drone_id == "wind_plume":
+            from agents.wind_plume import WindPlumeAgent
+
+            return WindPlumeAgent(drone_id="wind_plume")
+        if drone_id == "gradient":
+            from agents.gradient import GradientAgent
+
+            return GradientAgent(drone_id="gradient")
+        if drone_id == "lawnmower":
+            from agents.lawnmower import LawnmowerAgent
+
+            return LawnmowerAgent(drone_id="lawnmower")
+        raise ValueError(f"Unknown comparison drone: {drone_id}")
+
+    def set_comparison_drones(self, drone_ids: list[str]) -> None:
+        """Enable or disable live baseline comparison drones without disrupting SeeCH4."""
+        desired = [d for d in COMPARISON_DRONE_IDS if d in set(drone_ids)]
+        with self._lock:
+            sensor_options = (
+                {"tau_rise": 0.2, "tau_decay": 0.55, "noise_std_frac": 0.04}
+                if self.responsive_sensor
+                else {}
+            )
+            world_init = self.world.to_world_init()
+
+            # Remove deactivated comparison drones
+            for drone_id in list(self.agents):
+                if drone_id in COMPARISON_DRONE_IDS and drone_id not in desired:
+                    agent = self.agents.pop(drone_id)
+                    close_fn = getattr(agent, "close", None)
+                    if callable(close_fn):
+                        close_fn()
+                    self.drones.pop(drone_id, None)
+                    self.sensors.pop(drone_id, None)
+                    self._lock_timers.pop(drone_id, None)
+                    self._best_estimate.pop(drone_id, None)
+                    self._measured_wind.pop(drone_id, None)
+                    self._latest_agent_beliefs.pop(drone_id, None)
+
+            # Add newly enabled comparison drones
+            for idx, drone_id in enumerate(desired, start=1):
+                if drone_id in self.agents:
+                    continue
+                agent = self._build_comparison_agent(drone_id)
+                agent.reset(world_init)
+                start = DEFAULT_START_POSITIONS[drone_id]
+                drone = Drone(drone_id, start)
+                self.agents[drone_id] = agent
+                self.drones[drone_id] = drone
+                self.sensors[drone_id] = GasSensor(seed=self._seed + 200 + idx, **sensor_options)
+                self._lock_timers[drone_id] = 0.0
+                self._best_estimate[drone_id] = (0.0, drone.pos_tuple)
+
+            self._drone_items = list(self.drones.items())
+            self._drone_pos_buf = np.zeros((len(self._drone_items), 3), dtype=np.float64)
+
     def apply_command(self, cmd: JudgeCommand) -> None:
         """Apply a JudgeCommand thread-safely."""
         with self._lock:
+            if cmd.action == "set_comparison_drones":
+                self.set_comparison_drones(list(cmd.comparison_drones or []))
+                return
             if cmd.action == "start_mission":
                 if self.setup_mode:
                     if self._setup_plume_dirty:

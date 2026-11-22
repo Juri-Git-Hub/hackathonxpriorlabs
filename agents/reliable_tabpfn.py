@@ -1,11 +1,12 @@
-"""Triple-TabPFN active 3D spatial gas-leak search and localization agent (v4).
+"""SeeCH4 Triple-TabPFN active 3D spatial gas-leak search and localization agent.
 
-Uses three specialized TabPFN configurations hosted on the RTX 4090 server:
-1. Model A (`reliable_source_post_v4`, KV-cached): Pure-physics 3D source proximity
+Uses three specialized TabPFNRegressor configurations (via Prior Labs' TabPFN API,
+local TabPFN, or a custom HTTP endpoint):
+1. Model A (`reliable_source_post_warm30_v1`, cached): Pure-physics 3D source proximity
    inversion (29 features; zero asset/pipe or min_obs_dist shortcuts).
-2. Model B (`reliable_source_pre_v4`, KV-cached): Pre-contact spatial prior &
+2. Model B (`reliable_source_pre_v4`, cached): Pre-contact spatial prior &
    clean-air falsification (12 features) driving full-3D downwind catchment.
-3. Model C (online + coordinate-masked prior, uncached): 3D plume & hazard
+3. Model C (online + coordinate-masked prior): 3D plume & hazard
    field predictor (`q10`, `q50`, `q90` in `log1p(ppm)`).
 """
 
