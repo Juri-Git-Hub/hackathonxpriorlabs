@@ -100,7 +100,7 @@ _ASSET_TYPE_MAP: dict[str, str] = {
     "pipe_junction": "flange",
 }
 
-_BASELINE_PPM = 0.50
+_BASELINE_PPM = 1.90
 _TAU_RISE_S = 0.60
 _TAU_DECAY_S = 1.80
 _PLUME_AMP_SCALE = 5000.0

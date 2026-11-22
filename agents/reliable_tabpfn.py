@@ -220,6 +220,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         self._post_x = x_tr
         self._post_y = y_tr
         self._post_hash = hashlib.sha256(sig).hexdigest()
+        if self.source_post_data_path.resolve() != DEFAULT_SOURCE_POST_DATA.resolve():
+            self.POST_CACHE_KEY = f"reliable_source_post_{self._post_hash[:12]}"
         self._post_loaded = True
 
     def _ensure_pre_data(self) -> None:
@@ -231,6 +233,8 @@ class ReliableTabPFNAgent(AsyncInferenceAgent):
         self._pre_x = x_tr
         self._pre_y = y_tr
         self._pre_hash = hashlib.sha256(sig).hexdigest()
+        if self.source_pre_data_path.resolve() != DEFAULT_SOURCE_PRE_DATA.resolve():
+            self.PRE_CACHE_KEY = f"reliable_source_pre_{self._pre_hash[:12]}"
         self._pre_loaded = True
 
     def _ensure_plume_data(self) -> bool:

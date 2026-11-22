@@ -397,9 +397,7 @@ def _simulate_post_episode(ep_idx: int, seed: int, calibrated_rates: bool = Fals
 
             wind_now = collector.obs_history.current_wind
             cands, _ = build_post_source_candidates(fac, samples, wind_now, prev_estimate=prev_est, max_candidates=950)
-            feat_rows = build_post_source_feature_rows(
-                fac, cands, samples, wind_now, calibrated_physics=calibrated_physics,
-            )
+            feat_rows = build_post_source_feature_rows(fac, cands, samples, wind_now)
             hits = [r for r in samples if (not r.is_clean and r.ppm_inst >= 2.0) or r.ppm_raw >= 3.5]
 
             # In multi-leak episodes, only label leak(s) with observable gas contact
@@ -707,6 +705,8 @@ def main() -> int:
     parser.add_argument("--pre-out", type=Path, default=Path("data/tabpfn_source_pre_v4.json.gz"))
     parser.add_argument("--plume-out", type=Path, default=Path("data/tabpfn_plume_prior.json"))
     args = parser.parse_args()
+    if args.calibrated_physics:
+        parser.error("--calibrated-physics is unavailable with the restored tagged features")
 
     post_payload = generate_post_dataset(
         episodes=args.episodes,

@@ -163,3 +163,13 @@ def test_contact_requires_repeated_weak_readings():
         assert agent._has_recent_contact()
     finally:
         agent.close()
+
+
+def test_feature_history_recognizes_current_clean_air_baseline():
+    from agents.tabpfn_features import ObservationHistory
+
+    history = ObservationHistory()
+    reading = _make_obs('tabpfn', 1.0).model_copy(update={'ppm_measured': 1.9})
+    processed = history.append(reading)
+    assert processed.is_clean
+    assert processed.ppm_inst == 0.0
