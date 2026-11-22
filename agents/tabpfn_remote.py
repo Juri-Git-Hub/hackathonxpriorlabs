@@ -16,18 +16,115 @@ In ``auto`` mode, the backend is chosen in order:
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import importlib.util
 import json
 import math
 import os
+import socket
+import subprocess
 import threading
 import time
 from typing import Any, Sequence
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 import numpy as np
+
+from tunnel import resolve_ssh_target
+
+DEFAULT_API_URL = "http://127.0.0.1:18001/regress"
+DEFAULT_SSH_HOST = "viewer"
+DEFAULT_REMOTE_PORT = 8001
+
+_tunnel_proc: subprocess.Popen[str] | None = None
+_tunnel_lock = threading.Lock()
+
+
+def _port_listening(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=0.3):
+            return True
+    except OSError:
+        return False
+
+
+def _cleanup_tunnel() -> None:
+    global _tunnel_proc
+    if _tunnel_proc is not None and _tunnel_proc.poll() is None:
+        _tunnel_proc.terminate()
+        try:
+            _tunnel_proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            _tunnel_proc.kill()
+            _tunnel_proc.wait()
+    _tunnel_proc = None
+
+
+atexit.register(_cleanup_tunnel)
+
+
+def ensure_tunnel(url: str = DEFAULT_API_URL) -> None:
+    """Ensure local SSH port forward to a remote TabPFNRegressor service is open."""
+    global _tunnel_proc
+    parsed = urlparse(url)
+    if parsed.hostname not in ("localhost", "127.0.0.1"):
+        return
+    if os.environ.get("TABPFN_AUTO_TUNNEL", "1") == "0":
+        return
+
+    local_port = parsed.port or 18001
+    with _tunnel_lock:
+        if _port_listening("127.0.0.1", local_port):
+            return
+        if _tunnel_proc is not None and _tunnel_proc.poll() is None:
+            _cleanup_tunnel()
+
+        ssh_host = os.environ.get("TABPFN_SSH_HOST", DEFAULT_SSH_HOST)
+        remote_port = int(os.environ.get("TABPFN_REMOTE_PORT", str(DEFAULT_REMOTE_PORT)))
+        extra_args, target = resolve_ssh_target(ssh_host)
+        cmd = [
+            "ssh",
+            "-N",
+            "-T",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ExitOnForwardFailure=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "ServerAliveInterval=30",
+            "-o",
+            "ServerAliveCountMax=3",
+            *extra_args,
+            "-L",
+            f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}",
+            target,
+        ]
+        _tunnel_proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        deadline = time.monotonic() + 12.0
+        while time.monotonic() < deadline:
+            if _tunnel_proc.poll() is not None:
+                err = (_tunnel_proc.stderr.read() if _tunnel_proc.stderr else "").strip()
+                _cleanup_tunnel()
+                raise RuntimeError(f"SSH tunnel to {ssh_host}:{remote_port} failed: {err}")
+            if _port_listening("127.0.0.1", local_port):
+                return
+            time.sleep(0.1)
+
+        _cleanup_tunnel()
+        raise RuntimeError(
+            f"SSH tunnel to {ssh_host}:{remote_port} did not open port {local_port} within 12s"
+        )
 
 _INSTALL_HELP = (
     "No TabPFN backend is available. Choose one of:\n"
@@ -46,15 +143,16 @@ def resolve_backend(api_url: str | None = None, backend: str | None = None) -> s
     """Determine which TabPFN backend to use: 'client', 'local', or 'http'."""
     chosen = (backend or os.environ.get("TABPFN_BACKEND", "auto")).strip().lower()
     explicit_url = api_url or os.environ.get("TABPFN_API_URL")
+    explicit_ssh = bool(os.environ.get("TABPFN_SSH_HOST"))
+    if chosen == "ssh":
+        return "http"
     if chosen in ("client", "local", "http"):
-        if chosen == "http" and not explicit_url:
-            raise RuntimeError("TABPFN_BACKEND=http requires TABPFN_API_URL to be set.")
         return chosen
     if chosen != "auto":
         raise RuntimeError(
-            f"Unknown TABPFN_BACKEND={chosen!r}. Expected 'auto', 'client', 'local', or 'http'."
+            f"Unknown TABPFN_BACKEND={chosen!r}. Expected 'auto', 'client', 'local', 'http', or 'ssh'."
         )
-    if explicit_url:
+    if explicit_url or explicit_ssh:
         return "http"
     if importlib.util.find_spec("tabpfn_client") is not None:
         return "client"
@@ -67,7 +165,8 @@ def check_tabpfn_backend(api_url: str | None = None) -> str:
     """Validate that a TabPFN backend is configured and return a status summary."""
     backend = resolve_backend(api_url=api_url)
     if backend == "http":
-        url = api_url or os.environ["TABPFN_API_URL"]
+        url = api_url or os.environ.get("TABPFN_API_URL") or DEFAULT_API_URL
+        ensure_tunnel(url)
         health_url = url.rsplit("/", 1)[0] + "/health"
         with urlopen(health_url, timeout=15) as resp:
             return f"http ({url}): {resp.read().decode().strip()}"
@@ -146,6 +245,8 @@ class RemoteTabPFNRegressor:
     ) -> None:
         self.api_url = api_url or os.environ.get("TABPFN_API_URL")
         self.backend = resolve_backend(api_url=self.api_url, backend=backend)
+        if self.backend == "http" and not self.api_url:
+            self.api_url = DEFAULT_API_URL
         self.n_estimators = max(1, min(8, int(n_estimators)))
         self.timeout_s = float(timeout_s)
         self.last_elapsed_s: float = 0.0
@@ -158,6 +259,7 @@ class RemoteTabPFNRegressor:
     def health(self) -> dict[str, Any]:
         if self.backend == "http":
             assert self.api_url is not None
+            ensure_tunnel(self.api_url)
             health_url = self.api_url.rsplit("/", 1)[0] + "/health"
             req = Request(health_url, method="GET")
             with urlopen(req, timeout=5.0) as resp:
@@ -242,6 +344,7 @@ class RemoteTabPFNRegressor:
         return_mean: bool = False,
     ) -> dict[str, Any]:
         assert self.api_url is not None
+        ensure_tunnel(self.api_url)
         safe_x_test = [[_json_safe_cell(c) for c in row] for row in x_test_rows]
         payload: dict[str, Any] = {
             "columns": list(columns),
